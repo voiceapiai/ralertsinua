@@ -1,9 +1,11 @@
+use ratatui::{
+    style::Color,
+    widgets::canvas::{Painter, Shape},
+};
+use serde::*;
 use std::error::Error;
 use std::io;
 use std::process;
-
-use serde::Deserialize;
-use serde::Serialize;
 
 /// Application result type.
 pub type AppResult<T> = std::result::Result<T, Box<dyn Error>>;
@@ -12,6 +14,36 @@ pub type AppResult<T> = std::result::Result<T, Box<dyn Error>>;
 pub struct Record {
     pub id: String,
     pub name: String,
+}
+
+/// Shape to draw a world map with the given color
+#[derive(Debug, Clone, PartialEq)]
+pub struct Ukraine {
+    pub data: [(f64, f64); 2],
+    pub color: Color,
+}
+
+impl Default for Ukraine {
+    fn default() -> Self {
+        let data = [
+            (-92.32, 48.24),
+            (-88.13, 48.92),
+        ];
+        Self {
+            data,
+            color: Color::Yellow
+        }
+    }
+}
+
+impl Shape for Ukraine {
+    fn draw(&self, painter: &mut Painter) {
+        for (x, y) in self.data {
+            if let Some((x, y)) = painter.get_point(x, y) {
+                painter.paint(x, y, self.color);
+            }
+        }
+    }
 }
 
 /// Application.
@@ -67,7 +99,7 @@ impl App {
     }
 
     pub fn read_csv_file(file_path: Option<&str>) -> Result<Vec<Record>, Box<dyn Error>> {
-        let file_path = file_path.unwrap_or("ukraine.csv");
+        let file_path = file_path.unwrap_or("data/ukraine.csv");
         use csv::ReaderBuilder;
 
         let mut records = vec![];

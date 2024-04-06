@@ -616,3 +616,28 @@ curl https://api.alerts.in.ua/v1/regions/16/alerts/month_ago.json?token=YOUR_APP
     "calculated": false
   }
 ```
+
+## Notes
+
+### Country Boundaries
+
+- https://www.openstreetmap.org/relation/60199#map=6/48.447/31.182
+- https://osm-boundaries.com/Download/Submit?apiKey=c37e46a9dae1267a7886c406081d01d6&db=osm20240205&osmIds=-60199&recursive&minAdminLevel=2&maxAdminLevel=2&format=EWKT&srid=4326&landOnly&simplify=100
+- https://gis.stackexchange.com/a/221456
+  ```
+  http://nominatim.openstreetmap.org/search?country=Ukraine&polygon_geojson=1&format=json
+  http://nominatim.openstreetmap.org/search?country=Ukraine&polygon_kml=1&format=json
+  ```
+- https://osmand.net/docs/technical/map-creation/creating-a-country-polygon/
+- https://stackoverflow.com/questions/64448089/extract-all-polygons-states-of-a-country
+  ```
+    [out:json][timeout:25];
+    {{geocodeArea:Ukraine}}->.searchArea;
+    (
+      relation["boundary"="administrative"]["admin_level"="2"](area.searchArea);
+    );
+    out body;
+    >;
+    out skel qt;
+  ```
+- `"boundingbox":["44.1845980","52.3797464","22.1370590","40.2278093"]`

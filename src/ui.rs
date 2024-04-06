@@ -6,7 +6,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::App;
+use crate::app::{App, Ukraine};
 
 /// Renders the user interface widgets.
 pub fn render(app: &mut App, frame: &mut Frame) {
@@ -37,9 +37,9 @@ pub fn render(app: &mut App, frame: &mut Frame) {
             .block(Block::default().borders(Borders::ALL).title("World"))
             .marker(Marker::Braille)
             .paint(|ctx| {
-                ctx.draw(&Map {
+                ctx.draw(&Ukraine {
                     color: Color::Green,
-                    resolution: MapResolution::High,
+                    data: Ukraine::default().data,
                 });
                 ctx.print(10.0, 10.0, "You are here".yellow());
             })
