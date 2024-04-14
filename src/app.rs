@@ -1,80 +1,32 @@
-use ratatui::{
-    style::Color,
-    widgets::canvas::{Painter, Shape},
+// use anyhow::{Context, Result};
+use geo::{Coord, CoordsIter, Geometry};
+// use geozero::{csv::*, error::*, wkt::*};
+use crate::ukraine::*;
+use std::{
+    convert::TryInto, error::Error, fmt::Debug, fs::File, io::Read, process, result::Result, vec,
 };
-use serde::*;
-use std::error::Error;
-use std::io;
-use std::process;
+use wkt::Wkt;
 
 /// Application result type.
 pub type AppResult<T> = std::result::Result<T, Box<dyn Error>>;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Record {
-    pub id: String,
-    pub name: String,
-}
-
-/// Shape to draw a world map with the given color
-#[derive(Debug, Clone, PartialEq)]
-pub struct Ukraine {
-    pub data: [(f64, f64); 2],
-    pub color: Color,
-}
-
-impl Default for Ukraine {
-    fn default() -> Self {
-        let data = [
-            (-92.32, 48.24),
-            (-88.13, 48.92),
-        ];
-        Self {
-            data,
-            color: Color::Yellow
-        }
-    }
-}
-
-impl Shape for Ukraine {
-    fn draw(&self, painter: &mut Painter) {
-        for (x, y) in self.data {
-            if let Some((x, y)) = painter.get_point(x, y) {
-                painter.paint(x, y, self.color);
-            }
-        }
-    }
-}
-
 /// Application.
 #[derive(Debug)]
 pub struct App {
-    /// Is the application running?
     pub running: bool,
-    /// counter
     pub counter: u8,
-
-    pub records: Vec<Record>,
-}
-
-impl Default for App {
-    fn default() -> Self {
-        Self {
-            running: true,
-            counter: 0,
-            records: vec![],
-        }
-    }
+    pub ukraine: Ukraine,
 }
 
 impl App {
     /// Constructs a new instance of [`App`].
     pub fn new() -> Self {
-        let records = Self::read_csv_file(None).expect("Failed to read CSV");
+        let regions = Self::read_csv_file(None).expect("Failed to read CSV");
+        let borders = Self::read_wkt_file(None).expect("Failed to read WKT");
         Self {
             running: true,
             counter: 0,
-            records,
+            ukraine: Ukraine::new(borders, regions, None),
         }
     }
 
@@ -98,16 +50,16 @@ impl App {
         }
     }
 
-    pub fn read_csv_file(file_path: Option<&str>) -> Result<Vec<Record>, Box<dyn Error>> {
+    pub fn read_csv_file(file_path: Option<&str>) -> Result<Vec<Region>, Box<dyn Error>> {
         let file_path = file_path.unwrap_or("data/ukraine.csv");
         use csv::ReaderBuilder;
 
         let mut records = vec![];
-        let file = std::fs::File::open(file_path)?;
+        let file = File::open(file_path)?;
         let mut rdr = ReaderBuilder::new().has_headers(true).from_reader(file);
 
         for result in rdr.deserialize() {
-            let record: Record = match result {
+            let record: Region = match result {
                 Ok(r) => r,
                 Err(e) => {
                     eprintln!("Error reading CSV file: {}", e);
@@ -116,6 +68,29 @@ impl App {
             };
             records.push(record);
         }
+
+        Ok(records)
+    }
+
+    pub fn read_wkt_file(file_path: Option<&str>) -> Result<Vec<Coord>, Box<dyn Error>> {
+        use std::str::FromStr;
+        let file_path = file_path.unwrap_or("data/ukraine.wkt");
+        let mut file = File::open(file_path)?;
+        let mut wkt_string = String::new();
+        file.read_to_string(&mut wkt_string)?;
+
+        let geom: Geometry = Wkt::from_str(&wkt_string).unwrap().item.try_into().unwrap();
+
+        let records: Vec<Coord> = match geom {
+            Geometry::Polygon(polygon) => polygon
+                .coords_iter()
+                .map(|c| Coord {
+                    x: format!("{:.2}", c.x).parse().unwrap(),
+                    y: format!("{:.2}", c.y).parse().unwrap(),
+                })
+                .collect(),
+            _ => panic!("Not a polygon"),
+        };
 
         Ok(records)
     }

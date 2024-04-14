@@ -1,4 +1,12 @@
-# Alerts.in.ua API Docs
+# alertsinua-cli
+
+## Info
+
+TUI (terminal user interface) for alerts.in.ua, implementing in Rust using [ratatui](https://ratatui.rs/)
+
+![screenshot](screenshot.png)
+
+## Alerts.in.ua API Docs
 
 ### Загальні відомості
 
@@ -641,3 +649,7 @@ curl https://api.alerts.in.ua/v1/regions/16/alerts/month_ago.json?token=YOUR_APP
     out skel qt;
   ```
 - `"boundingbox":["44.1845980","52.3797464","22.1370590","40.2278093"]`
+- common:
+  - https://www.gaia-gis.it/gaia-sins/spatialite-cookbook/html/wkt-wkb.html
+  - https://en.wikipedia.org/wiki/Simple_Features
+  - https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry
