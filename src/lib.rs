@@ -1,3 +1,6 @@
+/// Data.
+pub mod data;
+
 /// Application.
 pub mod app;
 

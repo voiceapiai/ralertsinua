@@ -6,23 +6,30 @@ use ratatui::{
 };
 use serde::*;
 use std::fmt::Debug;
+
+// use std::sync::Arc;
 // use geo::algorithm::bounding_rect::BoundingRect;
 // use geo::algorithm::simplify_vw::SimplifyVw;
 
-/// Ukraine bounding box as 2 longitude and 2 latitude
-/// [44.18, 52.25, 22.08, 40.13]
-/// Територія України розташована між 44° 23' і 52° 25' північної широти та між 22° 08' і 40° 13' східної довготи
-const BOUNDINGBOX: [f64; 4] = [44.18, 52.25, 22.08, 40.13];
-/// Ukraine center Центр України знаходиться в точці з географічними координатами 49° 01' північної широти і 31° 02' східної довготи. Ця точка розміщена за 2 км на захід від м. Ватутіного у Черкаській області – с. Мар'янівка. За іншою версією – с. Добровеличківка Кіровоградської області.
-const CENTER: [f64; 2] = [49.01, 31.02];
+/// Ukraine bounding box coords tuple - (min_x, min_y), (max_x, max_y)
+///
+/// <em>Територія України розташована між 44°23' і 52°25' північної широти та між 22°08' і 40°13' східної довготи</em>
+const BOUNDINGBOX: [(f64, f64); 2] = [(22.08, 44.23), (40.13, 52.25)];
+/// Ukraine center
+///
+/// <em>Центр України знаходиться в точці з географічними координатами 49°01' північної широти і 31°02' східної довготи. Ця точка розміщена за 2 км на захід від м. Ватутіного у Черкаській області – с. Мар'янівка. За іншою версією – с. Добровеличківка Кіровоградської області.</em>
+#[allow(dead_code)]
+const CENTER: (f64, f64) = (49.01, 31.02);
 
 const PADDING: f64 = 0.5;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Region {
-    pub id: String,
-    pub name: String,
-    // pub geo: Geometry,
+    #[serde(deserialize_with = "as_i32")]
+    pub id: i32,
+    pub geo: String,     // Arc<str>,
+    pub name: String,    // Arc<str>,
+    pub name_en: String, // Arc<str>,
 }
 
 #[derive(Debug)]
@@ -37,13 +44,13 @@ pub struct Ukraine {
 
 impl Ukraine {
     pub fn new(borders: Vec<Coord>, regions: Vec<Region>, color: Option<Color>) -> Self {
-        let boundingbox: BoundingBox = BoundingBox::new((22.08, 44.23), (40.13, 52.25));
+        let boundingbox: BoundingBox = BoundingBox::new(BOUNDINGBOX[0], BOUNDINGBOX[1]);
         Self {
             borders,
             regions,
             color: color.unwrap_or(Color::Yellow),
             boundingbox,
-            center: boundingbox.center(),
+            center: Coord::from(CENTER),
             rect: Rect::default(),
         }
     }
@@ -86,6 +93,7 @@ impl Ukraine {
 }
 
 impl Shape for Ukraine {
+    /// Implement the Shape trait for Ukraine to draw map borders on canvas
     fn draw(&self, painter: &mut Painter) {
         self.borders().for_each(|&coord| {
             if let Some((x, y)) = painter.get_point(coord.x, coord.y) {
@@ -93,4 +101,12 @@ impl Shape for Ukraine {
             }
         })
     }
+}
+
+fn as_i32<'de, D>(deserializer: D) -> Result<i32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    s.parse::<i32>().map_err(serde::de::Error::custom)
 }
