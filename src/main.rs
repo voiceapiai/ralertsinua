@@ -1,8 +1,8 @@
-use alertsinua_tui::app::{App, AppResult};
-use alertsinua_tui::data::DataRepository;
+use alertsinua_tui::app::App;
+use alertsinua_tui::data::*;
 use alertsinua_tui::event::{Event, EventHandler};
 use alertsinua_tui::handler::handle_key_events;
-use alertsinua_tui::tui::Tui;
+use alertsinua_tui::tui::{Tui, TuiResult};
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use std::io;
@@ -10,7 +10,7 @@ use tracing::{info, Level};
 use tracing_subscriber;
 
 #[tokio::main]
-async fn main() -> AppResult<()> {
+async fn main() -> TuiResult<()> {
     let file_appender = tracing_appender::rolling::daily("tmp", "app.log");
     let (non_blocking_appender, _guard) = tracing_appender::non_blocking(file_appender);
     tracing_subscriber::fmt()
@@ -20,13 +20,13 @@ async fn main() -> AppResult<()> {
         .with_target(false)
         .with_level(true)
         .with_file(true)
-        .finish();
+        .init();
 
-    let pool = DataRepository::create_pool().await;
+    let pool = db_pool().await;
     let data_repository = DataRepository::new(pool);
     let mut app = App::new(data_repository);
     app.init().await?;
-    info!("App initialized");
+    info!("App initialized with LogLevel={}", Level::INFO);
 
     // Initialize the terminal user interface.
     let backend = CrosstermBackend::new(io::stderr());

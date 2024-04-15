@@ -62,12 +62,15 @@ impl Ukraine {
         self.regions.iter()
     }
 
+    #[inline]
     pub fn x_bounds(&self) -> [f64; 2] {
         [
             self.boundingbox.min().x - PADDING,
             self.boundingbox.max().x + PADDING,
         ]
     }
+
+    #[inline]
     pub fn y_bounds(&self) -> [f64; 2] {
         [
             self.boundingbox.min().y - PADDING,
@@ -76,6 +79,7 @@ impl Ukraine {
     }
 
     /// Store size of the terminal rect
+    #[inline]
     pub fn set_size(&mut self, rect: Rect) {
         self.rect = rect;
     }
@@ -83,6 +87,7 @@ impl Ukraine {
     /// number of rows and columns of the grid. For example, a grid of Braille patterns will have a
     /// resolution of 2x4 dots per cell. This means that a grid of 10x10 cells will have a
     /// resolution of 20x40 dots
+    #[inline]
     pub fn resolution(&self) -> (f64, f64) {
         (
             f64::from(self.rect.width) * 2.0,
@@ -94,6 +99,7 @@ impl Ukraine {
 impl Shape for Ukraine {
     /// Implement the Shape trait for Ukraine to draw map borders on canvas
     #[tracing::instrument(level = "trace")]
+    #[inline]
     fn draw(&self, painter: &mut Painter) {
         self.borders().for_each(|&coord| {
             if let Some((x, y)) = painter.get_point(coord.x, coord.y) {

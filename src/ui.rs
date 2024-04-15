@@ -12,9 +12,9 @@ use crate::app::App;
 pub fn render(app: &mut App, frame: &mut Frame) {
     let horizontal = Layout::horizontal([Constraint::Percentage(75), Constraint::Percentage(25)]);
     let [left, right] = horizontal.areas(frame.size());
-    app.ukraine.set_size(left);
+    // app.ukraine().set_size(left); // TODO: fix "cannot borrow as mutable" if set_size is still needed
     let regions: Vec<ListItem> = app
-        .ukraine
+        .ukraine()
         .regions()
         .map(|r| ListItem::new(format!("{} - {}", r.id, r.name)))
         .collect();
@@ -37,10 +37,10 @@ pub fn render(app: &mut App, frame: &mut Frame) {
                 .title_alignment(Alignment::Center),
         )
         .marker(Marker::Braille)
-        .x_bounds(app.ukraine.x_bounds())
-        .y_bounds(app.ukraine.y_bounds())
+        .x_bounds(app.ukraine().x_bounds())
+        .y_bounds(app.ukraine().y_bounds())
         .paint(|ctx| {
-            ctx.draw(&app.ukraine);
+            ctx.draw(app.ukraine());
         })
         .background_color(Color::Reset);
 

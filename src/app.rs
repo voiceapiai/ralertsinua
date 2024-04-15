@@ -1,34 +1,38 @@
 use crate::data::DataRepository;
 use crate::ukraine::Ukraine;
-use std::{error::Error, fmt::Debug};
-
-/// Application result type.
-pub type AppResult<T> = std::result::Result<T, Box<dyn Error>>;
+use anyhow::*;
+use std::{fmt::Debug, sync::Arc};
 
 /// Application.
 #[derive(Debug)]
 pub struct App {
     pub running: bool,
     pub counter: u8,
-    pub ukraine: Ukraine,
+    ukraine: Arc<Ukraine>,
     data_repository: DataRepository,
 }
 
 impl App {
     /// Constructs a new instance of [`App`].
     pub fn new(data_repository: DataRepository) -> Self {
+        let ukraine = Ukraine::new(vec![], vec![], None);
         Self {
             running: true,
             counter: 0,
-            ukraine: Ukraine::new(vec![], vec![], None),
+            ukraine: Arc::new(ukraine),
             data_repository,
         }
     }
     /// Initialize app data
-    pub async fn init(&mut self) -> AppResult<()> {
+    pub async fn init(&mut self) -> Result<()> {
         use crate::data::MapRepository;
-        self.ukraine = self.data_repository.get_data().await?;
+        let ukraine = self.data_repository.get_data().await?;
+        self.ukraine = Arc::new(ukraine);
         Ok(())
+    }
+
+    pub fn ukraine(&self) -> &Ukraine {
+        self.ukraine.as_ref()
     }
 
     /// Handles the tick event of the terminal.
