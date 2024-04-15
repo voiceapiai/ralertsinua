@@ -25,7 +25,6 @@ const PADDING: f64 = 0.5;
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Region {
-    #[serde(deserialize_with = "as_i32")]
     pub id: i32,
     pub geo: String,     // Arc<str>,
     pub name: String,    // Arc<str>,
@@ -94,19 +93,16 @@ impl Ukraine {
 
 impl Shape for Ukraine {
     /// Implement the Shape trait for Ukraine to draw map borders on canvas
+    #[tracing::instrument(level = "trace")]
     fn draw(&self, painter: &mut Painter) {
         self.borders().for_each(|&coord| {
             if let Some((x, y)) = painter.get_point(coord.x, coord.y) {
                 painter.paint(x, y, self.color);
             }
-        })
+        });
+        // TODO: mark center - not working
+        if let Some((cx, cy)) = painter.get_point(self.center.x, self.center.y) {
+            painter.paint(cx, cy, self.color);
+        }
     }
-}
-
-fn as_i32<'de, D>(deserializer: D) -> Result<i32, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-    s.parse::<i32>().map_err(serde::de::Error::custom)
 }

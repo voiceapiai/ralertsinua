@@ -1,16 +1,13 @@
 /// This module contains the implementation of the `DataRepository` struct and the `MapRepository` trait.
 /// The `DataRepository` struct provides methods for interacting with a SQLite database and fetching data related to Ukraine.
 /// The `MapRepository` trait defines the `get_data` method, which returns a future that resolves to a `Result` containing the data for Ukraine.
-// use anyhow::{Context, Result};
 // use geozero::{csv::*, error::*, wkt::*};
 use crate::ukraine::*;
+use anyhow::*;
 use geo::{Coord, CoordsIter, Geometry};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
-use std::{
-    convert::TryInto, error::Error, fs::File, future::Future, io::Read, process, result::Result,
-    vec,
-};
-use wkt::Wkt;
+use std::{fs::File, future::Future, io::Read, result::Result::Ok, vec};
+use tracing::{error, info};
 
 const FILE_PATH_CSV: &'static str = "data/ukraine.csv";
 const FILE_PATH_WKT: &'static str = "data/ukraine.wkt";
@@ -23,7 +20,7 @@ pub struct DataRepository {
 }
 
 pub trait MapRepository {
-    fn get_data(&mut self) -> impl Future<Output = Result<Ukraine, Box<dyn Error>>> + Send;
+    fn get_data(&mut self) -> impl Future<Output = Result<Ukraine>> + Send;
 }
 
 impl DataRepository {
@@ -31,16 +28,20 @@ impl DataRepository {
         Self { pool }
     }
 
+    #[tracing::instrument(level = "trace")]
     pub async fn create_pool() -> SqlitePool {
         let conn: SqliteConnectOptions = SqliteConnectOptions::new()
             .filename(DB_PATH)
             .create_if_missing(true);
 
         let pool = match SqlitePool::connect_with(conn).await {
-            Ok(pool) => pool,
+            Ok(pool) => {
+                info!("SQLite database {} connected successfully", DB_PATH);
+                pool
+            },
             Err(e) => {
-                eprintln!("Error connecting to sqlite database: {}", e);
-                process::exit(1);
+                error!("Error connecting to sqlite database: {}", e);
+                panic!("Error connecting to sqlite database: {}", e);
             }
         };
         match sqlx::query(
@@ -55,29 +56,37 @@ impl DataRepository {
         .execute(&pool)
         .await
         {
-            Ok(_) => {}
+            Ok(_) => {
+                info!("SQLite table created successfully");
+            }
             Err(e) => {
-                eprintln!("Error creating sqlite table: {}", e);
-                process::exit(1);
+                error!("Error creating sqlite table: {}", e);
+                drop(e);
             }
         }
         // Return the pool
         pool
     }
 
-    fn read_csv_file(file_path: &str) -> Result<Vec<Region>, Box<dyn Error>> {
-        use csv::ReaderBuilder;
+    #[tracing::instrument(level = "debug")]
+    fn open_file(file_path: &str) -> Result<File> {
+        return File::open(file_path)
+            .with_context(|| format!("Error opening file '{}':", file_path));
+    }
 
+    #[tracing::instrument]
+    fn read_csv_file(file_path: &str) -> Result<Vec<Region>> {
+        use csv::ReaderBuilder;
         let mut records = vec![];
-        let file = File::open(file_path)?;
+        let file = Self::open_file(file_path)?;
+
         let mut rdr = ReaderBuilder::new().has_headers(true).from_reader(file);
 
         for result in rdr.deserialize() {
             let record: Region = match result {
                 Ok(r) => r,
                 Err(e) => {
-                    eprintln!("Error reading CSV file: {}", e);
-                    process::exit(1);
+                    panic!("Error reading CSV file: {}", e);
                 }
             };
             records.push(record);
@@ -86,23 +95,30 @@ impl DataRepository {
         Ok(records)
     }
 
-    fn read_wkt_file(file_path: &str) -> Result<Vec<Coord>, Box<dyn Error>> {
+    #[tracing::instrument]
+    fn read_wkt_file(file_path: &str) -> Result<Vec<Coord>> {
         use std::str::FromStr;
-        let mut file = File::open(file_path)?;
+        use wkt::Wkt;
+        let mut file = Self::open_file(file_path)?;
         let mut wkt_string = String::new();
-        file.read_to_string(&mut wkt_string)?;
+        match file.read_to_string(&mut wkt_string) {
+            Ok(_) => {}
+            Err(e) => {
+                panic!("Error reading WKT file: {}", e);
+            }
+        }
 
         let geom: Geometry = Wkt::from_str(&wkt_string).unwrap().item.try_into().unwrap();
-
         let records: Vec<Coord> = match geom {
             Geometry::Polygon(polygon) => polygon.coords_iter().collect(),
-            _ => panic!("Not a polygon"),
+            _ => vec![],
         };
 
         Ok(records)
     }
 
-    async fn insert_regions(&self, data: &[Region]) -> Result<(), Box<dyn Error>> {
+    #[tracing::instrument]
+    async fn insert_regions(&self, data: &[Region]) -> Result<()> {
         for region in data.iter() {
             sqlx::query(
                 "
@@ -118,19 +134,23 @@ impl DataRepository {
             .bind(region.name.as_str())
             .bind(region.name_en.as_str())
             .execute(&self.pool)
-            .await?;
+            .await
+            .with_context(|| "Error inserting regions into the database: {}")?;
         }
 
         Ok(())
     }
 
-    async fn fetch_regions(&self) -> Result<Vec<Region>, Box<dyn Error>> {
+    #[tracing::instrument(skip(self))]
+    async fn fetch_regions(&self) -> Result<Vec<Region>> {
         let query = sqlx::query_as("SELECT * FROM regions").fetch_all(&self.pool);
 
-        let mut regions: Vec<Region> = query.await?;
+        let mut regions: Vec<Region> = query
+            .await
+            .with_context(|| "Error querying regions from the database: {}")?;
 
         if regions.len() <= 1 {
-            let data = Self::read_csv_file(FILE_PATH_CSV).expect("Failed to read CSV");
+            let data = Self::read_csv_file(FILE_PATH_CSV)?;
             self.insert_regions(&data).await?;
             regions.extend(data);
         }
@@ -138,14 +158,16 @@ impl DataRepository {
         Ok(regions)
     }
 
-    async fn fetch_borders(&self) -> Result<Vec<Coord>, Box<dyn Error>> {
-        let borders = Self::read_wkt_file(FILE_PATH_WKT).expect("Failed to read WKT");
+    #[tracing::instrument(skip(self))]
+    async fn fetch_borders(&self) -> Result<Vec<Coord>> {
+        let borders = Self::read_wkt_file(FILE_PATH_WKT)?;
         Ok(borders)
     }
 }
 
 impl MapRepository for DataRepository {
-    async fn get_data(&mut self) -> Result<Ukraine, Box<dyn Error>> {
+    #[tracing::instrument(skip(self))]
+    async fn get_data(&mut self) -> Result<Ukraine> {
         let borders = self.fetch_borders().await?;
         let regions = self.fetch_regions().await?;
         let ukraine = Ukraine::new(borders, regions, None);
