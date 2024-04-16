@@ -16,7 +16,7 @@ pub fn render(app: &mut App, frame: &mut Frame) {
     let regions: Vec<ListItem> = app
         .ukraine()
         .regions()
-        .map(|r| ListItem::new(format!("{} - {}", r.id, r.name)))
+        .map(|r| ListItem::new(r.name.clone())) // TODO: try without clone
         .collect();
     let regions_list = List::new(regions)
         .block(

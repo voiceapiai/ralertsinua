@@ -15,11 +15,10 @@ pub struct App {
 impl App {
     /// Constructs a new instance of [`App`].
     pub fn new(data_repository: DataRepository) -> Self {
-        let ukraine = Ukraine::new(vec![], vec![], None);
         Self {
             running: true,
             counter: 0,
-            ukraine: Arc::new(ukraine),
+            ukraine: Arc::new(Ukraine::default()),
             data_repository,
         }
     }
@@ -27,7 +26,7 @@ impl App {
     pub async fn init(&mut self) -> Result<()> {
         use crate::data::MapRepository;
         let ukraine = self.data_repository.get_data().await?;
-        self.ukraine = Arc::new(ukraine);
+        self.ukraine = ukraine;
         Ok(())
     }
 
