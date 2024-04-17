@@ -1,39 +1,24 @@
+use crate::constants::*;
 #[allow(unused)]
-use arrayvec::{ArrayString, ArrayVec};
+use anyhow::*;
+use arrayvec::ArrayVec;
+// use delegate::delegate;
 #[allow(unused)]
 use either::Either;
 use geo::{Coord, Polygon};
+use getset::{Getters, MutGetters};
 use ratatui::{
     layout::Rect,
     prelude::*,
-    style::palette::tailwind,
-    style::Color,
     widgets::canvas::{Painter, Shape},
     widgets::{ListItem, ListState},
 };
 use serde::*;
 use strum::{Display, EnumString};
+use tracing::info;
+
 // use geo::algorithm::bounding_rect::BoundingRect;
 // use geo::algorithm::simplify_vw::SimplifyVw;
-
-/// Ukraine bounding box coords tuple - (min_x, min_y), (max_x, max_y)
-///
-/// <em>Територія України розташована між 44°23' і 52°25' північної широти та між 22°08' і 40°13' східної довготи</em>
-const BOUNDINGBOX: [(f64, f64); 2] = [(22.08, 44.23), (40.13, 52.25)];
-/// Ukraine center
-///
-/// <em>Центр України знаходиться в точці з географічними координатами 49°01' північної широти і 31°02' східної довготи. Ця точка розміщена за 2 км на захід від м. Ватутіного у Черкаській області – с. Мар'янівка. За іншою версією – с. Добровеличківка Кіровоградської області.</em>
-#[allow(dead_code)]
-const CENTER: (f64, f64) = (49.01, 31.02);
-
-const PADDING: f64 = 0.5;
-
-const REGION_HEADER_BG: Color = tailwind::BLUE.c950;
-const NORMAL_ROW_COLOR: Color = tailwind::SLATE.c950;
-const ALT_ROW_COLOR: Color = tailwind::SLATE.c900;
-const SELECTED_STYLE_FG: Color = tailwind::BLUE.c300;
-const TEXT_COLOR: Color = tailwind::SLATE.c200;
-const COMPLETED_TEXT_COLOR: Color = tailwind::GREEN.c500;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, EnumString, Display)]
 pub enum AlertStatus {
@@ -43,23 +28,6 @@ pub enum AlertStatus {
     P,
     /// No information
     N,
-}
-
-// const A_REGIONS_STATUS_RESPONSE_EXAMPLE: ArrayString<27> = ArrayString::<27>::from("ANNNNNNNNNNNANNNNNNNNNNNNNN");
-#[allow(unused)]
-const A_REGIONS_IDS: [i8; 27] = [
-    29, 4, 8, 9, 28, 10, 11, 12, 13, 31, 14, 15, 16, 27, 17, 18, 19, 5, 30, 20, 21, 22, 23, 3, 24,
-    26, 25,
-];
-
-pub struct Region_<'a> {
-    pub id: i8,
-    pub a_id: i8,
-    pub osm_id: i64,
-    pub geo: &'a str,
-    pub name: &'a str,
-    pub name_en: &'a str,
-    pub status: Option<&'a str>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -74,55 +42,70 @@ pub struct Region {
     pub status: Option<String>,
 }
 pub type RegionArrayVec = ArrayVec<Region, 27>;
+pub type RegionListVec<'a> = ArrayVec<ListItem<'a>, 27>;
 
 impl Region {
     #[allow(unused)]
     fn to_list_item(&self, index: usize) -> ListItem {
-        let bg_color = match index % 2 {
-            0 => NORMAL_ROW_COLOR,
-            _ => ALT_ROW_COLOR,
-        };
-        let line = match self.status.as_deref() {
-            Some("N") => Line::styled(format!(" ☐ {}", self.name), TEXT_COLOR),
-            Some("A") => Line::styled(
-                format!(" ✓ {}", self.name),
-                (COMPLETED_TEXT_COLOR, bg_color),
-            ),
-            _ => todo!(),
+        // let bg_color = match index % 2 { 0 => NORMAL_ROW_COLOR, _ => ALERT_ROW_COLOR, };
+        let line = if ((self.status.as_deref() == Some("A")) || index == 0) {
+            Line::styled(format!(" ⊙ {}", self.name), ALERT_ROW_COLOR)
+        } else {
+            Line::styled(format!("  {}", self.name), (TEXT_COLOR))
         };
 
-        ListItem::new(line).bg(bg_color)
+        ListItem::new(line)
     }
 }
 
-#[allow(unused)]
-struct StatefulList {
-    state: ListState,
-    items: RegionArrayVec,
+#[derive(Debug, Default, Getters, MutGetters)]
+pub struct Ukraine {
+    borders: String,
+    #[getset(get = "pub", get_mut)]
+    regions: RegionArrayVec,
+    pub center: Coord,
+    #[getset(get = "pub", set = "pub")]
+    size: Rect,
+    #[getset(get = "pub", get_mut = "pub")]
+    list: RegionListVec<'static>,
+    // #[getset(get = "pub")]
+    list_state: ListState,
+    #[getset(get = "pub", get_mut)]
     last_selected: Option<usize>,
 }
 
-#[derive(Debug, Default)]
-pub struct Ukraine {
-    borders: String,
-    regions: RegionArrayVec,
-    color: Color,
-    pub center: Coord,
-    pub rect: Rect,
-}
-
 impl Ukraine {
-    pub fn new(borders: String, regions: RegionArrayVec, color: Option<Color>) -> Self {
+    pub fn new(borders: String, regions: RegionArrayVec) -> Self {
+        let center = Coord::from(CENTER);
+        let bbox = Rect::default();
+        let list = ArrayVec::<ListItem, 27>::new();
+        /* let mut list = ArrayVec::<ListItem, 27>::new();
+        regions.iter().enumerate().for_each(|(i, r)| {
+            let item = r.to_list_item(i);
+            list.push(item);
+        }); */
+        let list_state = ListState::default();
+        let last_selected = None;
+
         Self {
             borders,
             regions,
-            color: color.unwrap_or(Color::Yellow),
-            center: Coord::from(CENTER),
-            rect: Rect::default(),
+            center,
+            size: bbox,
+            list,
+            list_state,
+            last_selected,
         }
     }
 
-    // Iter<'a> = PolygonIter<'a, T>
+    /* delegate! {
+        to self.list {
+            pub fn next(&mut self);
+            pub fn previous(&mut self);
+            pub fn unselect(&mut self);
+        }
+    } */
+
     pub fn borders(&self) -> Polygon {
         use std::str::FromStr;
         use wkt::Wkt;
@@ -130,8 +113,17 @@ impl Ukraine {
         geom
     }
 
-    pub fn regions(&self) -> impl Iterator<Item = &Region> {
-        self.regions.iter()
+    pub fn get_list_items(&self) -> RegionListVec {
+        let mut list = ArrayVec::<ListItem, 27>::new();
+        self.regions.iter().enumerate().for_each(|(i, r)| {
+            let item = r.to_list_item(i);
+            list.push(item);
+        });
+        list
+    }
+
+    pub fn list_state(&self) -> ListState {
+        self.list_state.clone()
     }
 
     #[inline]
@@ -159,33 +151,80 @@ impl Ukraine {
     /// Store size of the terminal rect
     #[inline]
     pub fn set_size(&mut self, rect: Rect) {
-        self.rect = rect;
+        self.size = rect;
     }
     /// Get the resolution of the grid in number of dots
     #[inline]
     pub fn resolution(&self) -> (f64, f64) {
         (
-            f64::from(self.rect.width) * 2.0,
-            f64::from(self.rect.height) * 4.0,
+            f64::from(self.size.width) * 2.0,
+            f64::from(self.size.height) * 4.0,
         )
+    }
+
+    #[tracing::instrument]
+    pub fn next(&mut self) {
+        let i = match self.list_state.selected() {
+            Some(i) => {
+                if i >= self.regions.len() - 1 {
+                    0
+                } else {
+                    i + 1
+                }
+            }
+            None => self.last_selected.unwrap_or(0),
+        };
+        self.list_state.select(Some(i));
+        info!("List->next, selected region: {:?}", self.regions[i]);
+    }
+
+    #[tracing::instrument]
+    pub fn previous(&mut self) {
+        let i = match self.list_state.selected() {
+            Some(i) => {
+                if i == 0 {
+                    self.regions.len() - 1
+                } else {
+                    i - 1
+                }
+            }
+            None => self.last_selected.unwrap_or(0),
+        };
+        self.list_state.select(Some(i));
+        info!("List->previous, selected region: {:?}", self.regions[i]);
+    }
+
+    pub fn unselect(&mut self) {
+        let offset = self.list_state.offset();
+        self.last_selected = self.list_state.selected();
+        self.list_state.select(None);
+        *self.list_state.offset_mut() = offset;
+    }
+
+    pub fn go_top(&mut self) {
+        self.list_state.select(Some(0));
+    }
+
+    pub fn go_bottom(&mut self) {
+        self.list_state.select(Some(self.regions.len() - 1));
     }
 }
 
 impl Shape for Ukraine {
     /// Implement the Shape trait for Ukraine to draw map borders on canvas
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument]
     #[inline]
     fn draw(&self, painter: &mut Painter) {
         let borders = self.borders();
         let coords_iter = borders.exterior().coords().into_iter();
         coords_iter.for_each(|&coord| {
             if let Some((x, y)) = painter.get_point(coord.x, coord.y) {
-                painter.paint(x, y, self.color);
+                painter.paint(x, y, MARKER_COLOR);
             }
         });
         // TODO: mark center - not working
         if let Some((cx, cy)) = painter.get_point(self.center.x, self.center.y) {
-            painter.paint(cx, cy, self.color);
+            painter.paint(cx, cy, MARKER_COLOR);
         }
     }
 }

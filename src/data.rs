@@ -89,7 +89,7 @@ pub struct DataRepository {
 }
 
 pub trait MapRepository {
-    fn get_data(&mut self) -> impl Future<Output = Result<Arc<Ukraine>>> + Send;
+    fn get_data(&mut self) -> impl Future<Output = Result<Ukraine>> + Send;
 }
 
 impl DataRepository {
@@ -174,10 +174,10 @@ impl DataRepository {
 
 impl MapRepository for DataRepository {
     #[tracing::instrument(skip(self))]
-    async fn get_data(&mut self) -> Result<Arc<Ukraine>> {
+    async fn get_data(&mut self) -> Result<Ukraine> {
         let borders = self.fetch_borders().await?;
         let regions = self.fetch_regions().await?;
-        let ukraine = Arc::new(Ukraine::new(borders, regions, None));
+        let ukraine = (Ukraine::new(borders, regions));
         Ok(ukraine)
     }
 }

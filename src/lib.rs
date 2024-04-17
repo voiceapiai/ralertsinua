@@ -1,3 +1,6 @@
+/// Constants.
+pub mod constants;
+
 /// Data.
 pub mod data;
 
