@@ -25,3 +25,6 @@ pub const A_REGIONS_IDS: [i8; 27] = [
     29, 4, 8, 9, 28, 10, 11, 12, 13, 31, 14, 15, 16, 27, 17, 18, 19, 5, 30, 20, 21, 22, 23, 3, 24,
     26, 25,
 ];
+
+/// @see https://serde.rs/custom-date-format.html
+pub const FORMAT: &'static str = "%Y-%m-%d %H:%M:%S";

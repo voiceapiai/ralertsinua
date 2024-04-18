@@ -3,16 +3,20 @@ use ratatui::{
     layout::{Alignment, Constraint, Layout},
     style::{Color, Modifier, Style, Stylize},
     symbols::Marker,
-    widgets::{canvas::*, Block, Borders, List, ListState},
+    widgets::{canvas::*, Block, Borders, List},
     Frame,
 };
 
 /// Renders the user interface widgets.
 pub fn render(app: &mut App, frame: &mut Frame) {
+    let ukraine = app.ukraine_mut();
     let horizontal = Layout::horizontal([Constraint::Percentage(75), Constraint::Percentage(25)]);
     let [left, right] = horizontal.areas(frame.size());
-    // app.ukraine().set_size(left); // TODO: cannot borrow data in a `&` reference as mutable
-    let list = List::new(app.ukraine().get_list_items())
+
+    ukraine.set_size(left);
+
+    // In addition to `List::new`, any iterator whose element is convertible to `ListItem` can be collected into `List`.
+    let list = List::new(ukraine.get_list_items().clone())
         .block(
             Block::bordered()
                 .title("Regions")
@@ -26,7 +30,6 @@ pub fn render(app: &mut App, frame: &mut Frame) {
         )
         .highlight_symbol(">>")
         .repeat_highlight_symbol(true);
-    let mut list_state: ListState = app.ukraine().list_state();
 
     let map = Canvas::default()
         .block(
@@ -36,16 +39,16 @@ pub fn render(app: &mut App, frame: &mut Frame) {
                 .title_alignment(Alignment::Center),
         )
         .marker(Marker::Braille)
-        .x_bounds(app.ukraine().x_bounds())
-        .y_bounds(app.ukraine().y_bounds())
+        .x_bounds(ukraine.x_bounds())
+        .y_bounds(ukraine.y_bounds())
         .paint(|ctx| {
-            ctx.draw(app.ukraine());
+            ctx.draw(ukraine);
         })
         .background_color(Color::Reset);
 
     // Render
     frame.render_widget(map, left);
-    frame.render_stateful_widget(list, right, &mut list_state);
+    frame.render_stateful_widget(list, right, &mut ukraine.list_state().clone());
 
     // print to console canvas grid resolution
 }

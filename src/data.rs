@@ -1,8 +1,15 @@
 /// This module contains the implementation of the `DataRepository` struct and the `MapRepository` trait.
 /// The `DataRepository` struct provides methods for interacting with a SQLite database and fetching data related to Ukraine.
 /// The `MapRepository` trait defines the `get_data` method, which returns a future that resolves to a `Result` containing the data for Ukraine.
-use crate::ukraine::{Region, RegionArrayVec, Ukraine};
+use crate::{
+    alerts::*,
+    ukraine::{Region, RegionArrayVec, Ukraine},
+};
 use anyhow::*;
+use arrayvec::ArrayString;
+use core::str;
+#[allow(unused)]
+use reqwest::{Client, Error};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
 use std::{fs::File, future::Future, io::Read, result::Result::Ok, sync::Arc, vec};
 use tracing::{error, info};
@@ -84,8 +91,12 @@ pub async fn db_pool() -> Arc<SqlitePool> {
 
 #[derive(Debug)]
 pub struct DataRepository {
+    /// The HTTP client.
+    client: Client,
     /// The database pool.
     pool: Arc<SqlitePool>,
+    /// The API token for alerts.in.ua
+    token: String,
 }
 
 pub trait MapRepository {
@@ -94,7 +105,11 @@ pub trait MapRepository {
 
 impl DataRepository {
     pub fn new(pool: Arc<SqlitePool>) -> Self {
-        Self { pool }
+        Self {
+            client: Client::new(),
+            pool,
+            token: std::env::var("ALERTSINUA_TOKEN").unwrap_or_default(),
+        }
     }
 
     fn pool(&self) -> &SqlitePool {
@@ -170,6 +185,50 @@ impl DataRepository {
         let borders = Self::read_wkt_file(FILE_PATH_WKT)?;
         Ok(borders)
     }
+
+    #[tracing::instrument(skip(self))]
+    pub async fn fetch_alerts(&mut self) -> Result<Vec<Alert>> {
+        let url = format!(
+            "https://api.alerts.in.ua/v1/alerts/active.json?token={}",
+            self.token
+        );
+        let response: AlertsResponseAll = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .with_context(|| "Error fetching alerts from alerts.in.ua")?
+            .json::<AlertsResponseAll>()
+            .await
+            .with_context(|| "Error parsing JSON response")?;
+
+        info!("Fetched {} alerts", response.alerts.len());
+        Ok(response.alerts)
+    }
+
+    /// Fetches active air raid alerts as string from alerts.in.ua
+    ///
+    /// "ANNNANNNNNNNANNNNNNNNNNNNNN"
+    pub async fn fetch_alerts_short(&mut self) -> Result<AlertsResponseString> {
+        let url = format!(
+            "https://api.alerts.in.ua/v1/iot/active_air_raid_alerts_by_oblast.json?
+?token={}",
+            self.token
+        );
+        let response = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .with_context(|| "Error fetching alerts from alerts.in.ua")?;
+        let content: String = response.text().await.unwrap_or_default();
+        let text = content.trim_matches('"');
+        info!("Fetched alerts as string: {}, length: {}", text, text.len());
+        let mut a_string = ArrayString::<27>::new();
+        a_string.push_str(&text);
+
+        Ok(a_string)
+    }
 }
 
 impl MapRepository for DataRepository {
@@ -177,7 +236,8 @@ impl MapRepository for DataRepository {
     async fn get_data(&mut self) -> Result<Ukraine> {
         let borders = self.fetch_borders().await?;
         let regions = self.fetch_regions().await?;
-        let ukraine = (Ukraine::new(borders, regions));
+        let alerts_string = self.fetch_alerts_short().await?;
+        let ukraine = Ukraine::new(borders, regions, alerts_string);
         Ok(ukraine)
     }
 }

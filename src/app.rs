@@ -11,6 +11,7 @@ pub struct App {
     #[getset(get = "pub", get_mut = "pub", set)]
     ukraine: Ukraine,
     #[getset(get = "pub")]
+    #[deprecated(note = "Use `ukraine` without Arc now")]
     arc: Arc<Ukraine>, // TODO: use arc if possible
     data_repository: DataRepository,
 }
@@ -30,6 +31,7 @@ impl App {
         use crate::data::MapRepository;
         let ukraine = self.data_repository.get_data().await?;
         self.set_ukraine(ukraine);
+        self.fetch_alerts().await?;
         Ok(())
     }
 
@@ -39,6 +41,15 @@ impl App {
     /// Set running to false to quit the application.
     pub fn quit(&mut self) {
         self.running = false;
+    }
+
+    pub async fn fetch_alerts(&mut self) -> Result<()> {
+        let alerts = self.data_repository.fetch_alerts().await
+        .with_context(|| "Failed to fetch alerts")
+        .unwrap_or(vec![]);
+        self.ukraine.set_alerts(alerts);
+
+        Ok(())
     }
 
     pub fn select_next(&mut self) {
