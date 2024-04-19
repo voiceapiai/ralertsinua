@@ -3,8 +3,6 @@ use crate::{alerts::*, constants::*};
 use anyhow::*;
 use arrayvec::ArrayVec;
 use delegate::delegate;
-#[allow(unused)]
-use either::Either;
 use geo::{Coord, Polygon};
 use getset::{Getters, MutGetters, Setters};
 use ratatui::{
@@ -36,12 +34,10 @@ pub type RegionListVec<'a> = ArrayVec<ListItem<'a>, 27>;
 
 impl Region {
     pub fn to_list_item(&self, index: i8, alert_status: char) -> ListItem<'static> {
-        let name = self.name.clone();
-        // let bg_color = match index % 2 { 0 => NORMAL_ROW_COLOR, _ => ALERT_ROW_COLOR, };
         let line = match alert_status {
-            'A' => Line::styled(format!("{}) {} ⊙", index, name), ALERT_ROW_COLOR),
-            'P' => Line::styled(format!("{}) {}", index, name), MARKER_COLOR),
-            _ => Line::styled(format!("{}) {}", index, name), TEXT_COLOR),
+            'A' => Line::styled(format!("{}) {} ⊙", index, self.name), ALERT_ROW_COLOR),
+            'P' => Line::styled(format!("{}) {}", index, self.name), MARKER_COLOR),
+            _ => Line::styled(format!("{}) {}", index, self.name), TEXT_COLOR),
         };
 
         ListItem::new(line)
@@ -59,12 +55,7 @@ struct RegionsList {
 }
 
 impl RegionsList {
-    pub fn new(
-        regions: &[Region],
-        alerts_statuses: &[char],
-        // alertss: Chars<'static>,
-    ) -> Self {
-        // let iter = alerts_string.chars();
+    pub fn new(regions: &[Region], alerts_statuses: &[char]) -> Self {
         let items: Vec<ListItem> = regions
             .iter()
             .enumerate()
@@ -148,10 +139,7 @@ impl Ukraine {
         let center = Coord::from(CENTER);
         let bbox = Rect::default();
         let alerts_statuses: Vec<char> = alerts_string.chars().collect::<Vec<char>>();
-        let list = RegionsList::new(
-            regions.as_slice(),
-            alerts_statuses.as_slice(),
-        );
+        let list = RegionsList::new(regions.as_slice(), alerts_statuses.as_slice());
 
         Self {
             borders,
