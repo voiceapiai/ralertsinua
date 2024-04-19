@@ -1,3 +1,4 @@
+use alertsinua_tui::utils::*;
 use alertsinua_tui::app::App;
 use alertsinua_tui::data::*;
 use alertsinua_tui::event::{Event, EventHandler};
@@ -6,21 +7,14 @@ use alertsinua_tui::tui::{Tui, TuiResult};
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use std::io;
+use dotenv::dotenv;
 use tracing::{info, Level};
 use tracing_subscriber;
 
 #[tokio::main]
 async fn main() -> TuiResult<()> {
-    let file_appender = tracing_appender::rolling::daily("tmp", "app.log");
-    let (non_blocking_appender, _guard) = tracing_appender::non_blocking(file_appender);
-    tracing_subscriber::fmt()
-        // .with_max_level(Level::INFO)
-        // .with_timer(tracing_subscriber::fmt::time::uptime())
-        .with_writer(non_blocking_appender)
-        .with_target(false)
-        .with_level(true)
-        .with_file(true)
-        .init();
+    dotenv().ok();
+    initialize_logging();
 
     let pool = db_pool().await;
     let data_repository = DataRepository::new(pool);

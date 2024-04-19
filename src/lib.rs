@@ -1,5 +1,11 @@
+/// Constants.
+pub mod constants;
+
 /// Data.
 pub mod data;
+
+/// Data.
+pub mod alerts;
 
 /// Application.
 pub mod app;
@@ -18,3 +24,6 @@ pub mod tui;
 
 /// Event handler.
 pub mod handler;
+
+/// Utils
+pub mod utils;
