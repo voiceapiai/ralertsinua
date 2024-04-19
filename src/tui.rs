@@ -1,8 +1,3 @@
-use std::{
-    ops::{Deref, DerefMut},
-    time::Duration,
-};
-
 use color_eyre::eyre::Result;
 use crossterm::{
     cursor,
@@ -13,8 +8,15 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen},
 };
 use futures::{FutureExt, StreamExt};
-use ratatui::backend::CrosstermBackend as Backend;
+use ratatui::{
+    backend::CrosstermBackend as Backend,
+    layout::{Constraint, Layout, Rect},
+};
 use serde::{Deserialize, Serialize};
+use std::{
+    ops::{Deref, DerefMut},
+    time::Duration,
+};
 use tokio::{
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     task::JoinHandle,
@@ -43,8 +45,14 @@ pub enum Event {
     Resize(u16, u16),
 }
 
+pub enum LayoutArea {
+    Left,
+    Right,
+}
+
 pub struct Tui {
     pub terminal: ratatui::Terminal<Backend<IO>>,
+    pub layout: Layout,
     pub task: JoinHandle<()>,
     pub cancellation_token: CancellationToken,
     pub event_rx: UnboundedReceiver<Event>,
@@ -60,6 +68,7 @@ impl Tui {
         let tick_rate = 4.0;
         let frame_rate = 60.0;
         let terminal = ratatui::Terminal::new(Backend::new(io()))?;
+        let layout = Layout::horizontal([Constraint::Percentage(75), Constraint::Percentage(25)]);
         let (event_tx, event_rx) = mpsc::unbounded_channel();
         let cancellation_token = CancellationToken::new();
         let task = tokio::spawn(async {});
@@ -67,6 +76,7 @@ impl Tui {
         let paste = false;
         Ok(Self {
             terminal,
+            layout,
             task,
             cancellation_token,
             event_rx,
@@ -96,6 +106,11 @@ impl Tui {
     pub fn paste(mut self, paste: bool) -> Self {
         self.paste = paste;
         self
+    }
+
+    pub fn areas<const N: usize>(f: &mut Frame<'_> /* , layout: &mut Layout */) -> [Rect; N]  {
+        let layout = Layout::horizontal([Constraint::Percentage(75), Constraint::Percentage(25)]);
+        layout.areas(f.size())
     }
 
     pub fn start(&mut self) {

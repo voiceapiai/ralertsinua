@@ -5,7 +5,7 @@ use crate::{
     alerts::*,
     ukraine::{Region, RegionArrayVec, Ukraine},
 };
-use anyhow::*;
+use color_eyre::eyre::Result; // use anyhow::*;
 use arrayvec::ArrayString;
 use core::str;
 #[allow(unused)]
@@ -15,9 +15,9 @@ use std::{fs::File, future::Future, io::Read, result::Result::Ok, sync::Arc, vec
 use tracing::{error, info};
 
 #[allow(unused)]
-const FILE_PATH_CSV: &'static str = "data/ukraine.csv";
-const FILE_PATH_WKT: &'static str = "data/ukraine.wkt";
-const DB_PATH: &'static str = "data/ukraine.sqlite";
+const FILE_PATH_CSV: &'static str = ".data/ukraine.csv";
+const FILE_PATH_WKT: &'static str = ".data/ukraine.wkt";
+const DB_PATH: &'static str = ".data/ukraine.sqlite";
 const QUERY_CREATE_TABLE: &'static str = "
 CREATE TABLE IF NOT EXISTS regions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -118,8 +118,8 @@ impl DataRepository {
 
     #[tracing::instrument(level = "info")]
     fn open_file(file_path: &str) -> Result<File> {
-        return File::open(file_path)
-            .with_context(|| format!("Error opening file '{}':", file_path));
+        return Ok(File::open(file_path)?);
+            // .with_context(|| format!("Error opening file '{}':", file_path));
     }
 
     #[tracing::instrument]
@@ -174,8 +174,8 @@ impl DataRepository {
         use arrayvec::ArrayVec;
         let regions: Vec<Region> = sqlx::query_as(QUERY_SELECT_REGIONS)
             .fetch_all(self.pool())
-            .await
-            .with_context(|| "Error querying regions from the database: {}")?;
+            .await?;
+            // .with_context(|| "Error querying regions from the database: {}")?;
 
         Ok(ArrayVec::<Region, 27>::from_iter(regions))
     }
@@ -196,11 +196,11 @@ impl DataRepository {
             .client
             .get(url)
             .send()
-            .await
-            .with_context(|| "Error fetching alerts from alerts.in.ua")?
+            .await?
+            // .with_context(|| "Error fetching alerts from alerts.in.ua")?
             .json::<AlertsResponseAll>()
-            .await
-            .with_context(|| "Error parsing JSON response")?;
+            .await?;
+            // .with_context(|| "Error parsing JSON response")?;
 
         info!("Fetched {} alerts", response.alerts.len());
         Ok(response.alerts)
@@ -219,8 +219,8 @@ impl DataRepository {
             .client
             .get(url)
             .send()
-            .await
-            .with_context(|| "Error fetching alerts from alerts.in.ua")?;
+            .await?;
+            // .with_context(|| "Error fetching alerts from alerts.in.ua")?;
         let content: String = response.text().await.unwrap_or_default();
         let text = content.trim_matches('"');
         info!("Fetched alerts as string: {}, length: {}", text, text.len());

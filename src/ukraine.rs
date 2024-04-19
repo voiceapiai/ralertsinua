@@ -8,7 +8,6 @@ use getset::{Getters, MutGetters, Setters};
 use ratatui::{
     layout::Rect,
     prelude::*,
-    widgets::canvas::{Painter, Shape},
     widgets::{ListItem, ListState},
 };
 use serde::*;
@@ -35,9 +34,9 @@ pub type RegionListVec<'a> = ArrayVec<ListItem<'a>, 27>;
 impl Region {
     pub fn to_list_item(&self, index: i8, alert_status: char) -> ListItem<'static> {
         let line = match alert_status {
-            'A' => Line::styled(format!("{}) {} ⊙", index, self.name), ALERT_ROW_COLOR),
-            'P' => Line::styled(format!("{}) {}", index, self.name), MARKER_COLOR),
-            _ => Line::styled(format!("{}) {}", index, self.name), TEXT_COLOR),
+            'A' => Line::styled(format!("{}) {} ⊙", index, self.name), *ALERT_ROW_COLOR),
+            'P' => Line::styled(format!("{}) {}", index, self.name), *MARKER_COLOR),
+            _ => Line::styled(format!("{}) {}", index, self.name), *TEXT_COLOR),
         };
 
         ListItem::new(line)
@@ -123,7 +122,6 @@ pub struct Ukraine {
     borders: String,
     #[getset(get = "pub")]
     regions: RegionArrayVec,
-    pub center: Coord,
     #[getset(get = "pub", set = "pub")]
     size: Rect,
     #[getset(get = "pub", set = "pub")]
@@ -136,7 +134,6 @@ impl Ukraine {
         regions: RegionArrayVec,
         alerts_string: AlertsResponseString,
     ) -> Self {
-        let center = Coord::from(CENTER);
         let bbox = Rect::default();
         let alerts_statuses: Vec<char> = alerts_string.chars().collect::<Vec<char>>();
         let list = RegionsList::new(regions.as_slice(), alerts_statuses.as_slice());
@@ -144,7 +141,6 @@ impl Ukraine {
         Self {
             borders,
             regions,
-            center,
             size: bbox,
             list,
         }
@@ -184,22 +180,22 @@ impl Ukraine {
     #[inline]
     pub fn boundingbox(&self) -> [(f64, f64); 2] {
         #[allow(unused_parens)]
-        (BOUNDINGBOX)
+        (*UKRAINE_BBOX)
     }
 
     #[inline]
-    pub fn x_bounds(&self) -> [f64; 2] {
+    pub fn x_bounds() -> [f64; 2] {
         [
-            self.boundingbox().first().unwrap().0 - PADDING,
-            self.boundingbox().last().unwrap().0 + PADDING,
+            UKRAINE_BBOX.first().unwrap().0 - *PADDING,
+            UKRAINE_BBOX.last().unwrap().0 + *PADDING,
         ]
     }
 
     #[inline]
-    pub fn y_bounds(&self) -> [f64; 2] {
+    pub fn y_bounds() -> [f64; 2] {
         [
-            self.boundingbox().first().unwrap().1 - PADDING,
-            self.boundingbox().last().unwrap().1 + PADDING,
+            UKRAINE_BBOX.first().unwrap().1 - *PADDING,
+            UKRAINE_BBOX.last().unwrap().1 + *PADDING,
         ]
     }
 
@@ -237,24 +233,5 @@ impl Ukraine {
         });
 
         self.regions = regions
-    }
-}
-
-impl Shape for Ukraine {
-    /// Implement the Shape trait for Ukraine to draw map borders on canvas
-    #[tracing::instrument]
-    #[inline]
-    fn draw(&self, painter: &mut Painter) {
-        let borders = self.borders();
-        let coords_iter = borders.exterior().coords().into_iter();
-        coords_iter.for_each(|&coord| {
-            if let Some((x, y)) = painter.get_point(coord.x, coord.y) {
-                painter.paint(x, y, MARKER_COLOR);
-            }
-        });
-        // TODO: mark center - not working
-        if let Some((cx, cy)) = painter.get_point(self.center.x, self.center.y) {
-            painter.paint(cx, cy, MARKER_COLOR);
-        }
     }
 }

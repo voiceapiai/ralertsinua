@@ -1,5 +1,6 @@
 use color_eyre::eyre::Result;
 use crossterm::event::KeyEvent;
+use log::info;
 use ratatui::prelude::Rect;
 #[allow(unused)]
 use serde::{Deserialize, Serialize};
@@ -7,14 +8,17 @@ use tokio::sync::mpsc;
 
 use crate::{
     action::Action,
+    cli::Cli,
     components::{list::List, map::Map, Component},
     config::Config,
+    data::DataRepository,
     mode::Mode,
     tui,
 };
 
 pub struct App {
     pub config: Config,
+    // pub data_repository: DataRepository,
     pub tick_rate: f64,
     pub frame_rate: f64,
     pub components: Vec<Box<dyn Component>>,
@@ -25,22 +29,32 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(tick_rate: f64, frame_rate: f64) -> Result<Self> {
+    pub fn new(args: &Cli, data_repository: DataRepository) -> Result<Self> {
         let map = Map::new();
-        let list = List::default();
+        let list = List::new(data_repository);
         let config = Config::new()?;
         let mode = Mode::Map;
         Ok(Self {
-            tick_rate,
-            frame_rate,
+            tick_rate: args.tick_rate,
+            frame_rate: args.frame_rate,
             components: vec![Box::new(map), Box::new(list)],
             should_quit: false,
             should_suspend: false,
             config,
+            // data_repository,
             mode,
             last_tick_key_events: Vec::new(),
         })
     }
+
+    /* /// Initialize app data
+    pub async fn init(&mut self) -> Result<()> {
+        use crate::data::MapRepository;
+        let ukraine = self.data_repository.get_data().await?;
+        self.set_ukraine(ukraine);
+        // self.fetch_alerts().await?;
+        Ok(())
+    } */
 
     pub async fn run(&mut self) -> Result<()> {
         let (action_tx, mut action_rx) = mpsc::unbounded_channel();
@@ -60,7 +74,8 @@ impl App {
         }
 
         for component in self.components.iter_mut() {
-            component.init(tui.size()?)?;
+            component.init(tui.size()?).await?;
+            info!("Initialized component {}", component.display()?);
         }
 
         loop {
@@ -123,8 +138,9 @@ impl App {
                     }
                     Action::Render => {
                         tui.draw(|f| {
-                            for component in self.components.iter_mut() {
-                                let r = component.draw(f, f.size());
+                            let areas = tui::Tui::areas::<2>(f);
+                            for (i, component) in self.components.iter_mut().enumerate() {
+                                let r = component.draw(f, areas[i]);
                                 if let Err(e) = r {
                                     action_tx
                                         .send(Action::Error(format!("Failed to draw: {:?}", e)))
