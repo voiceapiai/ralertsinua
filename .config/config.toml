@@ -1,0 +1,5 @@
+[keybindings.Map]
+"<q>" = "Quit"
+"<Ctrl-d>" = "Quit"
+"<Ctrl-c>" = "Quit"
+"<Ctrl-z>" = "Suspend"

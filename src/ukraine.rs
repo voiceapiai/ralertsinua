@@ -33,8 +33,12 @@ pub type RegionListVec<'a> = ArrayVec<ListItem<'a>, 27>;
 
 impl Region {
     pub fn to_list_item(&self, index: i8, alert_status: char) -> ListItem<'static> {
+        let symbol = "🜸"; //  "🔥";
         let line = match alert_status {
-            'A' => Line::styled(format!("{}) {} ⊙", index, self.name), *ALERT_ROW_COLOR),
+            'A' => Line::styled(
+                format!("{}) {} {}", index, self.name, symbol),
+                *ALERT_ROW_COLOR,
+            ),
             'P' => Line::styled(format!("{}) {}", index, self.name), *MARKER_COLOR),
             _ => Line::styled(format!("{}) {}", index, self.name), *TEXT_COLOR),
         };
@@ -82,7 +86,7 @@ impl RegionsList {
             None => self.last_selected.unwrap_or(0),
         };
         self.state.select(Some(i));
-        info!("List->next, selected region: {:?}", i);
+        // info!("List->next, selected region: {:?}", i);
     }
 
     #[tracing::instrument(skip(self))]
@@ -98,7 +102,7 @@ impl RegionsList {
             None => self.last_selected.unwrap_or(0),
         };
         self.state.select(Some(i));
-        info!("List->previous, selected region: {:?}", i);
+        // info!("List->previous, selected region: {:?}", i);
     }
 
     pub fn unselect(&mut self) {
@@ -175,43 +179,6 @@ impl Ukraine {
 
     pub fn list_state(&self) -> &ListState {
         self.list.state()
-    }
-
-    #[inline]
-    pub fn boundingbox(&self) -> [(f64, f64); 2] {
-        #[allow(unused_parens)]
-        (*UKRAINE_BBOX)
-    }
-
-    #[inline]
-    pub fn x_bounds() -> [f64; 2] {
-        [
-            UKRAINE_BBOX.first().unwrap().0 - *PADDING,
-            UKRAINE_BBOX.last().unwrap().0 + *PADDING,
-        ]
-    }
-
-    #[inline]
-    pub fn y_bounds() -> [f64; 2] {
-        [
-            UKRAINE_BBOX.first().unwrap().1 - *PADDING,
-            UKRAINE_BBOX.last().unwrap().1 + *PADDING,
-        ]
-    }
-
-    /// Store size of the terminal rect
-    #[inline]
-    pub fn set_map_size(&mut self, rect: Rect) {
-        info!("Ukraine->set_size: {:?}", rect);
-        self.size = rect;
-    }
-    /// Get the resolution of the grid in number of dots
-    #[inline]
-    pub fn resolution(&self) -> (f64, f64) {
-        (
-            f64::from(self.size.width) * 2.0,
-            f64::from(self.size.height) * 4.0,
-        )
     }
 
     /// update list items with alerts and change item status

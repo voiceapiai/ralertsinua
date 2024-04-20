@@ -1,6 +1,6 @@
 use color_eyre::eyre::Result;
 use crossterm::event::KeyEvent;
-use log::info;
+use tracing::info;
 use ratatui::prelude::Rect;
 #[allow(unused)]
 use serde::{Deserialize, Serialize};

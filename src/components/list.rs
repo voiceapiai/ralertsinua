@@ -71,7 +71,7 @@ impl Component for List {
 
     fn draw(&mut self, f: &mut Frame<'_>, area: Rect) -> Result<()> {
         // In addition to `List::new`, any iterator whose element is convertible to `ListItem` can be collected into `List`.
-        let list = ListWidget::new(self.ukraine.get_list_items().clone())
+        let widget = ListWidget::new(self.ukraine.get_list_items().clone())
             .block(
                 Block::bordered()
                     .title("Regions")
@@ -86,7 +86,7 @@ impl Component for List {
             .highlight_symbol(">>")
             .repeat_highlight_symbol(true);
 
-        f.render_stateful_widget(list, area, &mut self.ukraine.list_state().clone());
+        f.render_stateful_widget(widget, area, &mut self.ukraine.list_state().clone());
         Ok(())
     }
 
@@ -95,11 +95,13 @@ impl Component for List {
             // Counter handlers
             KeyCode::Down => {
                 self.ukraine.next();
-                Ok(None)
+                let action = Action::Selected(self.ukraine.list_state().selected().unwrap());
+                Ok(Some(action))
             }
             KeyCode::Up => {
                 self.ukraine.previous();
-                Ok(None)
+                let action = Action::Selected(self.ukraine.list_state().selected().unwrap());
+                Ok(Some(action))
             }
             // Other handlers you could add here.
             _ => Ok(None),

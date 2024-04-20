@@ -49,3 +49,4 @@ wkt = "0.10.3"
 
 [build-dependencies]
 vergen = { version = "8.2.6", features = ["build", "git", "gitoxide", "cargo"] }
+dotenv = "0.15"

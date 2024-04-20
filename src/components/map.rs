@@ -1,8 +1,8 @@
 use super::{Component, Frame};
 use crate::{action::Action, config::Config, constants::*, ukraine::Ukraine};
 use color_eyre::eyre::Result;
-use geo::Polygon;
-// use crossterm::event::{KeyCode, KeyEvent};
+use geo::{Geometry, HasDimensions, Polygon};
+use tracing::info;
 use ratatui::{
     prelude::*,
     widgets::{
@@ -10,10 +10,25 @@ use ratatui::{
         *,
     },
 };
+use strum::Display;
+use wkt::*;
 // use serde::{Deserialize, Serialize};
 #[allow(unused)]
 use std::{collections::HashMap, time::Duration};
 use tokio::sync::mpsc::UnboundedSender;
+
+/// Ukraine borders represented as Polygon in WKT file
+const UKRAINE_BORDERS_POYGON_WKT: &'static str = include_str!("../../.data/ukraine.wkt");
+/// Ukraine bounding box coords tuple - (min_x, min_y), (max_x, max_y)
+///
+/// <em>Територія України розташована між 44°23' і 52°25' північної широти та між 22°08' і 40°13' східної довготи</em>
+const UKRAINE_BBOX: [(f64, f64); 2] = [(22.08, 44.23), (40.13, 52.25)];
+/// Ukraine center
+///
+/// <em>Центр України знаходиться в точці з географічними координатами `49°01'` північної широти і `31°02'` східної довготи. Ця точка розміщена за 2 км на захід від м. Ватутіного у Черкаській області – с. Мар'янівка. За іншою версією – с. Добровеличківка Кіровоградської області.</em>
+#[allow(unused)]
+const UKRAINE_CENTER: (f64, f64) = (49.01, 31.02);
+const PADDING: f64 = 0.5;
 
 #[derive(Debug)]
 pub struct Map {
@@ -22,11 +37,39 @@ pub struct Map {
     borders: Polygon,
 }
 
+trait MapBounds {
+    fn boundingbox() -> [(f64, f64); 2];
+    fn x_bounds() -> [f64; 2];
+    fn y_bounds() -> [f64; 2];
+}
+
+impl MapBounds for Map {
+    #[inline]
+    fn boundingbox() -> [(f64, f64); 2] {
+        UKRAINE_BBOX
+    }
+
+    #[inline]
+    fn x_bounds() -> [f64; 2] {
+        [
+            UKRAINE_BBOX.first().unwrap().0 - PADDING,
+            UKRAINE_BBOX.last().unwrap().0 + PADDING,
+        ]
+    }
+
+    #[inline]
+    fn y_bounds() -> [f64; 2] {
+        [
+            UKRAINE_BBOX.first().unwrap().1 - PADDING,
+            UKRAINE_BBOX.last().unwrap().1 + PADDING,
+        ]
+    }
+}
+
 impl Map {
     pub fn new() -> Self {
         use std::str::FromStr;
-        use wkt::Wkt;
-        let borders: Polygon = Wkt::from_str(&UKRAINE_BORDERS_WKT)
+        let borders: Polygon = Wkt::from_str(UKRAINE_BORDERS_POYGON_WKT)
             .unwrap()
             .try_into()
             .unwrap();
@@ -70,13 +113,16 @@ impl Component for Map {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::Tick => {}
+            Action::Selected(i) => {
+                info!("Map->update Action::Selected: {}", i);
+            }
             _ => {}
         }
         Ok(None)
     }
 
     fn draw(&mut self, f: &mut Frame<'_>, area: Rect) -> Result<()> {
-        let map = Canvas::default()
+        let widget = Canvas::default()
             .block(
                 Block::default()
                     .borders(Borders::ALL)
@@ -84,13 +130,26 @@ impl Component for Map {
                     .title_alignment(Alignment::Center),
             )
             .marker(Marker::Braille)
-            .x_bounds(Ukraine::x_bounds())
-            .y_bounds(Ukraine::y_bounds())
+            .x_bounds(Self::x_bounds())
+            .y_bounds(Self::y_bounds())
             .paint(|ctx| {
                 ctx.draw(self);
             })
             .background_color(Color::Reset);
-        f.render_widget(map, area);
+        f.render_widget(widget, area);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_map_new() {
+        let map = Map::new();
+        assert!(map.command_tx.is_none());
+        assert!(map.borders.is_empty() == false);
+        // match map.borders.try_from()
     }
 }

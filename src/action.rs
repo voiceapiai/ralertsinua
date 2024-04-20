@@ -20,4 +20,5 @@ pub enum Action {
   Refresh,
   Error(String),
   Help,
+  Selected(usize),
 }
