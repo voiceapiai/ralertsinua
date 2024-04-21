@@ -17,10 +17,13 @@ use tracing::{error, info};
 
 #[allow(unused)]
 const FILE_PATH_CSV: &'static str = ".data/ukraine.csv";
+#[allow(unused)]
 const FILE_PATH_WKT: &'static str = ".data/ukraine.wkt";
 const DB_PATH: &'static str = ".data/ukraine.sqlite";
 const QUERY_CREATE_REGIONS_TABLE: &'static str = include_str!("../.data/create_regions_table.sql");
 const QUERY_SELECT_REGIONS: &'static str = "SELECT * FROM regions ORDER BY id";
+
+/// The `API` module contains constants related to the alerts.in.ua API.
 #[allow(non_snake_case)]
 pub mod API {
     use lazy_static::lazy_static;
@@ -78,7 +81,7 @@ pub struct DataRepository {
 }
 
 pub trait MapRepository {
-    fn get_data(&mut self) -> impl Future<Output = Result<Ukraine>> + Send;
+    fn get_data(&self) -> impl Future<Output = Result<Ukraine>> + Send;
 }
 
 impl DataRepository {
@@ -99,7 +102,6 @@ impl DataRepository {
         // .with_context(|| format!("Error opening file '{}':", file_path));
     }
 
-    #[tracing::instrument]
     fn read_csv_file(file_path: &str) -> Result<Vec<Region>> {
         use csv::ReaderBuilder;
         let mut records = vec![];
@@ -120,7 +122,6 @@ impl DataRepository {
         Ok(records)
     }
 
-    #[tracing::instrument]
     fn read_wkt_file(file_path: &str) -> Result<String> {
         let mut file = Self::open_file(file_path)?;
         let mut wkt_string = String::new();
@@ -129,7 +130,7 @@ impl DataRepository {
         Ok(wkt_string)
     }
 
-    /* #[tracing::instrument]
+    /*
     async fn insert_regions(&self, data: &[Region]) -> Result<()> {
         for region in data.iter() {
             sqlx::query(QUERY_INSERT_REGIONS)
@@ -146,7 +147,6 @@ impl DataRepository {
         Ok(())
     } */
 
-    #[tracing::instrument(skip(self))]
     async fn fetch_regions(&self) -> Result<RegionArrayVec> {
         use arrayvec::ArrayVec;
         let regions: Vec<Region> = sqlx::query_as(QUERY_SELECT_REGIONS)
@@ -157,14 +157,12 @@ impl DataRepository {
         Ok(ArrayVec::<Region, 27>::from_iter(regions))
     }
 
-    #[tracing::instrument(skip(self))]
     async fn fetch_borders(&self) -> Result<String> {
         let borders = Self::read_wkt_file(FILE_PATH_WKT)?;
         Ok(borders)
     }
 
-    #[tracing::instrument(skip(self))]
-    pub async fn fetch_alerts(&mut self) -> Result<Vec<Alert>> {
+    pub async fn fetch_alerts(&self) -> Result<Vec<Alert>> {
         let response: AlertsResponseAll = self
             .client
             .get(API::ALERTS_ACTIVE.as_str())
@@ -179,9 +177,8 @@ impl DataRepository {
 
     /// Fetches active air raid alerts as string from alerts.in.ua
     ///
-    /// "ANNNANNNNNNNANNNNNNNNNNNNNN"
-    #[tracing::instrument(skip(self))]
-    pub async fn fetch_alerts_short(&mut self) -> Result<AlertsResponseString> {
+    /// Response: `"ANNNANNNNNNNANNNNNNNNNNNNNN"`
+    pub async fn fetch_alerts_short(&self) -> Result<AlertsResponseString> {
         let url = API::ALERTS_ACTIVE_BY_REGION_STRING.as_str();
         let response = self.client.get(url).send().await?;
         let content: String = response.text().await.unwrap_or_default();
@@ -195,12 +192,11 @@ impl DataRepository {
 }
 
 impl MapRepository for DataRepository {
-    #[tracing::instrument(skip(self))]
-    async fn get_data(&mut self) -> Result<Ukraine> {
-        let borders = self.fetch_borders().await?;
+    async fn get_data(&self) -> Result<Ukraine> {
         let regions = self.fetch_regions().await?;
         let alerts_string = self.fetch_alerts_short().await?;
-        let ukraine = Ukraine::new(borders, regions, alerts_string);
+        let mut ukraine = Ukraine::new(regions);
+        ukraine.set_alerts(alerts_string);
 
         Ok(ukraine)
     }

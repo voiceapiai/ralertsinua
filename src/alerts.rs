@@ -1,7 +1,12 @@
+use std::fmt::Debug;
+
+// use std::ops::{Deref, DerefMut};
 use arrayvec::ArrayString;
 use chrono::{DateTime, Utc};
+use derive_deref::{Deref, DerefMut};
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumString};
+pub use strum::{Display, EnumProperty, EnumString};
+use strum_macros;
 
 #[derive(Deserialize, Debug)]
 pub struct Alert {
@@ -23,22 +28,64 @@ pub struct Alert {
     pub location_oblast_uid: Option<i32>,
 }
 
+pub type AlertsResponseString = ArrayString<27>;
+
+#[derive(Debug, Deref, Default)]
+pub struct AlertsByRegion(ArrayString<27>);
+
+pub trait AlertsByRegionState: Send + Sync + Debug {
+    fn set_alerts(self: Box<Self>, alerts_as: AlertsResponseString)
+        -> Box<dyn AlertsByRegionState>;
+    fn get_alerts<'a>(&'a self) -> &'a str {
+        "NNNNNNNNNNNNNNNNNNNNNNNNNNN"
+    }
+}
+
+impl AlertsByRegionState for AlertsByRegion {
+    fn set_alerts(
+        self: Box<Self>,
+        alerts_as: AlertsResponseString,
+    ) -> Box<dyn AlertsByRegionState> {
+        Box::new(AlertsByRegion(alerts_as))
+    }
+    fn get_alerts<'a>(&'a self) -> &'a str {
+        // let alerts_statuses: Vec<char> = alerts_as.chars().collect::<Vec<char>>();
+        self.as_str()
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct AlertsResponseAll {
     pub alerts: Vec<Alert>,
 }
 
-pub type AlertsResponseString = ArrayString<27>;
-
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, EnumString, Display)]
+#[derive(Debug, strum_macros::EnumProperty, Display)]
 pub enum AlertStatus {
     /// Active
+    #[strum(props(icon = "🜸", color = "red"))]
     A,
     /// Partially active
+    #[strum(props(icon = "🌤", color = "yellow"))]
     P,
     /// No information
+    #[strum(props(icon = "🌣", color = "blue"))]
     N,
+}
+
+impl Default for AlertStatus {
+    fn default() -> Self {
+        AlertStatus::N
+    }
+}
+
+impl From<char> for AlertStatus {
+    fn from(c: char) -> Self {
+        match c {
+            'A' => AlertStatus::A,
+            'P' => AlertStatus::P,
+            _ => AlertStatus::N,
+        }
+    }
 }
 
 mod custom_date_format {

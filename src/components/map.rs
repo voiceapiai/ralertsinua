@@ -1,5 +1,5 @@
 use super::{Component, Frame};
-use crate::{action::Action, config::Config, constants::*, ukraine::Ukraine};
+use crate::{action::Action, config::Config, constants::*, ukraine::Ukraine, tui::LayoutArea};
 use color_eyre::eyre::Result;
 use geo::{Geometry, HasDimensions, Polygon};
 use tracing::info;
@@ -98,6 +98,10 @@ impl Shape for Map {
 impl Component for Map {
     fn display(&mut self) -> Result<String> {
         Ok("Map".to_string())
+    }
+
+    fn placement(&mut self) -> LayoutArea {
+        LayoutArea::Left_75
     }
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {

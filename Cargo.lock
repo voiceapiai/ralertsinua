@@ -73,6 +73,7 @@ dependencies = [
  "sqlx",
  "strip-ansi-escapes",
  "strum",
+ "strum_macros",
  "tokio",
  "tokio-util",
  "tracing",

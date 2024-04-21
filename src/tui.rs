@@ -1,3 +1,4 @@
+#![allow(non_camel_case_types)]
 use color_eyre::eyre::Result;
 use crossterm::{
     cursor,
@@ -46,8 +47,8 @@ pub enum Event {
 }
 
 pub enum LayoutArea {
-    Left,
-    Right,
+    Left_75,
+    Right_25,
 }
 
 pub struct Tui {

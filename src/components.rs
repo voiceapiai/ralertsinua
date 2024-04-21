@@ -10,6 +10,7 @@ use crate::{
     tui::{Event, Frame, LayoutArea},
 };
 
+pub mod fps;
 pub mod list;
 pub mod map;
 
@@ -125,5 +126,7 @@ pub trait Component: Send + Sync {
     fn draw(&mut self, f: &mut Frame<'_>, area: Rect) -> Result<()>;
 
     fn display(&mut self) -> Result<String>;
+
+    fn placement(&mut self) -> LayoutArea;
 
 }

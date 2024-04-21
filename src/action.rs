@@ -21,4 +21,5 @@ pub enum Action {
   Error(String),
   Help,
   Selected(usize),
+  FetchAlerts,
 }

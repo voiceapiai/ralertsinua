@@ -14,10 +14,12 @@ pub mod tui;
 pub mod ukraine;
 pub mod utils;
 
+
 use clap::Parser;
 use cli::Cli;
 use color_eyre::eyre::Result;
 use dotenv::dotenv;
+use std::sync::Arc;
 
 use crate::{
     app::App,
@@ -31,7 +33,7 @@ async fn tokio_main() -> Result<()> {
     initialize_panic_handler()?;
 
     let pool = db_pool().await;
-    let data_repository = DataRepository::new(pool);
+    let data_repository = Arc::new(DataRepository::new(pool));
 
     let args = Cli::parse();
     let mut app = App::new(&args, data_repository)?;

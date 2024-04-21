@@ -1,24 +1,25 @@
 use color_eyre::eyre::Result;
 use crossterm::event::KeyEvent;
-use tracing::info;
 use ratatui::prelude::Rect;
 #[allow(unused)]
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tokio::sync::mpsc;
+use tracing::info;
 
 use crate::{
     action::Action,
     cli::Cli,
-    components::{list::List, map::Map, Component},
+    components::{fps::FpsCounter, list::RegionsList, map::Map, Component},
     config::Config,
     data::DataRepository,
     mode::Mode,
-    tui,
+    tui::{self, LayoutArea},
 };
 
 pub struct App {
     pub config: Config,
-    // pub data_repository: DataRepository,
+    pub data_repository: Arc<DataRepository>,
     pub tick_rate: f64,
     pub frame_rate: f64,
     pub components: Vec<Box<dyn Component>>,
@@ -29,32 +30,24 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(args: &Cli, data_repository: DataRepository) -> Result<Self> {
+    pub fn new(args: &Cli, data_repository: Arc<DataRepository>) -> Result<Self> {
         let map = Map::new();
-        let list = List::new(data_repository);
+        let list = RegionsList::new(data_repository.clone());
+        let fps = FpsCounter::default();
         let config = Config::new()?;
         let mode = Mode::Map;
         Ok(Self {
             tick_rate: args.tick_rate,
             frame_rate: args.frame_rate,
-            components: vec![Box::new(map), Box::new(list)],
+            components: vec![Box::new(map), Box::new(list), Box::new(fps)],
             should_quit: false,
             should_suspend: false,
             config,
-            // data_repository,
+            data_repository,
             mode,
             last_tick_key_events: Vec::new(),
         })
     }
-
-    /* /// Initialize app data
-    pub async fn init(&mut self) -> Result<()> {
-        use crate::data::MapRepository;
-        let ukraine = self.data_repository.get_data().await?;
-        self.set_ukraine(ukraine);
-        // self.fetch_alerts().await?;
-        Ok(())
-    } */
 
     pub async fn run(&mut self) -> Result<()> {
         let (action_tx, mut action_rx) = mpsc::unbounded_channel();
@@ -138,9 +131,13 @@ impl App {
                     }
                     Action::Render => {
                         tui.draw(|f| {
-                            let areas = tui::Tui::areas::<2>(f);
+                            let [left, right] = tui::Tui::areas::<2>(f);
                             for (i, component) in self.components.iter_mut().enumerate() {
-                                let r = component.draw(f, areas[i]);
+                                let area = match component.placement() {
+                                    LayoutArea::Left_75 => left,
+                                    LayoutArea::Right_25 => right,
+                                };
+                                let r = component.draw(f, area);
                                 if let Err(e) = r {
                                     action_tx
                                         .send(Action::Error(format!("Failed to draw: {:?}", e)))
@@ -148,6 +145,10 @@ impl App {
                                 }
                             }
                         })?;
+                    }
+                    Action::FetchAlerts => {
+                        let data = self.data_repository.fetch_alerts_short().await?;
+                        info!("List->update: {:?}, {}", action, data);
                     }
                     _ => {}
                 }
