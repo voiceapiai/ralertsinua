@@ -1,10 +1,9 @@
-use std::fmt::Debug;
-
-// use std::ops::{Deref, DerefMut};
 use arrayvec::ArrayString;
 use chrono::{DateTime, Utc};
 use derive_deref::{Deref, DerefMut};
+use ratatui::prelude::Color;
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 pub use strum::{Display, EnumProperty, EnumString};
 use strum_macros;
 
@@ -33,6 +32,12 @@ pub type AlertsResponseString = ArrayString<27>;
 #[derive(Debug, Deref, Default)]
 pub struct AlertsByRegion(ArrayString<27>);
 
+impl AlertsByRegion {
+    pub fn new(alerts_as: AlertsResponseString) -> Self {
+        Self(alerts_as)
+    }
+}
+
 pub trait AlertsByRegionState: Send + Sync + Debug {
     fn set_alerts(self: Box<Self>, alerts_as: AlertsResponseString)
         -> Box<dyn AlertsByRegionState>;
@@ -59,7 +64,7 @@ pub struct AlertsResponseAll {
     pub alerts: Vec<Alert>,
 }
 
-#[derive(Debug, strum_macros::EnumProperty, Display)]
+#[derive(Debug, strum_macros::EnumProperty, strum_macros::AsRefStr, Display)]
 pub enum AlertStatus {
     /// Active
     #[strum(props(icon = "🜸", color = "red"))]
@@ -70,6 +75,9 @@ pub enum AlertStatus {
     /// No information
     #[strum(props(icon = "🌣", color = "blue"))]
     N,
+    /// Loading
+    #[strum(props(icon = "↻", color = "white"))]
+    L,
 }
 
 impl Default for AlertStatus {
@@ -83,6 +91,7 @@ impl From<char> for AlertStatus {
         match c {
             'A' => AlertStatus::A,
             'P' => AlertStatus::P,
+            'L' => AlertStatus::L,
             _ => AlertStatus::N,
         }
     }

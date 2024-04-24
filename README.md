@@ -4,7 +4,7 @@
 
 TUI (terminal user interface) for alerts.in.ua, implementing in Rust using [ratatui](https://ratatui.rs/)
 
-![screenshot](screenshot.png)
+![screencast](screencast.gif)
 
 ## Alerts.in.ua API Docs
 

@@ -43,6 +43,7 @@ tokio-util = "0.7.9"
 tracing = "0.1"
 tracing-error = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "serde"] }
+throbber-widgets-tui = "0.5"
 wkt = "0.10.3"
 # either = "1.11"
 # futures-util = "0.3"

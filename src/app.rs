@@ -3,9 +3,11 @@ use crossterm::event::KeyEvent;
 use ratatui::prelude::Rect;
 #[allow(unused)]
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use tokio::sync::mpsc;
-use tracing::info;
+use tokio::{
+    sync::mpsc,
+    time::{sleep, Duration},
+};
+use tracing::{error, info};
 
 use crate::{
     action::Action,
@@ -15,13 +17,15 @@ use crate::{
     data::DataRepository,
     mode::Mode,
     tui::{self, LayoutArea},
+    ukraine::{self, *},
 };
 
 pub struct App {
-    pub config: Config,
+    pub config: Arc<Mutex<Config>>,
     pub data_repository: Arc<DataRepository>,
     pub tick_rate: f64,
     pub frame_rate: f64,
+    pub ukraine: Arc<Mutex<Ukraine>>,
     pub components: Vec<Box<dyn Component>>,
     pub should_quit: bool,
     pub should_suspend: bool,
@@ -31,14 +35,17 @@ pub struct App {
 
 impl App {
     pub fn new(args: &Cli, data_repository: Arc<DataRepository>) -> Result<Self> {
-        let map = Map::new();
-        let list = RegionsList::new(data_repository.clone());
-        let fps = FpsCounter::default();
-        let config = Config::new()?;
+        let config = Arc::new(Mutex::new(Config::new()?));
+        let ukraine = Arc::new(Mutex::new(Ukraine::default()));
+        let map = Map::new(ukraine.clone(), config.clone());
+        let list = RegionsList::new(ukraine.clone(), config.clone());
+        let fps = FpsCounter::new(ukraine.clone(), config.clone());
         let mode = Mode::Map;
+        // let tick_rate = std::time::Duration::from_secs(10);
         Ok(Self {
             tick_rate: args.tick_rate,
             frame_rate: args.frame_rate,
+            ukraine,
             components: vec![Box::new(map), Box::new(list), Box::new(fps)],
             should_quit: false,
             should_suspend: false,
@@ -49,8 +56,16 @@ impl App {
         })
     }
 
+    pub async fn init(&mut self) -> Result<()> {
+        let regions = self.data_repository.fetch_regions().await?;
+        let mut ukraine = self.ukraine.lock().unwrap();
+        ukraine.set_regions(regions);
+        Ok(())
+    }
+
     pub async fn run(&mut self) -> Result<()> {
         let (action_tx, mut action_rx) = mpsc::unbounded_channel();
+        let periodic_action_tx = action_tx.clone();
 
         let mut tui = tui::Tui::new()?
             .tick_rate(self.tick_rate)
@@ -58,13 +73,25 @@ impl App {
         // tui.mouse(true);
         tui.enter()?;
 
+        self.init().await?;
+
+        // dispatch fetch action after 2 seconds
+        tokio::spawn(async move {
+            sleep(Duration::from_secs(2)).await;
+            if let Err(err) = periodic_action_tx.send(Action::Fetch) {
+                error!("App->run: Failed to send fetch action: {:?}", err);
+            } else {
+                info!("App->run: Sent fetch action");
+            }
+        });
+
         for component in self.components.iter_mut() {
             component.register_action_handler(action_tx.clone())?;
         }
 
-        for component in self.components.iter_mut() {
+        /* for component in self.components.iter_mut() {
             component.register_config_handler(self.config.clone())?;
-        }
+        } */
 
         for component in self.components.iter_mut() {
             component.init(tui.size()?).await?;
@@ -79,9 +106,10 @@ impl App {
                     tui::Event::Render => action_tx.send(Action::Render)?,
                     tui::Event::Resize(x, y) => action_tx.send(Action::Resize(x, y))?,
                     tui::Event::Key(key) => {
-                        if let Some(keymap) = self.config.keybindings.get(&self.mode) {
+                        let config = self.config.lock().unwrap();
+                        if let Some(keymap) = config.keybindings.get(&self.mode) {
                             if let Some(action) = keymap.get(&vec![key]) {
-                                log::info!("Got action: {action:?}");
+                                info!("Got action: {action:?}");
                                 action_tx.send(action.clone())?;
                             } else {
                                 // If the key was not handled as a single key action,
@@ -90,11 +118,11 @@ impl App {
 
                                 // Check for multi-key combinations
                                 if let Some(action) = keymap.get(&self.last_tick_key_events) {
-                                    log::info!("Got action: {action:?}");
+                                    info!("Got action: {action:?}");
                                     action_tx.send(action.clone())?;
                                 }
                             }
-                        };
+                        }
                     }
                     _ => {}
                 }
@@ -116,6 +144,12 @@ impl App {
                     Action::Quit => self.should_quit = true,
                     Action::Suspend => self.should_suspend = true,
                     Action::Resume => self.should_suspend = false,
+                    Action::Locale => {
+                        let mut config = self.config.lock().unwrap();
+                        config.toggle_locale();
+                        action_tx.send(Action::Refresh)?;
+                        // action_tx.send(Action::Render)?;
+                    }
                     Action::Resize(w, h) => {
                         tui.resize(Rect::new(0, 0, w, h))?;
                         tui.draw(|f| {
@@ -146,9 +180,18 @@ impl App {
                             }
                         })?;
                     }
-                    Action::FetchAlerts => {
-                        let data = self.data_repository.fetch_alerts_short().await?;
-                        info!("List->update: {:?}, {}", action, data);
+                    Action::Fetch => {
+                        // let regions = self.data_repository.fetch_regions().await?;
+                        let alerts_as = self.data_repository.fetch_alerts_short().await?;
+                        let mut ukraine = self.ukraine.lock().unwrap();
+                        // ukraine.set_regions(regions);
+                        ukraine.set_alerts(alerts_as);
+                        let regions = ukraine.regions();
+                        let alerts_str = ukraine.get_alerts();
+                        // let tx_action = Action::SetListItems(regions.clone(), alerts_str.to_string());
+                        let tx_action = Action::Refresh;
+                        info!("App->on:FetchAlerts->action_tx.send: {}", tx_action);
+                        action_tx.send(tx_action)?;
                     }
                     _ => {}
                 }

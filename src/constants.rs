@@ -4,6 +4,7 @@ use ratatui::style::{palette::material, Color};
 
 lazy_static! {
     // Colors
+    pub static ref DEFAULT_COLOR: Color = Color::Reset;
     pub static ref TEXT_COLOR: Color = Color::LightBlue;
     pub static ref MARKER_COLOR: Color = Color::LightYellow;
     pub static ref NORMAL_ROW_COLOR: Color = Color::Reset;

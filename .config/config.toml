@@ -3,3 +3,5 @@
 "<Ctrl-d>" = "Quit"
 "<Ctrl-c>" = "Quit"
 "<Ctrl-z>" = "Suspend"
+[config]
+locale = "en"

@@ -6,11 +6,13 @@ use crate::{
     constants::*,
     data::DataRepository,
     tui::LayoutArea,
-    ukraine::{Region, Ukraine},
+    ukraine::*,
 };
+use arrayvec::ArrayVec;
 use async_trait::async_trait;
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent};
+use delegate::delegate;
 use getset::*;
 use ratatui::{
     layout::{Alignment, Constraint, Layout},
@@ -20,25 +22,42 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState},
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, time::Duration};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
 
+impl<'a> From<&'a Region> for ratatui::text::Text<'a> {
+    // In addition to `List::new`, any iterator whose element is convertible to `ListItem` can be collected into `List`.
+    fn from(region: &'a Region) -> Self {
+        Text::from(format!("{}: {}", region.id, region.name,))
+    }
+}
+
 impl Region {
-    pub fn to_list_item(&self, index: i8, alert_status: char) -> ListItem {
+    pub fn to_list_item(
+        self,
+        index: &usize,
+        alert_status: &AlertStatus,
+        locale: &String,
+    ) -> ListItem<'static> {
         use std::str::FromStr;
-        let alert_status = AlertStatus::from(alert_status);
         let icon = alert_status.get_str("icon").unwrap();
         let color_str = alert_status.get_str("color").unwrap();
         let color = Color::from_str(color_str).unwrap();
-        let list_item: ListItem = ListItem::new(format!("{} {}", icon, self.name)).style(color);
+        let text = if locale == "uk" {
+            self.name
+        } else {
+            self.name_en
+        };
+        let list_item: ListItem = ListItem::new(format!("{} {}", icon, text)).style(color);
 
         match alert_status {
             AlertStatus::A => list_item
                 .add_modifier(Modifier::BOLD)
                 .add_modifier(Modifier::RAPID_BLINK),
             AlertStatus::P => list_item.add_modifier(Modifier::ITALIC),
-            AlertStatus::N => list_item,
+            AlertStatus::L => list_item.add_modifier(Modifier::DIM),
+            _ => list_item,
         }
     }
 }
@@ -46,45 +65,62 @@ impl Region {
 #[derive(Debug, Getters, MutGetters, Setters)]
 pub struct RegionsList {
     command_tx: Option<UnboundedSender<Action>>,
-    config: Config,
-    data_repository: Arc<DataRepository>,
-    ukraine: Ukraine,
-    #[getset(get = "pub")]
+    config: Arc<Mutex<Config>>,
+    ukraine: Arc<Mutex<Ukraine>>,
+    #[getset(get = "pub with_prefix")]
+    list: List<'static>,
+    #[getset(get = "pub", get_mut)]
     state: ListState,
-    #[getset(get = "pub", get_mut = "pub")]
+    #[getset(get = "pub", get_mut)]
     last_selected: Option<usize>,
 }
 
 impl RegionsList {
-    pub fn new(data_repository: Arc<DataRepository>) -> Self {
+    pub fn new(ukraine: Arc<Mutex<Ukraine>>, config: Arc<Mutex<Config>>) -> RegionsList {
         Self {
             command_tx: None,
-            config: Config::default(),
-            data_repository,
-            ukraine: Ukraine::default(),
+            config,
+            ukraine,
+            list: List::default(),
             state: ListState::default(),
             last_selected: None,
         }
     }
 
-    pub fn get_list_items(&self) -> Vec<ListItem> {
-        self.ukraine
-            .regions()
-            .iter()
-            .enumerate()
-            .map(|(i, r)| {
-                r.to_list_item(
-                    i as i8,
-                    self.ukraine.get_alerts().chars().nth(i).unwrap_or('N'),
-                )
-            })
-            .collect()
+    delegate! {
+        to self.list {
+            pub fn len(&mut self) -> usize;
+        }
+
+        to self.state {
+            pub fn selected(&self) -> Option<usize>;
+        }
+    }
+
+    /// Get List Widget with ListItems of regions
+    fn list(&mut self, is_loading: bool) -> List<'static> {
+        let config = self.config.lock().unwrap();
+        let ukraine = self.ukraine.lock().unwrap();
+        let regions = ukraine.regions();
+        let alerts_as = ukraine.get_alerts();
+        let locale = config.get_locale();
+        let list = List::new(regions.into_iter().enumerate().map(|(i, region)| {
+            let region_a_s = if is_loading {
+                AlertStatus::L
+            } else {
+                AlertStatus::from(alerts_as.chars().nth(i).unwrap_or('N'))
+            };
+            region.clone().to_list_item(&i, &region_a_s, &locale)
+        }));
+
+        list
     }
 
     pub fn next(&mut self) {
+        let lock = self.ukraine.lock().unwrap();
         let i = match self.state.selected() {
             Some(i) => {
-                if i >= self.ukraine.regions().len() - 1 {
+                if i >= lock.regions().len() - 1 {
                     0
                 } else {
                     i + 1
@@ -93,14 +129,16 @@ impl RegionsList {
             None => self.last_selected.unwrap_or(0),
         };
         self.state.select(Some(i));
+        // drop(lock);
         // info!("List->next, selected region: {:?}", i);
     }
 
     pub fn previous(&mut self) {
+        let lock = self.ukraine.lock().unwrap();
         let i = match self.state.selected() {
             Some(i) => {
                 if i == 0 {
-                    self.ukraine.regions().len() - 1
+                    lock.regions().len() - 1
                 } else {
                     i - 1
                 }
@@ -108,6 +146,7 @@ impl RegionsList {
             None => self.last_selected.unwrap_or(0),
         };
         self.state.select(Some(i));
+        // drop(lock);
         // info!("List->previous, selected region: {:?}", i);
     }
 
@@ -123,7 +162,9 @@ impl RegionsList {
     }
 
     pub fn go_bottom(&mut self) {
-        self.state.select(Some(self.ukraine.regions().len() - 1));
+        let lock = self.ukraine.lock().unwrap();
+        self.state.select(Some(lock.regions().len() - 1));
+        // drop(lock);
     }
 }
 
@@ -138,8 +179,7 @@ impl Component for RegionsList {
     }
 
     async fn init(&mut self, area: Rect) -> Result<()> {
-        use crate::data::MapRepository;
-        self.ukraine = self.data_repository.get_data().await?;
+        self.list = self.list(true);
         Ok(())
     }
 
@@ -148,17 +188,17 @@ impl Component for RegionsList {
         Ok(())
     }
 
-    fn register_config_handler(&mut self, config: Config) -> Result<()> {
-        self.config = config;
-        Ok(())
-    }
-
+    #[tracing::instrument(skip(self))]
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::Tick => {}
-            Action::FetchAlerts => {
-                self.data_repository.fetch_alerts_short();
-                info!("List->update: {:?}", action);
+            Action::Refresh => {
+                self.list = self.list(false);
+                info!("List->update->Action::Refresh: {}", action);
+            }
+            Action::Fetch => {
+                self.list = self.list(true);
+                info!("List->update->Action::Fetch: {}", action);
             }
             _ => {}
         }
@@ -166,8 +206,9 @@ impl Component for RegionsList {
     }
 
     fn draw(&mut self, f: &mut Frame<'_>, area: Rect) -> Result<()> {
-        // In addition to `List::new`, any iterator whose element is convertible to `ListItem` can be collected into `List`.
-        let widget = List::new(self.get_list_items())
+        let widget = self
+            .list
+            .clone()
             .block(
                 Block::bordered()
                     .title("Regions")
@@ -182,14 +223,14 @@ impl Component for RegionsList {
             .highlight_symbol(">>")
             .repeat_highlight_symbol(true);
 
-        f.render_stateful_widget(widget, area, &mut self.state().clone());
+        f.render_stateful_widget(widget, area, &mut self.state_mut());
         Ok(())
     }
 
     fn handle_key_events(&mut self, key_event: KeyEvent) -> Result<Option<Action>> {
         match key_event.code {
             KeyCode::Char('u') => {
-                let action = Action::FetchAlerts;
+                let action = Action::Fetch;
                 Ok(Some(action))
             }
             KeyCode::Down => {
@@ -205,5 +246,19 @@ impl Component for RegionsList {
             // Other handlers you could add here.
             _ => Ok(None),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_map_new() {
+        let list = RegionsList::new(Arc::new(Mutex::new(Ukraine::default())), Arc::new(Mutex::new(Config::default())));
+        assert!(list.command_tx.is_none());
+        assert_eq!(list.state, ListState::default());
+        assert!(list.ukraine.lock().unwrap().regions().is_empty() == true);
+        // match map.borders.try_from()
     }
 }

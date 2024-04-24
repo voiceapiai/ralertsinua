@@ -41,10 +41,10 @@ pub trait Component: Send + Sync {
     /// # Returns
     ///
     /// * `Result<()>` - An Ok result or an error.
-    #[allow(unused_variables)]
+    /* #[allow(unused_variables)]
     fn register_config_handler(&mut self, config: Config) -> Result<()> {
         Ok(())
-    }
+    } */
     /// Initialize the component with a specified area if necessary.
     ///
     /// # Arguments

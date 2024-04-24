@@ -24,6 +24,8 @@ pub struct AppConfig {
     pub _data_dir: PathBuf,
     #[serde(default)]
     pub _config_dir: PathBuf,
+    #[serde(default)]
+    pub locale: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -43,7 +45,8 @@ impl Config {
         let config_dir = crate::utils::get_config_dir();
         let mut builder = config::Config::builder()
             .set_default("_data_dir", data_dir.to_str().unwrap())?
-            .set_default("_config_dir", config_dir.to_str().unwrap())?;
+            .set_default("_config_dir", config_dir.to_str().unwrap())?
+            .set_default("locale", "en".to_string())?;
 
         let config_files = [
             ("config.json5", config::FileFormat::Json5),
@@ -88,6 +91,16 @@ impl Config {
 
         Ok(cfg)
     }
+
+    pub fn toggle_locale(&mut self) {
+        let locale = &self.config.locale;
+        self.config.locale = if locale == "en" { "uk".to_string() } else { "en".to_string() };
+    }
+
+    pub fn get_locale(&self) -> String {
+        self.config.locale.clone()
+    }
+
 }
 
 #[derive(Clone, Debug, Default, Deref, DerefMut)]

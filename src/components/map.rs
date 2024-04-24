@@ -1,8 +1,7 @@
 use super::{Component, Frame};
-use crate::{action::Action, config::Config, constants::*, ukraine::Ukraine, tui::LayoutArea};
+use crate::{action::Action, config::Config, constants::*, tui::LayoutArea, ukraine::*};
 use color_eyre::eyre::Result;
 use geo::{Geometry, HasDimensions, Polygon};
-use tracing::info;
 use ratatui::{
     prelude::*,
     widgets::{
@@ -11,6 +10,7 @@ use ratatui::{
     },
 };
 use strum::Display;
+use tracing::info;
 use wkt::*;
 // use serde::{Deserialize, Serialize};
 #[allow(unused)]
@@ -33,7 +33,10 @@ const PADDING: f64 = 0.5;
 #[derive(Debug)]
 pub struct Map {
     command_tx: Option<UnboundedSender<Action>>,
-    config: Config,
+    #[allow(unused)]
+    config: Arc<Mutex<Config>>,
+    #[allow(unused)]
+    ukraine: Arc<Mutex<Ukraine>>,
     borders: Polygon,
 }
 
@@ -67,7 +70,7 @@ impl MapBounds for Map {
 }
 
 impl Map {
-    pub fn new() -> Self {
+    pub fn new(ukraine: Arc<Mutex<Ukraine>>, config: Arc<Mutex<Config>>,) -> Self {
         use std::str::FromStr;
         let borders: Polygon = Wkt::from_str(UKRAINE_BORDERS_POYGON_WKT)
             .unwrap()
@@ -75,8 +78,9 @@ impl Map {
             .unwrap();
         Self {
             command_tx: Option::default(),
-            config: Config::default(),
+            config,
             borders,
+            ukraine,
         }
     }
 }
@@ -106,11 +110,6 @@ impl Component for Map {
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.command_tx = Some(tx);
-        Ok(())
-    }
-
-    fn register_config_handler(&mut self, config: Config) -> Result<()> {
-        self.config = config;
         Ok(())
     }
 
@@ -151,9 +150,11 @@ mod tests {
 
     #[test]
     fn test_map_new() {
-        let map = Map::new();
+        let arc = UkraineArc::default();
+        let map = Map::new(Arc::new(Mutex::new(Ukraine::default())), Arc::new(Mutex::new(Config::default())));
         assert!(map.command_tx.is_none());
         assert!(map.borders.is_empty() == false);
+        assert!(map.ukraine.lock().unwrap().regions().is_empty() == true);
         // match map.borders.try_from()
     }
 }

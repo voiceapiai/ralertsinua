@@ -6,7 +6,9 @@ use crate::{
     ukraine::{Region, RegionArrayVec, Ukraine},
 };
 use arrayvec::ArrayString;
-use color_eyre::eyre::Result; // use anyhow::*;
+use color_eyre::eyre::Result;
+use getset::Getters;
+// use anyhow::*;
 use core::str;
 #[allow(unused)]
 use reqwest::{Client, Error};
@@ -44,7 +46,7 @@ pub mod API {
 }
 
 #[tracing::instrument(level = "trace")]
-pub async fn db_pool() -> Arc<SqlitePool> {
+pub async fn db_pool() -> SqlitePool {
     let conn: SqliteConnectOptions = SqliteConnectOptions::new()
         .filename(DB_PATH)
         .create_if_missing(true);
@@ -69,31 +71,25 @@ pub async fn db_pool() -> Arc<SqlitePool> {
         }
     }
     // Return the pool
-    Arc::new(pool)
+    pool
 }
 
-#[derive(Debug)]
+#[derive(Debug, Getters)]
 pub struct DataRepository {
-    /// The HTTP client.
+    /// The HTTP client
+    #[getset(get = "pub")]
     client: Client,
     /// The database pool.
-    pool: Arc<SqlitePool>,
-}
-
-pub trait MapRepository {
-    fn get_data(&self) -> impl Future<Output = Result<Ukraine>> + Send;
+    #[getset(get = "pub")]
+    pool: SqlitePool,
 }
 
 impl DataRepository {
-    pub fn new(pool: Arc<SqlitePool>) -> Self {
+    pub fn new(pool: SqlitePool) -> Self {
         Self {
             client: Client::new(),
             pool,
         }
-    }
-
-    fn pool(&self) -> &SqlitePool {
-        self.pool.as_ref()
     }
 
     #[tracing::instrument(level = "info")]
@@ -102,6 +98,7 @@ impl DataRepository {
         // .with_context(|| format!("Error opening file '{}':", file_path));
     }
 
+    #[allow(unused)]
     fn read_csv_file(file_path: &str) -> Result<Vec<Region>> {
         use csv::ReaderBuilder;
         let mut records = vec![];
@@ -147,7 +144,7 @@ impl DataRepository {
         Ok(())
     } */
 
-    async fn fetch_regions(&self) -> Result<RegionArrayVec> {
+    pub async fn fetch_regions(&self) -> Result<RegionArrayVec> {
         use arrayvec::ArrayVec;
         let regions: Vec<Region> = sqlx::query_as(QUERY_SELECT_REGIONS)
             .fetch_all(self.pool())
@@ -157,7 +154,7 @@ impl DataRepository {
         Ok(ArrayVec::<Region, 27>::from_iter(regions))
     }
 
-    async fn fetch_borders(&self) -> Result<String> {
+    pub async fn fetch_borders(&self) -> Result<String> {
         let borders = Self::read_wkt_file(FILE_PATH_WKT)?;
         Ok(borders)
     }
@@ -180,7 +177,7 @@ impl DataRepository {
     /// Response: `"ANNNANNNNNNNANNNNNNNNNNNNNN"`
     pub async fn fetch_alerts_short(&self) -> Result<AlertsResponseString> {
         let url = API::ALERTS_ACTIVE_BY_REGION_STRING.as_str();
-        let response = self.client.get(url).send().await?;
+        let response = self.client().get(url).send().await?;
         let content: String = response.text().await.unwrap_or_default();
         let text = content.trim_matches('"');
         info!("Fetched alerts as string: {}, length: {}", text, text.len());
@@ -188,16 +185,5 @@ impl DataRepository {
         a_string.push_str(&text);
 
         Ok(a_string)
-    }
-}
-
-impl MapRepository for DataRepository {
-    async fn get_data(&self) -> Result<Ukraine> {
-        let regions = self.fetch_regions().await?;
-        let alerts_string = self.fetch_alerts_short().await?;
-        let mut ukraine = Ukraine::new(regions);
-        ukraine.set_alerts(alerts_string);
-
-        Ok(ukraine)
     }
 }
