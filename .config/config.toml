@@ -1,7 +1,9 @@
-[keybindings.Map]
-"<q>" = "Quit"
-"<Ctrl-d>" = "Quit"
-"<Ctrl-c>" = "Quit"
-"<Ctrl-z>" = "Suspend"
-[config]
+[keybindings]
+"q" = "Quit"
+"l" = "Locale"
+"u" = "Fetch"
+"r" = "Refresh"
+"z" = "Suspend"
+[settings]
+token = ""
 locale = "en"

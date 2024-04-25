@@ -2,7 +2,7 @@ use super::{Component, Frame};
 use crate::{
     action::Action,
     alerts::*,
-    config::{Config, KeyBindings},
+    config::{self, CONFIG},
     constants::*,
     data::DataRepository,
     tui::LayoutArea,
@@ -65,8 +65,7 @@ impl Region {
 #[derive(Debug, Getters, MutGetters, Setters)]
 pub struct RegionsList {
     command_tx: Option<UnboundedSender<Action>>,
-    config: Arc<Mutex<Config>>,
-    ukraine: Arc<Mutex<Ukraine>>,
+    ukraine: Arc<RwLock<Ukraine>>,
     #[getset(get = "pub with_prefix")]
     list: List<'static>,
     #[getset(get = "pub", get_mut)]
@@ -76,10 +75,9 @@ pub struct RegionsList {
 }
 
 impl RegionsList {
-    pub fn new(ukraine: Arc<Mutex<Ukraine>>, config: Arc<Mutex<Config>>) -> RegionsList {
+    pub fn new(ukraine: Arc<RwLock<Ukraine>>) -> RegionsList {
         Self {
             command_tx: None,
-            config,
             ukraine,
             list: List::default(),
             state: ListState::default(),
@@ -99,25 +97,23 @@ impl RegionsList {
 
     /// Get List Widget with ListItems of regions
     fn list(&mut self, is_loading: bool) -> List<'static> {
-        let config = self.config.lock().unwrap();
-        let ukraine = self.ukraine.lock().unwrap();
+        let ukraine = self.ukraine.read().unwrap();
         let regions = ukraine.regions();
         let alerts_as = ukraine.get_alerts();
-        let locale = config.get_locale();
-        let list = List::new(regions.into_iter().enumerate().map(|(i, region)| {
+        let locale = CONFIG.read().unwrap().get("settings.locale").unwrap();
+
+        List::new(regions.into_iter().enumerate().map(|(i, region)| {
             let region_a_s = if is_loading {
                 AlertStatus::L
             } else {
                 AlertStatus::from(alerts_as.chars().nth(i).unwrap_or('N'))
             };
             region.clone().to_list_item(&i, &region_a_s, &locale)
-        }));
-
-        list
+        }))
     }
 
     pub fn next(&mut self) {
-        let lock = self.ukraine.lock().unwrap();
+        let lock = self.ukraine.read().unwrap();
         let i = match self.state.selected() {
             Some(i) => {
                 if i >= lock.regions().len() - 1 {
@@ -129,12 +125,10 @@ impl RegionsList {
             None => self.last_selected.unwrap_or(0),
         };
         self.state.select(Some(i));
-        // drop(lock);
-        // info!("List->next, selected region: {:?}", i);
     }
 
     pub fn previous(&mut self) {
-        let lock = self.ukraine.lock().unwrap();
+        let lock = self.ukraine.read().unwrap();
         let i = match self.state.selected() {
             Some(i) => {
                 if i == 0 {
@@ -146,8 +140,6 @@ impl RegionsList {
             None => self.last_selected.unwrap_or(0),
         };
         self.state.select(Some(i));
-        // drop(lock);
-        // info!("List->previous, selected region: {:?}", i);
     }
 
     pub fn unselect(&mut self) {
@@ -162,7 +154,7 @@ impl RegionsList {
     }
 
     pub fn go_bottom(&mut self) {
-        let lock = self.ukraine.lock().unwrap();
+        let lock = self.ukraine.read().unwrap();
         self.state.select(Some(lock.regions().len() - 1));
         // drop(lock);
     }
@@ -255,10 +247,10 @@ mod tests {
 
     #[test]
     fn test_map_new() {
-        let list = RegionsList::new(Arc::new(Mutex::new(Ukraine::default())), Arc::new(Mutex::new(Config::default())));
+        let list = RegionsList::new(Ukraine::new_arc());
         assert!(list.command_tx.is_none());
         assert_eq!(list.state, ListState::default());
-        assert!(list.ukraine.lock().unwrap().regions().is_empty() == true);
+        assert!(list.ukraine.read().unwrap().regions().is_empty() == true);
         // match map.borders.try_from()
     }
 }

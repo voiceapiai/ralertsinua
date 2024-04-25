@@ -11,12 +11,12 @@ use ratatui::{
     widgets::{ListItem, ListState},
 };
 use serde::*;
-pub use std::sync::{Arc, Mutex};
+pub use std::sync::{Arc, RwLock};
 use tracing::info;
 
-// pub type UkraineArc = Arc<Mutex<Ukraine>>;
+// pub type UkraineArc = Arc<RwLock<Ukraine>>;
 #[derive(Debug, Deref, Default)]
-pub struct UkraineArc(Arc<Mutex<Ukraine>>);
+pub struct UkraineArc(Arc<RwLock<Ukraine>>);
 
 // use geo::algorithm::bounding_rect::BoundingRect;
 // use geo::algorithm::simplify_vw::SimplifyVw;
@@ -47,6 +47,10 @@ pub struct Ukraine {
 }
 
 impl Ukraine {
+    pub fn new_arc() -> Arc<RwLock<Ukraine>> {
+        Arc::new(RwLock::new(Ukraine::default()))
+    }
+
     pub fn new(regions: RegionArrayVec) -> Self {
         let alerts_state =
             Some(Box::new(AlertsByRegion::default()) as Box<dyn AlertsByRegionState>);

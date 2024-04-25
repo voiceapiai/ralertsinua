@@ -3,7 +3,7 @@ use super::Component;
 use crate::{
     action::Action,
     alerts::*,
-    config::{Config, KeyBindings},
+    config::{self, CONFIG},
     tui::{Frame, LayoutArea},
     ukraine::*,
 };
@@ -30,11 +30,9 @@ pub struct FpsCounter {
     render_fps: f64,
 
     command_tx: Option<UnboundedSender<Action>>,
-    #[allow(unused)]
-    config: Arc<Mutex<Config>>,
     throbber_state: ThrobberState,
     #[allow(unused)]
-    ukraine: Arc<Mutex<Ukraine>>,
+    ukraine: Arc<RwLock<Ukraine>>,
 }
 
 impl AlertsService for FpsCounter {
@@ -45,7 +43,7 @@ impl AlertsService for FpsCounter {
 }
 
 impl FpsCounter {
-    pub fn new(ukraine: Arc<Mutex<Ukraine>>, config: Arc<Mutex<Config>>,) -> Self {
+    pub fn new(ukraine: Arc<RwLock<Ukraine>>) -> Self {
         Self {
             app_start_time: Instant::now(),
             app_frames: 0,
@@ -56,7 +54,6 @@ impl FpsCounter {
 
             command_tx: Option::default(),
             throbber_state: ThrobberState::default(),
-            config,
             ukraine,
         }
     }

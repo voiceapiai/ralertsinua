@@ -1,4 +1,4 @@
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{Error, Result};
 use crossterm::event::KeyEvent;
 use ratatui::prelude::Rect;
 #[allow(unused)]
@@ -10,22 +10,14 @@ use tokio::{
 use tracing::{error, info};
 
 use crate::{
-    action::Action,
-    cli::Cli,
-    components::{fps::FpsCounter, list::RegionsList, map::Map, Component},
-    config::Config,
-    data::DataRepository,
-    mode::Mode,
-    tui::{self, LayoutArea},
-    ukraine::{self, *},
+    action::Action, cli::Cli, components::{fps::FpsCounter, list::RegionsList, map::Map, Component}, config::{self, CONFIG}, data::DataRepository, mode::Mode, tui::{self, LayoutArea}, ukraine::{self, *}
 };
 
 pub struct App {
-    pub config: Arc<Mutex<Config>>,
     pub data_repository: Arc<DataRepository>,
     pub tick_rate: f64,
     pub frame_rate: f64,
-    pub ukraine: Arc<Mutex<Ukraine>>,
+    pub ukraine: Arc<RwLock<Ukraine>>,
     pub components: Vec<Box<dyn Component>>,
     pub should_quit: bool,
     pub should_suspend: bool,
@@ -34,22 +26,29 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(args: &Cli, data_repository: Arc<DataRepository>) -> Result<Self> {
-        let config = Arc::new(Mutex::new(Config::new()?));
-        let ukraine = Arc::new(Mutex::new(Ukraine::default()));
-        let map = Map::new(ukraine.clone(), config.clone());
-        let list = RegionsList::new(ukraine.clone(), config.clone());
-        let fps = FpsCounter::new(ukraine.clone(), config.clone());
+    pub fn new(args: Cli, data_repository: Arc<DataRepository>) -> Result<Self> {
+        let ukraine = Ukraine::new_arc();
+        let map = Map::new(ukraine.clone());
+        let list = RegionsList::new(ukraine.clone());
+        let fps = FpsCounter::new(ukraine.clone());
         let mode = Mode::Map;
+        let components: Vec<Box<dyn Component>> = vec![Box::new(map), Box::new(list), Box::new(fps)];
         // let tick_rate = std::time::Duration::from_secs(10);
+        let tick_rate = args.tick_rate;
+        let frame_rate = args.frame_rate;
+
+        #[allow(deprecated)]
+        CONFIG.write().unwrap().set("settings.token", args.token)?;
+        #[allow(deprecated)]
+        CONFIG.write().unwrap().set("settings.locale", args.locale)?;
+
         Ok(Self {
-            tick_rate: args.tick_rate,
-            frame_rate: args.frame_rate,
+            tick_rate,
+            frame_rate,
             ukraine,
-            components: vec![Box::new(map), Box::new(list), Box::new(fps)],
+            components,
             should_quit: false,
             should_suspend: false,
-            config,
             data_repository,
             mode,
             last_tick_key_events: Vec::new(),
@@ -58,7 +57,7 @@ impl App {
 
     pub async fn init(&mut self) -> Result<()> {
         let regions = self.data_repository.fetch_regions().await?;
-        let mut ukraine = self.ukraine.lock().unwrap();
+        let mut ukraine = self.ukraine.write().unwrap();
         ukraine.set_regions(regions);
         Ok(())
     }
@@ -106,23 +105,23 @@ impl App {
                     tui::Event::Render => action_tx.send(Action::Render)?,
                     tui::Event::Resize(x, y) => action_tx.send(Action::Resize(x, y))?,
                     tui::Event::Key(key) => {
-                        let config = self.config.lock().unwrap();
-                        if let Some(keymap) = config.keybindings.get(&self.mode) {
-                            if let Some(action) = keymap.get(&vec![key]) {
-                                info!("Got action: {action:?}");
-                                action_tx.send(action.clone())?;
-                            } else {
-                                // If the key was not handled as a single key action,
-                                // then consider it for multi-key combinations.
-                                self.last_tick_key_events.push(key);
+                        // let config = self.config.write().unwrap();
+                        // if let Some(keymap) = config.keybindings.get(&self.mode) {
+                        //     if let Some(action) = keymap.get(&vec![key]) {
+                        //         info!("Got action: {action:?}");
+                        //         action_tx.send(action.clone())?;
+                        //     } else {
+                        //         // If the key was not handled as a single key action,
+                        //         // then consider it for multi-key combinations.
+                        //         self.last_tick_key_events.push(key);
 
-                                // Check for multi-key combinations
-                                if let Some(action) = keymap.get(&self.last_tick_key_events) {
-                                    info!("Got action: {action:?}");
-                                    action_tx.send(action.clone())?;
-                                }
-                            }
-                        }
+                        //         // Check for multi-key combinations
+                        //         if let Some(action) = keymap.get(&self.last_tick_key_events) {
+                        //             info!("Got action: {action:?}");
+                        //             action_tx.send(action.clone())?;
+                        //         }
+                        //     }
+                        // }
                     }
                     _ => {}
                 }
@@ -145,8 +144,7 @@ impl App {
                     Action::Suspend => self.should_suspend = true,
                     Action::Resume => self.should_suspend = false,
                     Action::Locale => {
-                        let mut config = self.config.lock().unwrap();
-                        config.toggle_locale();
+                        config::toggle_locale()?;
                         action_tx.send(Action::Refresh)?;
                         // action_tx.send(Action::Render)?;
                     }
@@ -182,8 +180,8 @@ impl App {
                     }
                     Action::Fetch => {
                         // let regions = self.data_repository.fetch_regions().await?;
-                        let alerts_as = self.data_repository.fetch_alerts_short().await?;
-                        let mut ukraine = self.ukraine.lock().unwrap();
+                        let alerts_as = self.data_repository.fetch_alerts_string().await?;
+                        let mut ukraine = self.ukraine.write().unwrap();
                         // ukraine.set_regions(regions);
                         ukraine.set_alerts(alerts_as);
                         let regions = ukraine.regions();

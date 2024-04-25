@@ -18,7 +18,6 @@ pub mod utils;
 use clap::Parser;
 use cli::Cli;
 use color_eyre::eyre::Result;
-use dotenv::dotenv;
 use std::sync::Arc;
 
 use crate::{
@@ -28,7 +27,7 @@ use crate::{
 };
 
 async fn tokio_main() -> Result<()> {
-    dotenv().ok();
+    dotenvy::dotenv().ok();
     initialize_logging()?;
     initialize_panic_handler()?;
 
@@ -36,7 +35,7 @@ async fn tokio_main() -> Result<()> {
     let data_repository = Arc::new(DataRepository::new(pool));
 
     let args = Cli::parse();
-    let mut app = App::new(&args, data_repository)?;
+    let mut app = App::new(args, data_repository)?;
     app.run().await?;
 
     Ok(())

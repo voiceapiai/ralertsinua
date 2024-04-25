@@ -1,8 +1,8 @@
-use std::path::PathBuf;
-
 use color_eyre::eyre::Result;
 use directories::ProjectDirs;
 use lazy_static::lazy_static;
+use std::env;
+use std::path::PathBuf;
 use tracing::error;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{
@@ -21,11 +21,11 @@ const VERSION_MESSAGE: &str = concat!(
 lazy_static! {
     pub static ref PROJECT_NAME: String = env!("CARGO_CRATE_NAME").to_uppercase().to_string();
     pub static ref DATA_FOLDER: Option<PathBuf> =
-        std::env::var(format!("{}_DATA", PROJECT_NAME.clone()))
+        env::var(format!("{}_DATA", PROJECT_NAME.clone()))
             .ok()
             .map(PathBuf::from);
     pub static ref CONFIG_FOLDER: Option<PathBuf> =
-        std::env::var(format!("{}_CONFIG", PROJECT_NAME.clone()))
+        env::var(format!("{}_CONFIG", PROJECT_NAME.clone()))
             .ok()
             .map(PathBuf::from);
     pub static ref LOG_ENV: String = format!("{}_LOGLEVEL", PROJECT_NAME.clone());
@@ -54,7 +54,7 @@ pub fn initialize_panic_handler() -> Result<()> {
             }
         }
 
-        #[cfg(not(debug_assertions))]
+        /* #[cfg(not(debug_assertions))]
         {
             use human_panic::{handle_dump, print_msg, Metadata};
             let meta = Metadata {
@@ -69,7 +69,8 @@ pub fn initialize_panic_handler() -> Result<()> {
             print_msg(file_path, &meta)
                 .expect("human-panic: printing error message to console failed");
             eprintln!("{}", panic_hook.panic_report(panic_info)); // prints color-eyre stack trace to stderr
-        }
+        } */
+
         let msg = format!("{}", panic_hook.panic_report(panic_info));
         log::error!("Error: {}", strip_ansi_escapes::strip_str(msg));
 
@@ -99,6 +100,8 @@ pub fn get_data_dir() -> PathBuf {
     directory
 }
 
+
+/// Returns the path to the project's local config directory
 pub fn get_config_dir() -> PathBuf {
     let directory = if let Some(s) = CONFIG_FOLDER.clone() {
         s
@@ -115,10 +118,10 @@ pub fn initialize_logging() -> Result<()> {
     std::fs::create_dir_all(directory.clone())?;
     let log_path = directory.join(LOG_FILE.clone());
     let log_file = std::fs::File::create(log_path)?;
-    std::env::set_var(
+    env::set_var(
         "RUST_LOG",
-        std::env::var("RUST_LOG")
-            .or_else(|_| std::env::var(LOG_ENV.clone()))
+        env::var("RUST_LOG")
+            .or_else(|_| env::var(LOG_ENV.clone()))
             .unwrap_or_else(|_| format!("{}=info", env!("CARGO_CRATE_NAME"))),
     );
     let file_subscriber = tracing_subscriber::fmt::layer()

@@ -1,5 +1,5 @@
 use super::{Component, Frame};
-use crate::{action::Action, config::Config, constants::*, tui::LayoutArea, ukraine::*};
+use crate::{action::Action, config::{self, CONFIG}, constants::*, tui::LayoutArea, ukraine::*};
 use color_eyre::eyre::Result;
 use geo::{Geometry, HasDimensions, Polygon};
 use ratatui::{
@@ -34,9 +34,7 @@ const PADDING: f64 = 0.5;
 pub struct Map {
     command_tx: Option<UnboundedSender<Action>>,
     #[allow(unused)]
-    config: Arc<Mutex<Config>>,
-    #[allow(unused)]
-    ukraine: Arc<Mutex<Ukraine>>,
+    ukraine: Arc<RwLock<Ukraine>>,
     borders: Polygon,
 }
 
@@ -70,7 +68,7 @@ impl MapBounds for Map {
 }
 
 impl Map {
-    pub fn new(ukraine: Arc<Mutex<Ukraine>>, config: Arc<Mutex<Config>>,) -> Self {
+    pub fn new(ukraine: Arc<RwLock<Ukraine>>) -> Self {
         use std::str::FromStr;
         let borders: Polygon = Wkt::from_str(UKRAINE_BORDERS_POYGON_WKT)
             .unwrap()
@@ -78,7 +76,6 @@ impl Map {
             .unwrap();
         Self {
             command_tx: Option::default(),
-            config,
             borders,
             ukraine,
         }
@@ -150,11 +147,10 @@ mod tests {
 
     #[test]
     fn test_map_new() {
-        let arc = UkraineArc::default();
-        let map = Map::new(Arc::new(Mutex::new(Ukraine::default())), Arc::new(Mutex::new(Config::default())));
+        let map = Map::new(Ukraine::new_arc());
         assert!(map.command_tx.is_none());
         assert!(map.borders.is_empty() == false);
-        assert!(map.ukraine.lock().unwrap().regions().is_empty() == true);
+        assert!(map.ukraine.read().unwrap().regions().is_empty() == true);
         // match map.borders.try_from()
     }
 }

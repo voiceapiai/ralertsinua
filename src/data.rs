@@ -6,12 +6,11 @@ use crate::{
     ukraine::{Region, RegionArrayVec, Ukraine},
 };
 use arrayvec::ArrayString;
-use color_eyre::eyre::Result;
-use getset::Getters;
-// use anyhow::*;
+use color_eyre::eyre::{Context, Error, Result};
 use core::str;
+use getset::Getters;
 #[allow(unused)]
-use reqwest::{Client, Error};
+use reqwest::Client;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
 use std::{fs::File, future::Future, io::Read, result::Result::Ok, sync::Arc, vec};
 use strum::Display;
@@ -29,8 +28,10 @@ const QUERY_SELECT_REGIONS: &'static str = "SELECT * FROM regions ORDER BY id";
 #[allow(non_snake_case)]
 pub mod API {
     use lazy_static::lazy_static;
+    use crate::config::CONFIG;
+
     lazy_static! {
-        pub static ref API_TOKEN: String = std::env::var("ALERTSINUA_TOKEN").unwrap_or_default();
+        pub static ref API_TOKEN: String = CONFIG.read().unwrap().get::<String>("settings.token").unwrap();
         pub static ref API_BASE_URL: String = "https://api.alerts.in.ua".to_string();
         pub static ref ALERTS_ACTIVE: String = format!(
             "{}/v1/alerts/active.json?token={}",
@@ -94,8 +95,7 @@ impl DataRepository {
 
     #[tracing::instrument(level = "info")]
     fn open_file(file_path: &str) -> Result<File> {
-        return Ok(File::open(file_path)?);
-        // .with_context(|| format!("Error opening file '{}':", file_path));
+        return File::open(file_path).wrap_err("Error opening file, {}");
     }
 
     #[allow(unused)]
@@ -148,8 +148,8 @@ impl DataRepository {
         use arrayvec::ArrayVec;
         let regions: Vec<Region> = sqlx::query_as(QUERY_SELECT_REGIONS)
             .fetch_all(self.pool())
-            .await?;
-        // .with_context(|| "Error querying regions from the database: {}")?;
+            .await
+            .wrap_err("Error querying regions from the database: {}")?;
 
         Ok(ArrayVec::<Region, 27>::from_iter(regions))
     }
@@ -164,9 +164,11 @@ impl DataRepository {
             .client
             .get(API::ALERTS_ACTIVE.as_str())
             .send()
-            .await?
+            .await
+            .wrap_err("Error fetching alerts from API: {}")?
             .json::<AlertsResponseAll>()
-            .await?;
+            .await
+            .wrap_err("Error parsing alerts response: {}")?;
 
         info!("Fetched {} alerts", response.alerts.len());
         Ok(response.alerts)
@@ -175,10 +177,18 @@ impl DataRepository {
     /// Fetches active air raid alerts as string from alerts.in.ua
     ///
     /// Response: `"ANNNANNNNNNNANNNNNNNNNNNNNN"`
-    pub async fn fetch_alerts_short(&self) -> Result<AlertsResponseString> {
+    pub async fn fetch_alerts_string(&self) -> Result<AlertsResponseString> {
         let url = API::ALERTS_ACTIVE_BY_REGION_STRING.as_str();
-        let response = self.client().get(url).send().await?;
-        let content: String = response.text().await.unwrap_or_default();
+        let response = self
+            .client()
+            .get(url)
+            .send()
+            .await
+            .wrap_err("Error fetching alerts from API: {}")?;
+        let content: String = response
+            .text()
+            .await
+            .wrap_err("Error parsing alerts response: {}")?;
         let text = content.trim_matches('"');
         info!("Fetched alerts as string: {}, length: {}", text, text.len());
         let mut a_string = ArrayString::<27>::new();
