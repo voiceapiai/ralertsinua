@@ -10,7 +10,7 @@ use tokio::{
 use tracing::{error, info};
 
 use crate::{
-    action::Action, cli::Cli, components::{fps::FpsCounter, list::RegionsList, map::Map, Component}, config::{self, CONFIG}, data::DataRepository, mode::Mode, tui::{self, LayoutArea}, ukraine::{self, *}
+    action::Action, cli::Cli, components::{fps::FpsCounter, list::RegionsList, map::Map, Component}, config::{self, CONFIG, Locale}, data::DataRepository, mode::Mode, tui::{self, LayoutArea}, ukraine::{self, *}
 };
 
 pub struct App {

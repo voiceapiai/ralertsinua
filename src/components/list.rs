@@ -2,7 +2,7 @@ use super::{Component, Frame};
 use crate::{
     action::Action,
     alerts::*,
-    config::{self, CONFIG},
+    config::{self, get_locale, Locale},
     constants::*,
     data::DataRepository,
     tui::LayoutArea,
@@ -22,7 +22,7 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState},
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, str::FromStr, time::Duration};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
 
@@ -38,13 +38,12 @@ impl Region {
         self,
         index: &usize,
         alert_status: &AlertStatus,
-        locale: &String,
+        locale: &Locale,
     ) -> ListItem<'static> {
-        use std::str::FromStr;
         let icon = alert_status.get_str("icon").unwrap();
         let color_str = alert_status.get_str("color").unwrap();
         let color = Color::from_str(color_str).unwrap();
-        let text = if locale == "uk" {
+        let text = if *locale == Locale::uk {
             self.name
         } else {
             self.name_en
@@ -100,7 +99,7 @@ impl RegionsList {
         let ukraine = self.ukraine.read().unwrap();
         let regions = ukraine.regions();
         let alerts_as = ukraine.get_alerts();
-        let locale = CONFIG.read().unwrap().get("settings.locale").unwrap();
+        let locale = get_locale().unwrap();
 
         List::new(regions.into_iter().enumerate().map(|(i, region)| {
             let region_a_s = if is_loading {
