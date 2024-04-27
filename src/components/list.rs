@@ -21,6 +21,7 @@ use ratatui::{
     symbols::Marker,
     widgets::{Block, Borders, List, ListItem, ListState},
 };
+use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, str::FromStr, time::Duration};
 use tokio::sync::mpsc::UnboundedSender;
@@ -34,19 +35,20 @@ impl<'a> From<&'a Region> for ratatui::text::Text<'a> {
 }
 
 impl Region {
+    /// Builds new `ListItem` from `Region` instance, based on references only
     pub fn to_list_item(
-        self,
+        &self,
         index: &usize,
         alert_status: &AlertStatus,
         locale: &Locale,
     ) -> ListItem<'static> {
-        let icon = alert_status.get_str("icon").unwrap();
-        let color_str = alert_status.get_str("color").unwrap();
-        let color = Color::from_str(color_str).unwrap();
-        let text = if *locale == Locale::uk {
-            self.name
+        let icon: &str = alert_status.get_str("icon").unwrap();
+        let color_str: &str = alert_status.get_str("color").unwrap();
+        let color: Color = Color::from_str(color_str).unwrap();
+        let text: &str = if *locale == Locale::uk {
+            self.name.as_str()
         } else {
-            self.name_en
+            self.name_en.as_str()
         };
         let list_item: ListItem = ListItem::new(format!("{} {}", icon, text)).style(color);
 
@@ -101,14 +103,17 @@ impl RegionsList {
         let alerts_as = ukraine.get_alerts();
         let locale = get_locale().unwrap();
 
-        List::new(regions.into_iter().enumerate().map(|(i, region)| {
+        let items = regions.into_iter().enumerate().map(|(i, region)| {
             let region_a_s = if is_loading {
                 AlertStatus::L
             } else {
                 AlertStatus::from(alerts_as.chars().nth(i).unwrap_or('N'))
             };
-            region.clone().to_list_item(&i, &region_a_s, &locale)
-        }))
+
+            region.to_list_item(&i, &region_a_s, &locale)
+        });
+
+        List::new(items)
     }
 
     pub fn next(&mut self) {
@@ -202,7 +207,7 @@ impl Component for RegionsList {
             .clone()
             .block(
                 Block::bordered()
-                    .title("Regions")
+                    .title(t!("views.List.title").to_string())
                     .title_alignment(Alignment::Center),
             )
             .style(Style::default().fg(Color::Cyan))
@@ -226,12 +231,12 @@ impl Component for RegionsList {
             }
             KeyCode::Down => {
                 self.next();
-                let action = Action::Selected(self.state().selected().unwrap());
+                let action = Action::Selected(self.state().selected());
                 Ok(Some(action))
             }
             KeyCode::Up => {
                 self.previous();
-                let action = Action::Selected(self.state().selected().unwrap());
+                let action = Action::Selected(self.state().selected());
                 Ok(Some(action))
             }
             // Other handlers you could add here.

@@ -4,6 +4,7 @@
 "u" = "Fetch"
 "r" = "Refresh"
 "z" = "Suspend"
+"y" = "Resume"
 [settings]
 token = ""
 locale = "en"

@@ -1,5 +1,11 @@
 use super::{Component, Frame};
-use crate::{action::Action, config::{self, CONFIG}, constants::*, tui::LayoutArea, ukraine::*};
+use crate::{
+    action::Action,
+    config::{self, CONFIG},
+    constants::*,
+    tui::LayoutArea,
+    ukraine::*,
+};
 use color_eyre::eyre::Result;
 use geo::{Geometry, HasDimensions, Polygon};
 use ratatui::{
@@ -9,6 +15,7 @@ use ratatui::{
         *,
     },
 };
+use rust_i18n::t;
 use strum::Display;
 use tracing::info;
 use wkt::*;
@@ -114,7 +121,7 @@ impl Component for Map {
         match action {
             Action::Tick => {}
             Action::Selected(i) => {
-                info!("Map->update Action::Selected: {}", i);
+                info!("Map->update Action::Selected: {:?}", i);
             }
             _ => {}
         }
@@ -126,7 +133,7 @@ impl Component for Map {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .title("Map".light_blue())
+                    .title(t!("views.Map.title").to_string().light_blue())
                     .title_alignment(Alignment::Center),
             )
             .marker(Marker::Braille)

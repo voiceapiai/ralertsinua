@@ -22,7 +22,7 @@ pub enum Action {
     Error(String),
     Help,
     Locale,
-    Selected(usize),
+    Selected(Option<usize>),
     Fetch,
     Select(i8),
     // #[serde(skip)]

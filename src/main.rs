@@ -14,14 +14,17 @@ pub mod tui;
 pub mod ukraine;
 pub mod utils;
 
+rust_i18n::i18n!();
 
 use clap::Parser;
 use cli::Cli;
 use color_eyre::eyre::Result;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
+use tracing::info;
 
 use crate::{
     app::App,
+    config::{Config, CONFIG},
     data::*,
     utils::{initialize_logging, initialize_panic_handler, version},
 };
@@ -31,6 +34,16 @@ async fn tokio_main() -> Result<()> {
     initialize_logging()?;
     initialize_panic_handler()?;
 
+    /*
+    let config: Config = CONFIG
+        .read()
+        .unwrap()
+        .clone()
+        .try_deserialize()
+        .map_err(|e| color_eyre::eyre::eyre!("Failed to deserialize config: {}", e))
+        .unwrap();
+    info!("\n{:?} \n\n-----------", config);
+    */
     let pool = db_pool().await;
     let data_repository = Arc::new(DataRepository::new(pool));
 

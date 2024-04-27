@@ -1,22 +1,39 @@
 #![allow(deprecated)]
 #![allow(non_camel_case_types)]
-use color_eyre::eyre::WrapErr;
-use color_eyre::eyre::{Error, Result};
-use config::{Config, ValueKind};
+use color_eyre::eyre::{Error, Result, WrapErr};
+use config::{Config as ConfigRs, ValueKind};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::convert::AsRef;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::string::ToString;
 use std::sync::RwLock;
-use strum_macros::{AsRefStr, Display};
+use strum_macros::{Display, EnumString};
+use tracing::warn;
 
 use crate::utils::*;
 
 const FILE_NAME: &str = "config.toml";
 
+#[derive(Debug, Deserialize)]
+pub struct Config {
+    pub keybindings: HashMap<String, String>,
+    pub settings: Settings,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Settings {
+    pub token: String,
+    pub locale: Locale,
+}
+
 lazy_static! {
-    pub static ref CONFIG: RwLock<Config> = RwLock::new(Config::builder()
+    /// Global `Config` instance
+    ///
+    /// example taken from
+    pub static ref CONFIG: RwLock<ConfigRs> = RwLock::new(ConfigRs::builder()
         // .set_default(key, value)
         // Add in `./Settings.toml`
         .add_source(config::File::from(Path::new(".data").join(FILE_NAME)))
@@ -31,45 +48,57 @@ lazy_static! {
 }
 
 pub fn toggle_locale() -> Result<()> {
-    let locale = get_locale()?;
-    CONFIG.write().unwrap().set("settings.locale", {
-        if locale == Locale::en {
-            Locale::uk
-        } else {
-            Locale::en
-        }
-    })?;
+    let curr_locale = get_locale()?;
+    let locale = if curr_locale == Locale::en {
+        Locale::uk
+    } else {
+        Locale::en
+    };
+    set_locale(locale)?;
     Ok(())
 }
 
 pub fn get_locale() -> Result<Locale> {
-    let locale = CONFIG.read().unwrap().get::<Locale>("settings.locale")?;
+    let locale = CONFIG
+        .read()
+        .map_err(|_| color_eyre::eyre::eyre!("Failed to acquire read lock on CONFIG"))?
+        .get::<Locale>("settings.locale")?;
     Ok(locale)
 }
 
-#[derive(AsRefStr, Display, Debug, PartialEq, Deserialize, Serialize)]
+/// Set locale to `Config` and `rust_i18n`
+///
+/// Will accept `Locale` enum or `&str` or `String`
+pub fn set_locale(locale: impl Into<String>) -> Result<()> {
+    let locales = rust_i18n::available_locales!();
+    let locale: &str = &locale.into();
+    if !locales.contains(&locale) {
+        warn!("Locale '{}' is not available, using fallback 'en'", locale);
+        Ok(())
+    } else {
+        CONFIG
+            .write()
+            .map_err(|_| color_eyre::eyre::eyre!("Failed to acquire write lock on CONFIG"))?
+            .set("settings.locale", locale)?;
+        rust_i18n::set_locale(locale);
+        Ok(())
+    }
+}
+
+#[derive(Display, Debug, EnumString, PartialEq, Deserialize, Serialize)]
 pub enum Locale {
     en,
     uk,
 }
 
-impl FromStr for Locale {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "en" => Ok(Locale::en),
-            "uk" => Ok(Locale::uk),
-            _ => Err(Error::msg("Invalid locale code")),
-        }
+impl Into<ValueKind> for Locale {
+    fn into(self) -> ValueKind {
+        ValueKind::String(self.to_string())
     }
 }
 
-impl Into<ValueKind> for Locale {
-    fn into(self) -> ValueKind {
-        match self {
-            Locale::en => ValueKind::String(Locale::en.to_string()),
-            Locale::uk => ValueKind::String(Locale::uk.to_string()),
-        }
+impl Into<String> for Locale {
+    fn into(self) -> String {
+        self.to_string()
     }
 }

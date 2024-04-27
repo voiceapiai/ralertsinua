@@ -47,11 +47,7 @@ impl App {
 
         #[allow(deprecated)]
         CONFIG.write().unwrap().set("settings.token", args.token)?;
-        #[allow(deprecated)]
-        CONFIG
-            .write()
-            .unwrap()
-            .set("settings.locale", args.locale)?;
+        config::set_locale(args.locale)?;
 
         Ok(Self {
             tick_rate,
@@ -203,14 +199,11 @@ impl App {
                         })?;
                     }
                     Action::Fetch => {
-                        // let regions = self.data_repository.fetch_regions().await?;
                         let alerts_as = self.data_repository.fetch_alerts_string().await?;
                         let mut ukraine = self.ukraine.write().unwrap();
-                        // ukraine.set_regions(regions);
                         ukraine.set_alerts(alerts_as);
                         let regions = ukraine.regions();
                         let alerts_str = ukraine.get_alerts();
-                        // let tx_action = Action::SetListItems(regions.clone(), alerts_str.to_string());
                         let tx_action = Action::Refresh;
                         info!("App->on:FetchAlerts->action_tx.send: {}", tx_action);
                         action_tx.send(tx_action)?;
