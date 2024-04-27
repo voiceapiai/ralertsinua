@@ -1,5 +1,5 @@
 use color_eyre::eyre::{Error, Result};
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::prelude::Rect;
 #[allow(unused)]
 use serde::{Deserialize, Serialize};
@@ -10,7 +10,14 @@ use tokio::{
 use tracing::{error, info};
 
 use crate::{
-    action::Action, cli::Cli, components::{fps::FpsCounter, list::RegionsList, map::Map, Component}, config::{self, CONFIG, Locale}, data::DataRepository, mode::Mode, tui::{self, LayoutArea}, ukraine::{self, *}
+    action::Action,
+    cli::Cli,
+    components::{fps::FpsCounter, list::RegionsList, map::Map, Component},
+    config::{self, Locale, CONFIG},
+    data::DataRepository,
+    mode::Mode,
+    tui::{self, LayoutArea},
+    ukraine::{self, *},
 };
 
 pub struct App {
@@ -32,7 +39,8 @@ impl App {
         let list = RegionsList::new(ukraine.clone());
         let fps = FpsCounter::new(ukraine.clone());
         let mode = Mode::Map;
-        let components: Vec<Box<dyn Component>> = vec![Box::new(map), Box::new(list), Box::new(fps)];
+        let components: Vec<Box<dyn Component>> =
+            vec![Box::new(map), Box::new(list), Box::new(fps)];
         // let tick_rate = std::time::Duration::from_secs(10);
         let tick_rate = args.tick_rate;
         let frame_rate = args.frame_rate;
@@ -40,7 +48,10 @@ impl App {
         #[allow(deprecated)]
         CONFIG.write().unwrap().set("settings.token", args.token)?;
         #[allow(deprecated)]
-        CONFIG.write().unwrap().set("settings.locale", args.locale)?;
+        CONFIG
+            .write()
+            .unwrap()
+            .set("settings.locale", args.locale)?;
 
         Ok(Self {
             tick_rate,
@@ -104,24 +115,37 @@ impl App {
                     tui::Event::Tick => action_tx.send(Action::Tick)?,
                     tui::Event::Render => action_tx.send(Action::Render)?,
                     tui::Event::Resize(x, y) => action_tx.send(Action::Resize(x, y))?,
-                    tui::Event::Key(key) => {
-                        // let config = self.config.write().unwrap();
-                        // if let Some(keymap) = config.keybindings.get(&self.mode) {
-                        //     if let Some(action) = keymap.get(&vec![key]) {
-                        //         info!("Got action: {action:?}");
-                        //         action_tx.send(action.clone())?;
-                        //     } else {
-                        //         // If the key was not handled as a single key action,
-                        //         // then consider it for multi-key combinations.
-                        //         self.last_tick_key_events.push(key);
-
-                        //         // Check for multi-key combinations
-                        //         if let Some(action) = keymap.get(&self.last_tick_key_events) {
-                        //             info!("Got action: {action:?}");
-                        //             action_tx.send(action.clone())?;
-                        //         }
-                        //     }
-                        // }
+                    tui::Event::Key(key_event) => {
+                        info!("Got key event: {key_event:?}");
+                        match key_event.code {
+                            KeyCode::Esc | KeyCode::Char('q') => {
+                                action_tx.send(Action::Quit)?;
+                            }
+                            KeyCode::Char('c') | KeyCode::Char('C') => {
+                                if key_event.modifiers == KeyModifiers::CONTROL {
+                                    action_tx.send(Action::Quit)?;
+                                }
+                            }
+                            KeyCode::Down => {
+                                action_tx.send(Action::Select(1))?;
+                            }
+                            KeyCode::Up => {
+                                action_tx.send(Action::Select(-1))?;
+                            },
+                            KeyCode::Char('u') => {
+                                action_tx.send(Action::Fetch)?;
+                            },
+                            KeyCode::Char('l') => {
+                                action_tx.send(Action::Locale)?;
+                            },
+                            KeyCode::Char('r') => {
+                                action_tx.send(Action::Refresh)?;
+                            },
+                            KeyCode::Char('z') => {
+                                action_tx.send(Action::Suspend)?;
+                            },
+                            _ => {}
+                        }
                     }
                     _ => {}
                 }
