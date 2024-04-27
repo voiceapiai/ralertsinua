@@ -1,7 +1,7 @@
 #![allow(deprecated)]
 #![allow(non_camel_case_types)]
 use color_eyre::eyre::{Error, Result, WrapErr};
-use config::{Config as ConfigRs, ValueKind};
+use config::{Config as ConfigRs, Value, ValueKind};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -45,6 +45,23 @@ lazy_static! {
         .build()
         .wrap_err("Error loading configuration, {}")
         .unwrap());
+}
+
+pub fn set_token(token: String) -> Result<()> {
+    if token.is_empty() {
+        return Err(Error::msg("Token cannot be empty"));
+    }
+    if token.len() != 46 {
+        return Err(Error::msg(format!(
+            "Token must be 32 characters long, but {} characteers provided",
+            token.len()
+        )));
+    }
+    CONFIG
+        .write()
+        .map_err(|_| color_eyre::eyre::eyre!("Failed to acquire write lock on CONFIG"))?
+        .set("settings.token", ValueKind::String(token))?;
+    Ok(())
 }
 
 pub fn toggle_locale() -> Result<()> {

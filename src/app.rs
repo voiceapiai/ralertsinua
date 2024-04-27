@@ -45,8 +45,7 @@ impl App {
         let tick_rate = args.tick_rate;
         let frame_rate = args.frame_rate;
 
-        #[allow(deprecated)]
-        CONFIG.write().unwrap().set("settings.token", args.token)?;
+        config::set_token(args.token)?;
         config::set_locale(args.locale)?;
 
         Ok(Self {
@@ -127,19 +126,19 @@ impl App {
                             }
                             KeyCode::Up => {
                                 action_tx.send(Action::Select(-1))?;
-                            },
+                            }
                             KeyCode::Char('u') => {
                                 action_tx.send(Action::Fetch)?;
-                            },
+                            }
                             KeyCode::Char('l') => {
                                 action_tx.send(Action::Locale)?;
-                            },
+                            }
                             KeyCode::Char('r') => {
                                 action_tx.send(Action::Refresh)?;
-                            },
+                            }
                             KeyCode::Char('z') => {
                                 action_tx.send(Action::Suspend)?;
-                            },
+                            }
                             _ => {}
                         }
                     }
