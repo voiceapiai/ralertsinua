@@ -1,6 +1,5 @@
 use crate::{alerts::*, constants::*};
 #[allow(unused)]
-use anyhow::*;
 use arrayvec::ArrayVec;
 use derive_deref::Deref;
 use geo::{Coord, Polygon};
@@ -26,13 +25,13 @@ pub struct Region {
     pub id: i8,
     pub a_id: i8,
     pub osm_id: i64,
-    pub geo: String,
+    // #[sqlx(rename = "geo", default)]
+    // pub geo: String,
     pub name: String,
     pub name_en: String,
     // #[sqlx(rename = "status", default)]
     // pub status: Option<String>,
 }
-pub trait RegionsState {}
 pub type RegionArrayVec = ArrayVec<Region, 27>;
 pub type RegionListVec<'a> = ArrayVec<ListItem<'a>, 27>;
 

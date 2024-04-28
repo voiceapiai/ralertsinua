@@ -6,5 +6,6 @@
 "z" = "Suspend"
 "y" = "Resume"
 [settings]
+base_url = ""
 token = ""
 locale = "en"

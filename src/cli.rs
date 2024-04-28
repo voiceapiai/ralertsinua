@@ -4,6 +4,9 @@ use clap::{Arg, Parser};
 #[derive(Parser, Debug)]
 #[command(author, version = version(), about)]
 pub struct Cli {
+    #[arg(short, long, value_name = "TOKEN", help = "API base URL", default_value_t = dotenvy_macro::dotenv!("ALERTSINUA_BASE_URL").to_string())]
+    pub base_url: String,
+
     #[arg(short, long, value_name = "TOKEN", help = "API token provided by alerts.in.ua", default_value_t = dotenvy_macro::dotenv!("ALERTSINUA_TOKEN").to_string())]
     pub token: String,
 

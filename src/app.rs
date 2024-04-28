@@ -21,7 +21,7 @@ use crate::{
 };
 
 pub struct App {
-    pub data_repository: Arc<DataRepository>,
+    pub data_repository: DataRepository,
     pub tick_rate: f64,
     pub frame_rate: f64,
     pub ukraine: Arc<RwLock<Ukraine>>,
@@ -33,7 +33,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(args: Cli, data_repository: Arc<DataRepository>) -> Result<Self> {
+    pub fn new(args: Cli, data_repository: DataRepository) -> Result<Self> {
         let ukraine = Ukraine::new_arc();
         let map = Map::new(ukraine.clone());
         let list = RegionsList::new(ukraine.clone());
@@ -165,7 +165,6 @@ impl App {
                     Action::Locale => {
                         config::toggle_locale()?;
                         action_tx.send(Action::Refresh)?;
-                        // action_tx.send(Action::Render)?;
                     }
                     Action::Resize(w, h) => {
                         tui.resize(Rect::new(0, 0, w, h))?;

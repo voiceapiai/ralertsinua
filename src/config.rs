@@ -25,6 +25,7 @@ pub struct Config {
 
 #[derive(Debug, Deserialize)]
 pub struct Settings {
+    pub base_url: String,
     pub token: String,
     pub locale: Locale,
 }

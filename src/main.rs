@@ -8,6 +8,7 @@ pub mod cli;
 pub mod components;
 pub mod config;
 pub mod constants;
+pub mod api;
 pub mod data;
 pub mod mode;
 pub mod tui;
@@ -23,6 +24,7 @@ use std::{collections::HashMap, sync::Arc};
 use tracing::info;
 
 use crate::{
+    api::AlertsInUaClient,
     app::App,
     config::{Config, CONFIG},
     data::*,
@@ -45,7 +47,8 @@ async fn tokio_main() -> Result<()> {
     info!("\n{:?} \n\n-----------", config);
     */
     let pool = db_pool().await;
-    let data_repository = Arc::new(DataRepository::new(pool));
+    let client = AlertsInUaClient::default();
+    let data_repository = DataRepository::new(pool, client);
 
     let args = Cli::parse();
     let mut app = App::new(args, data_repository)?;

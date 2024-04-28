@@ -3,6 +3,8 @@
 /// The `MapRepository` trait defines the `get_data` method, which returns a future that resolves to a `Result` containing the data for Ukraine.
 use crate::{
     alerts::*,
+    api::*,
+    config::CONFIG,
     ukraine::{Region, RegionArrayVec, Ukraine},
 };
 use arrayvec::ArrayString;
@@ -10,7 +12,6 @@ use color_eyre::eyre::{Context, Error, Result};
 use core::str;
 use getset::Getters;
 #[allow(unused)]
-use reqwest::Client;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
 use std::{fs::File, future::Future, io::Read, result::Result::Ok, sync::Arc, vec};
 use strum::Display;
@@ -23,28 +24,6 @@ const FILE_PATH_WKT: &'static str = ".data/ukraine.wkt";
 const DB_PATH: &'static str = ".data/ukraine.sqlite";
 const QUERY_CREATE_REGIONS_TABLE: &'static str = include_str!("../.data/create_regions_table.sql");
 const QUERY_SELECT_REGIONS: &'static str = "SELECT * FROM regions ORDER BY id";
-
-/// The `API` module contains constants related to the alerts.in.ua API.
-#[allow(non_snake_case)]
-pub mod API {
-    use lazy_static::lazy_static;
-    use crate::config::CONFIG;
-
-    lazy_static! {
-        pub static ref API_TOKEN: String = CONFIG.read().unwrap().get::<String>("settings.token").unwrap();
-        pub static ref API_BASE_URL: String = "https://api.alerts.in.ua".to_string();
-        pub static ref ALERTS_ACTIVE: String = format!(
-            "{}/v1/alerts/active.json?token={}",
-            API_BASE_URL.as_str(),
-            API_TOKEN.as_str()
-        );
-        pub static ref ALERTS_ACTIVE_BY_REGION_STRING: String = format!(
-            "{}/v1/iot/active_air_raid_alerts_by_oblast.json?token={}",
-            API_BASE_URL.as_str(),
-            API_TOKEN.as_str()
-        );
-    }
-}
 
 #[tracing::instrument(level = "trace")]
 pub async fn db_pool() -> SqlitePool {
@@ -62,14 +41,10 @@ pub async fn db_pool() -> SqlitePool {
             panic!("Error connecting to sqlite database: {}", e);
         }
     };
-    match sqlx::query(QUERY_CREATE_REGIONS_TABLE).execute(&pool).await {
-        Ok(_) => {
-            info!("SQLite table created successfully");
-        }
-        Err(e) => {
-            error!("Error creating sqlite table: {}", e);
-            drop(e);
-        }
+    // Create the tables together with the pool
+    let ready = DataRepository::create_tables(&pool).await.is_ok();
+    if ready {
+        info!("SQLite tables created successfully");
     }
     // Return the pool
     pool
@@ -79,18 +54,23 @@ pub async fn db_pool() -> SqlitePool {
 pub struct DataRepository {
     /// The HTTP client
     #[getset(get = "pub")]
-    client: Client,
+    client: AlertsInUaClient,
     /// The database pool.
     #[getset(get = "pub")]
     pool: SqlitePool,
 }
 
 impl DataRepository {
-    pub fn new(pool: SqlitePool) -> Self {
-        Self {
-            client: Client::new(),
-            pool,
-        }
+    pub fn new(pool: SqlitePool, client: AlertsInUaClient) -> Self {
+        Self { client, pool }
+    }
+
+    pub async fn create_tables(pool: &SqlitePool) -> Result<()> {
+        sqlx::query(QUERY_CREATE_REGIONS_TABLE)
+            .execute(pool)
+            .await
+            .wrap_err("Error creating sqlite tables: {}")?;
+        Ok(())
     }
 
     #[tracing::instrument(level = "info")]
@@ -162,38 +142,73 @@ impl DataRepository {
     pub async fn fetch_alerts(&self) -> Result<Vec<Alert>> {
         let response: AlertsResponseAll = self
             .client
-            .get(API::ALERTS_ACTIVE.as_str())
-            .send()
+            .get(API_ALERTS_ACTIVE, None)
             .await
-            .wrap_err("Error fetching alerts from API: {}")?
-            .json::<AlertsResponseAll>()
-            .await
-            .wrap_err("Error parsing alerts response: {}")?;
+            .wrap_err("Error fetching alerts from API: {}")?;
 
         info!("Fetched {} alerts", response.alerts.len());
         Ok(response.alerts)
     }
 
-    /// Fetches active air raid alerts as string from alerts.in.ua
+    /// Fetches active air raid alerts **as string** from alerts.in.ua
     ///
-    /// Response: `"ANNNANNNNNNNANNNNNNNNNNNNNN"`
+    /// Example response: `"ANNNANNNNNNNANNNNNNNNNNNNNN"`
     pub async fn fetch_alerts_string(&self) -> Result<AlertsResponseString> {
-        let url = API::ALERTS_ACTIVE_BY_REGION_STRING.as_str();
-        let response = self
+        let response: String = self
             .client()
-            .get(url)
-            .send()
+            .get(API_ALERTS_ACTIVE_BY_REGION_STRING, None)
             .await
             .wrap_err("Error fetching alerts from API: {}")?;
-        let content: String = response
-            .text()
-            .await
-            .wrap_err("Error parsing alerts response: {}")?;
-        let text = content.trim_matches('"');
+        let text = response.trim_matches('"');
         info!("Fetched alerts as string: {}, length: {}", text, text.len());
         let mut a_string = ArrayString::<27>::new();
         a_string.push_str(&text);
 
+        // Insert the response into the statuses table
+        sqlx::query("INSERT INTO statuses (status) VALUES (?)")
+            .bind(&text)
+            .execute(self.pool())
+            .await
+            .wrap_err("Error inserting status into the database: {}")?;
+
         Ok(a_string)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::CONFIG;
+    use mockito::Server as MockServer;
+    use reqwest::Client;
+    use sqlx::{Connection, Pool, SqliteConnection};
+    use tokio::runtime::Runtime;
+
+    #[tokio::test]
+    async fn test_fetch_alerts_string() -> Result<()> {
+        std::env::set_var("ALERTSINUA_TOKEN", "TEST_TOKEN");
+        let mut server = MockServer::new_async().await;
+        let mock = server
+            .mock(
+                "GET",
+                mockito::Matcher::Any, /* API_ALERTS_ACTIVE_BY_REGION_STRING */
+            )
+            .with_body(r#""ANNAANNANNNPANANANNNNAANNNN""#)
+            .with_header("Authorization", "Bearer TEST_TOKEN")
+            .create_async()
+            .await;
+        let mut client = AlertsInUaClient::default();
+        client.set_base_url(server.url());
+        let pool = Pool::connect("sqlite::memory:").await?;
+        let ready = DataRepository::create_tables(&pool).await?;
+        let data_repository = DataRepository::new(pool, client);
+
+        let result = data_repository.fetch_alerts_string().await?;
+
+        mock.assert();
+        assert_eq!(result.len(), 27);
+        assert_eq!(&result, "ANNAANNANNNPANANANNNNAANNNN");
+
+        Ok(())
     }
 }

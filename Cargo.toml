@@ -12,7 +12,6 @@ default-locale = "en"
 load-path = "locales"
 
 [dependencies]
-anyhow = "1.0"
 arrayvec = "0.7.4"
 async-trait = "0.1.80"
 better-panic = "0.3"
@@ -46,6 +45,7 @@ strip-ansi-escapes = "0.2.0"
 strum = "0.26"
 strum_macros = "0.26"
 sys-locale = "0.3"
+thiserror = "1.0"
 tokio = { version = "1.35.1", features = ["full"] }
 tokio-util = "0.7.9"
 tracing = "0.1"
@@ -53,6 +53,7 @@ tracing-error = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "serde"] }
 throbber-widgets-tui = "0.5"
 wkt = "0.10.3"
+mockito = "1.4.0"
 # either = "1.11"
 # futures-util = "0.3"
 # geozero = { version = "0.12.0", features = ["with-csv", "with-geo"] }

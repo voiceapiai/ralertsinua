@@ -1,11 +1,21 @@
 CREATE TABLE IF NOT EXISTS regions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     a_id INTEGER NOT NULL,
-    osm_id INTEGER NOT NULL,
+    osm_id INTEGER NOT NULL UNIQUE,
     name TEXT NOT NULL,
     name_en TEXT NOT NULL,
-    geo TEXT,
     UNIQUE(a_id) ON CONFLICT IGNORE
+);
+
+CREATE TABLE IF NOT EXISTS geo (
+  osm_id INTEGER,
+  geo TEXT,
+  FOREIGN KEY(osm_id) REFERENCES regions(osm_id)
+);
+
+CREATE TABLE IF NOT EXISTS statuses (
+  timestamp INTEGER DEFAULT (strftime('%s', 'now')),
+  status TEXT CHECK(length(status) = 27)
 );
 
 INSERT INTO regions (osm_id,a_id,name,name_en) VALUES
