@@ -29,8 +29,13 @@ pub struct Region {
     // pub geo: String,
     pub name: String,
     pub name_en: String,
-    // #[sqlx(rename = "status", default)]
-    // pub status: Option<String>,
+}
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct RegionGeo {
+    pub id: i8,
+    pub a_id: i8,
+    pub osm_id: i64,
+    pub geo: String,
 }
 pub type RegionArrayVec = ArrayVec<Region, 27>;
 pub type RegionListVec<'a> = ArrayVec<ListItem<'a>, 27>;

@@ -13,7 +13,7 @@ use crate::{
     action::Action,
     cli::Cli,
     components::{fps::FpsCounter, list::RegionsList, map::Map, Component},
-    config::{self, Locale, CONFIG},
+    config::{self, Locale},
     data::DataRepository,
     mode::Mode,
     tui::{self, LayoutArea},
@@ -45,8 +45,8 @@ impl App {
         let tick_rate = args.tick_rate;
         let frame_rate = args.frame_rate;
 
-        config::set_token(args.token)?;
-        config::set_locale(args.locale)?;
+        // config::set_token(args.token)?;
+        // config::set_locale(args.locale)?;
 
         Ok(Self {
             tick_rate,

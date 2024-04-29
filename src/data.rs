@@ -1,16 +1,12 @@
 /// This module contains the implementation of the `DataRepository` struct and the `MapRepository` trait.
 /// The `DataRepository` struct provides methods for interacting with a SQLite database and fetching data related to Ukraine.
 /// The `MapRepository` trait defines the `get_data` method, which returns a future that resolves to a `Result` containing the data for Ukraine.
-use crate::{
-    alerts::*,
-    api::*,
-    config::CONFIG,
-    ukraine::{Region, RegionArrayVec, Ukraine},
-};
+use crate::{alerts::*, api::*, ukraine::*};
 use arrayvec::ArrayString;
 use color_eyre::eyre::{Context, Error, Result};
 use core::str;
 use getset::Getters;
+use serde::Deserialize;
 #[allow(unused)]
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
 use std::{fs::File, future::Future, io::Read, result::Result::Ok, sync::Arc, vec};
@@ -26,28 +22,19 @@ const QUERY_CREATE_REGIONS_TABLE: &'static str = include_str!("../.data/create_r
 const QUERY_SELECT_REGIONS: &'static str = "SELECT * FROM regions ORDER BY id";
 
 #[tracing::instrument(level = "trace")]
-pub async fn db_pool() -> SqlitePool {
+pub async fn db_pool() -> Result<SqlitePool> {
     let conn: SqliteConnectOptions = SqliteConnectOptions::new()
         .filename(DB_PATH)
         .create_if_missing(true);
 
-    let pool = match SqlitePool::connect_with(conn).await {
-        Ok(pool) => {
-            info!("SQLite database {} connected successfully", DB_PATH);
-            pool
-        }
-        Err(e) => {
-            error!("Error connecting to sqlite database: {}", e);
-            panic!("Error connecting to sqlite database: {}", e);
-        }
-    };
+    let pool = SqlitePool::connect_with(conn)
+        .await
+        .wrap_err("Error connecting to the database: {}")?;
     // Create the tables together with the pool
-    let ready = DataRepository::create_tables(&pool).await.is_ok();
-    if ready {
-        info!("SQLite tables created successfully");
-    }
-    // Return the pool
-    pool
+    DataRepository::create_tables(&pool).await?;
+    DataRepository::insert_regions_geo(&pool).await?;
+
+    Ok(pool)
 }
 
 #[derive(Debug, Getters)]
@@ -65,11 +52,27 @@ impl DataRepository {
         Self { client, pool }
     }
 
-    pub async fn create_tables(pool: &SqlitePool) -> Result<()> {
+    async fn create_tables(pool: &SqlitePool) -> Result<()> {
         sqlx::query(QUERY_CREATE_REGIONS_TABLE)
             .execute(pool)
             .await
             .wrap_err("Error creating sqlite tables: {}")?;
+        Ok(())
+    }
+
+    async fn insert_regions_geo(pool: &SqlitePool) -> Result<()> {
+        let data = Self::read_csv_file_into::<RegionGeo>(FILE_PATH_CSV)?;
+
+        for region in data.iter() {
+            sqlx::query("INSERT INTO geo (osm_id,geo) VALUES (?, ?)")
+                .bind(region.a_id)
+                .bind(region.osm_id)
+                .bind(region.geo.as_str())
+                .execute(pool)
+                .await
+                .wrap_err("Error inserting regions into the database: {}")?;
+        }
+
         Ok(())
     }
 
@@ -78,25 +81,18 @@ impl DataRepository {
         return File::open(file_path).wrap_err("Error opening file, {}");
     }
 
-    #[allow(unused)]
-    fn read_csv_file(file_path: &str) -> Result<Vec<Region>> {
+    fn read_csv_file_into<R>(file_path: &str) -> Result<Vec<R>>
+    where
+        R: for<'de> Deserialize<'de>,
+    {
         use csv::ReaderBuilder;
-        let mut records = vec![];
         let file = Self::open_file(file_path)?;
-
         let mut rdr = ReaderBuilder::new().has_headers(true).from_reader(file);
 
-        for result in rdr.deserialize() {
-            let record: Region = match result {
-                Ok(r) => r,
-                Err(e) => {
-                    panic!("Error reading CSV file: {}", e);
-                }
-            };
-            records.push(record);
-        }
-
-        Ok(records)
+        Ok(rdr
+            .deserialize::<R>()
+            .map(|r| r.unwrap())
+            .collect::<Vec<R>>())
     }
 
     fn read_wkt_file(file_path: &str) -> Result<String> {
@@ -106,23 +102,6 @@ impl DataRepository {
 
         Ok(wkt_string)
     }
-
-    /*
-    async fn insert_regions(&self, data: &[Region]) -> Result<()> {
-        for region in data.iter() {
-            sqlx::query(QUERY_INSERT_REGIONS)
-                .bind(region.id)
-                .bind(region.a_id)
-                .bind(region.geo.as_str())
-                .bind(region.name.as_str())
-                .bind(region.name_en.as_str())
-                .execute(self.pool())
-                .await
-                .with_context(|| "Error inserting regions into the database: {}")?;
-        }
-
-        Ok(())
-    } */
 
     pub async fn fetch_regions(&self) -> Result<RegionArrayVec> {
         use arrayvec::ArrayVec;
@@ -161,6 +140,7 @@ impl DataRepository {
             .wrap_err("Error fetching alerts from API: {}")?;
         let text = response.trim_matches('"');
         info!("Fetched alerts as string: {}, length: {}", text, text.len());
+        let res = Box::new(text.to_string());
         let mut a_string = ArrayString::<27>::new();
         a_string.push_str(&text);
 
@@ -178,7 +158,6 @@ impl DataRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::CONFIG;
     use mockito::Server as MockServer;
     use reqwest::Client;
     use sqlx::{Connection, Pool, SqliteConnection};
@@ -194,7 +173,6 @@ mod tests {
                 mockito::Matcher::Any, /* API_ALERTS_ACTIVE_BY_REGION_STRING */
             )
             .with_body(r#""ANNAANNANNNPANANANNNNAANNNN""#)
-            .with_header("Authorization", "Bearer TEST_TOKEN")
             .create_async()
             .await;
         let mut client = AlertsInUaClient::default();

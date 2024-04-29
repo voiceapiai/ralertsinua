@@ -6,7 +6,6 @@ use async_trait::async_trait;
 
 use crate::{
     action::Action,
-    config::{self, CONFIG},
     tui::{Event, Frame, LayoutArea},
 };
 

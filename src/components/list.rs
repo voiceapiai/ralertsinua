@@ -2,7 +2,7 @@ use super::{Component, Frame};
 use crate::{
     action::Action,
     alerts::*,
-    config::{self, get_locale, Locale},
+    config::{get_config_prop, Locale},
     constants::*,
     data::DataRepository,
     tui::LayoutArea,
@@ -101,7 +101,7 @@ impl RegionsList {
         let ukraine = self.ukraine.read().unwrap();
         let regions = ukraine.regions();
         let alerts_as = ukraine.get_alerts();
-        let locale = get_locale().unwrap();
+        let locale = get_config_prop::<Locale>("settings.locale").unwrap();
 
         let items = regions.into_iter().enumerate().map(|(i, region)| {
             let region_a_s = if is_loading {

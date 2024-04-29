@@ -1,19 +1,23 @@
 //! The client implementation for the reqwest HTTP client, which is async
 //! @borrows https://github.com/ramsayleung/rspotify/blob/master/rspotify-http/src/reqwest.rs
 
-use std::convert::TryInto;
-use std::collections::HashMap;
-use std::fmt;
-use std::env;
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Duration;
 use reqwest::{Method, RequestBuilder};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
+use std::convert::TryInto;
+use std::env;
+use std::fmt;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Duration;
+
+use crate::config::get_config_prop;
 
 pub type Headers = HashMap<String, String>;
 pub type Query<'a> = HashMap<&'a str, &'a str>;
 
+pub const API_BASE_URL: &str = "https://api.alerts.in.ua";
+pub const API_TOKEN: &str = dotenvy_macro::dotenv!("ALERTSINUA_TOKEN");
 pub const API_ALERTS_ACTIVE: &str = "v1/alerts/active.json";
 pub const API_ALERTS_ACTIVE_BY_REGION_STRING: &str = "v1/iot/active_air_raid_alerts_by_oblast.json";
 
@@ -25,9 +29,9 @@ pub const API_ALERTS_ACTIVE_BY_REGION_STRING: &str = "v1/iot/active_air_raid_ale
 /// ```
 /// # #[tokio::main]
 /// # async fn main() {
-/// use rspotify_http::{HttpError, HttpClient, BaseHttpClient};
+/// use http::{HttpError, AlertsInUaClient, BaseHttpClient};
 ///
-/// let client = HttpClient::default();
+/// let client = AlertsInUaClient::default();
 /// let response = client.get("wrongurl", None, &Default::default()).await;
 /// match response {
 ///     Ok(data) => println!("request succeeded: {:?}", data),
@@ -55,18 +59,20 @@ pub enum ReqwestError {
     /// serialized into `rspotify_model::ApiError`.
     #[error("status code {}", reqwest::Response::status(.0))]
     StatusCode(reqwest::Response),
+
+    #[error("invalid token")]
+    InvalidToken,
 }
 
 #[derive(Debug, Clone)]
 pub struct AlertsInUaClient {
     base_url: String,
-    /// reqwest needs an instance of its client to perform requests.
     client: reqwest::Client,
 }
 
 impl Default for AlertsInUaClient {
     fn default() -> Self {
-        let base_url = env::var("ALERTSINUA_BASE_URL").unwrap_or_default();
+        let base_url = API_BASE_URL.to_string();
         let client = reqwest::ClientBuilder::new()
             .timeout(Duration::from_secs(10))
             .build()
@@ -77,33 +83,37 @@ impl Default for AlertsInUaClient {
 }
 
 impl AlertsInUaClient {
-    async fn request<R, D>(
-        &self,
-        method: Method,
-        url: &str,
-        add_data: D,
-    ) -> Result<R, ReqwestError>
+    fn get_api_url(&self, url: &str) -> String {
+        let mut base = self.base_url.clone();
+        if !base.ends_with('/') {
+            base.push('/');
+        }
+        base + url
+    }
+
+    async fn request<R, D>(&self, method: Method, url: &str, add_data: D) -> Result<R, ReqwestError>
     where
-        R: for<'de>Deserialize<'de>,
+        R: for<'de> Deserialize<'de>,
         D: Fn(RequestBuilder) -> RequestBuilder,
     {
-        let url = format!("{}/{}", self.base_url, url);
+        // Build full URL
+        let url = self.get_api_url(url);
         let mut request = self.client.request(method.clone(), url);
-
         // Enable HTTP bearer authentication.
-        request = request.bearer_auth(env::var("ALERTSINUA_TOKEN").unwrap());
+        let token =
+            get_config_prop::<String>("settings.token").map_err(|_| ReqwestError::InvalidToken)?;
+        request = request.bearer_auth(token);
 
         // Configuring the request for the specific type (get/post/put/delete)
         request = add_data(request);
 
         // Finally performing the request and handling the response
-        log::info!("Making request {:?}", request);
+        // log::info!("Making request {:?}", request);
         let response = request.send().await?;
 
         // Making sure that the status code is OK
         if response.status().is_success() {
             response.json::<R>().await.map_err(Into::into)
-            // response.text().await.map_err(Into::into)
         } else {
             Err(ReqwestError::StatusCode(response))
         }
@@ -113,7 +123,6 @@ impl AlertsInUaClient {
     pub fn set_base_url(&mut self, base_url: String) {
         self.base_url = base_url;
     }
-
 }
 
 /// This trait represents the interface to be implemented for an HTTP client,
@@ -132,13 +141,10 @@ pub trait BaseHttpClient: Send + Default + Clone + fmt::Debug {
     type Error;
 
     // This internal function should always be given an object value in JSON.
-    async fn get<R>(
-        &self,
-        url: &str,
-        payload: Option<&Query>,
-    ) -> Result<R, Self::Error>
+    #[allow(async_fn_in_trait)]
+    async fn get<R>(&self, url: &str, payload: Option<&Query>) -> Result<R, Self::Error>
     where
-        R: for<'de>Deserialize<'de>;
+        R: for<'de> Deserialize<'de>;
 }
 
 // #[cfg_attr(target_arch = "wasm32", async_impl(?Send))]
@@ -147,17 +153,12 @@ impl BaseHttpClient for AlertsInUaClient {
     type Error = ReqwestError;
 
     #[inline]
-    async fn get<R>(
-        &self,
-        url: &str,
-        payload: Option<&Query<'_>>,
-    ) -> Result<R, Self::Error>
+    async fn get<R>(&self, url: &str, payload: Option<&Query<'_>>) -> Result<R, Self::Error>
     where
-        R: for<'de>Deserialize<'de>,
+        R: for<'de> Deserialize<'de>,
     {
         // self.request(Method::GET, url, |req| req.query(payload))
-        self.request(Method::GET, url, |r|r)
-            .await
+        self.request(Method::GET, url, |r| r).await
     }
 }
 

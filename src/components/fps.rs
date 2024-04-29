@@ -3,7 +3,7 @@ use super::Component;
 use crate::{
     action::Action,
     alerts::*,
-    config::{self, CONFIG},
+    config::get_config_prop,
     tui::{Frame, LayoutArea},
     ukraine::*,
 };

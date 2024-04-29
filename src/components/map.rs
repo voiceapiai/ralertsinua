@@ -1,7 +1,7 @@
 use super::{Component, Frame};
 use crate::{
     action::Action,
-    config::{self, CONFIG},
+    config::get_config_prop,
     constants::*,
     tui::LayoutArea,
     ukraine::*,

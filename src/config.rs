@@ -1,6 +1,6 @@
 #![allow(deprecated)]
 #![allow(non_camel_case_types)]
-use color_eyre::eyre::{Error, Result, WrapErr};
+use color_eyre::eyre::{eyre, Error, Result, WrapErr};
 use config::{Config as ConfigRs, Value, ValueKind};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,9 @@ use std::sync::RwLock;
 use strum_macros::{Display, EnumString};
 use tracing::warn;
 
+// pub use config::ConfigError;
+
+use crate::error::*;
 use crate::utils::*;
 
 const FILE_NAME: &str = "config.toml";
@@ -34,7 +37,7 @@ lazy_static! {
     /// Global `Config` instance
     ///
     /// example taken from
-    pub static ref CONFIG: RwLock<ConfigRs> = RwLock::new(ConfigRs::builder()
+    static ref CONFIG: RwLock<ConfigRs> = RwLock::new(ConfigRs::builder()
         // .set_default(key, value)
         // Add in `./Settings.toml`
         .add_source(config::File::from(Path::new(".data").join(FILE_NAME)))
@@ -44,8 +47,20 @@ lazy_static! {
         // Eg.. `APP_DEBUG=1 ./target/app` would set the `debug` key
         .add_source(config::Environment::with_prefix("ALERTSINUA"))
         .build()
-        .wrap_err("Error loading configuration, {}")
+        .map_err(|e|"Error loading configuration, {}")
         .unwrap());
+}
+
+/// Get value from the global `Config` instance by path, e.g. `settings.locale`
+pub fn get_config_prop<P>(path: &str) -> Result<P>
+where
+    P: for<'de> Deserialize<'de>,
+{
+    let value = CONFIG
+        .read()
+        .map_err(|_| eyre!("Failed to read config at path: '{}'", path))?
+        .get::<P>(path)?;
+    Ok(value)
 }
 
 pub fn set_token(token: String) -> Result<()> {
@@ -60,13 +75,13 @@ pub fn set_token(token: String) -> Result<()> {
     }
     CONFIG
         .write()
-        .map_err(|_| color_eyre::eyre::eyre!("Failed to acquire write lock on CONFIG"))?
+        .map_err(|_| eyre!("Failed to acquire write lock on CONFIG"))?
         .set("settings.token", ValueKind::String(token))?;
     Ok(())
 }
 
 pub fn toggle_locale() -> Result<()> {
-    let curr_locale = get_locale()?;
+    let curr_locale = get_config_prop::<Locale>("settings.locale")?;
     let locale = if curr_locale == Locale::en {
         Locale::uk
     } else {
@@ -74,14 +89,6 @@ pub fn toggle_locale() -> Result<()> {
     };
     set_locale(locale)?;
     Ok(())
-}
-
-pub fn get_locale() -> Result<Locale> {
-    let locale = CONFIG
-        .read()
-        .map_err(|_| color_eyre::eyre::eyre!("Failed to acquire read lock on CONFIG"))?
-        .get::<Locale>("settings.locale")?;
-    Ok(locale)
 }
 
 /// Set locale to `Config` and `rust_i18n`

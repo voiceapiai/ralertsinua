@@ -4,12 +4,13 @@
 pub mod action;
 pub mod alerts;
 pub mod app;
+pub mod api;
 pub mod cli;
 pub mod components;
 pub mod config;
 pub mod constants;
-pub mod api;
 pub mod data;
+pub mod error;
 pub mod mode;
 pub mod tui;
 pub mod ukraine;
@@ -26,7 +27,7 @@ use tracing::info;
 use crate::{
     api::AlertsInUaClient,
     app::App,
-    config::{Config, CONFIG},
+    // config::{Config, CONFIG},
     data::*,
     utils::{initialize_logging, initialize_panic_handler, version},
 };
@@ -36,17 +37,17 @@ async fn tokio_main() -> Result<()> {
     initialize_logging()?;
     initialize_panic_handler()?;
 
-    /*
-    let config: Config = CONFIG
-        .read()
-        .unwrap()
-        .clone()
-        .try_deserialize()
-        .map_err(|e| color_eyre::eyre::eyre!("Failed to deserialize config: {}", e))
-        .unwrap();
-    info!("\n{:?} \n\n-----------", config);
-    */
-    let pool = db_pool().await;
+
+    // let config: Config = CONFIG
+    //     .read()
+    //     .unwrap()
+    //     .clone()
+    //     .try_deserialize()
+    //     .map_err(|e| color_eyre::eyre::eyre!("Failed to deserialize config: {}", e))
+    //     .unwrap();
+    // info!("\n{:?} \n\n-----------", config);
+
+    let pool = db_pool().await?;
     let client = AlertsInUaClient::default();
     let data_repository = DataRepository::new(pool, client);
 
