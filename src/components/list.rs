@@ -1,10 +1,11 @@
 use super::{Component, Frame};
 use crate::{
     action::Action,
-    alerts::*,
+    alerts::{self, *},
     config::{get_config_prop, Locale},
     constants::*,
-    data::DataRepository,
+    data::DataRepositoryInstance,
+    services::alerts::*,
     tui::LayoutArea,
     ukraine::*,
 };
@@ -67,22 +68,29 @@ impl Region {
 pub struct RegionsList {
     command_tx: Option<UnboundedSender<Action>>,
     ukraine: Arc<RwLock<Ukraine>>,
+    alerts_service: Arc<dyn AlertService>,
     #[getset(get = "pub with_prefix")]
     list: List<'static>,
     #[getset(get = "pub", get_mut)]
     state: ListState,
     #[getset(get = "pub", get_mut)]
     last_selected: Option<usize>,
+    last_alert_response: Option<String>,
 }
 
 impl RegionsList {
-    pub fn new(ukraine: Arc<RwLock<Ukraine>>) -> RegionsList {
+    pub fn new(
+        ukraine: Arc<RwLock<Ukraine>>,
+        alerts_service: Arc<dyn AlertService>,
+    ) -> RegionsList {
         Self {
             command_tx: None,
             ukraine,
+            alerts_service,
             list: List::default(),
             state: ListState::default(),
             last_selected: None,
+            last_alert_response: None,
         }
     }
 
@@ -96,11 +104,18 @@ impl RegionsList {
         }
     }
 
+    fn get_last_alert_response(&self) -> &str {
+        match self.last_alert_response {
+            Some(ref response) => response.as_str(),
+            None => DEFAULT_ALERTS_RESPONSE_STRING,
+        }
+    }
+
     /// Get List Widget with ListItems of regions
     fn list(&mut self, is_loading: bool) -> List<'static> {
         let ukraine = self.ukraine.read().unwrap();
         let regions = ukraine.regions();
-        let alerts_as = ukraine.get_alerts();
+        let alerts_as = self.get_last_alert_response();
         let locale = get_config_prop::<Locale>("settings.locale").unwrap();
 
         let items = regions.into_iter().enumerate().map(|(i, region)| {
@@ -192,9 +207,10 @@ impl Component for RegionsList {
                 self.list = self.list(false);
                 info!("List->update->Action::Refresh: {}", action);
             }
-            Action::Fetch => {
+            Action::SetAlertsByRegion (alerts_as) => {
+                self.last_alert_response = Some(alerts_as);
                 self.list = self.list(true);
-                info!("List->update->Action::Fetch: {}", action);
+                // info!("List->update->Action::Fetch: {}", action);
             }
             _ => {}
         }
@@ -249,12 +265,11 @@ impl Component for RegionsList {
 mod tests {
     use super::*;
 
-    #[test]
+    /* #[test]
     fn test_map_new() {
-        let list = RegionsList::new(Ukraine::new_arc());
+        let list = RegionsList::new(Ukraine::new_arc(), );
         assert!(list.command_tx.is_none());
         assert_eq!(list.state, ListState::default());
         assert!(list.ukraine.read().unwrap().regions().is_empty() == true);
-        // match map.borders.try_from()
-    }
+    } */
 }

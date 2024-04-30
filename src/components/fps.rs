@@ -15,10 +15,6 @@ use throbber_widgets_tui::{Throbber, ThrobberState, WhichUse, BRAILLE_SIX_DOUBLE
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
 
-pub trait AlertsService {
-    async fn get_alerts_by_region(&self) -> Result<()>;
-}
-
 #[derive(Debug, Clone)]
 pub struct FpsCounter {
     app_start_time: Instant,
@@ -33,13 +29,6 @@ pub struct FpsCounter {
     throbber_state: ThrobberState,
     #[allow(unused)]
     ukraine: Arc<RwLock<Ukraine>>,
-}
-
-impl AlertsService for FpsCounter {
-    async fn get_alerts_by_region(&self) -> Result<()> {
-        // let alerts_string = self.fetch_alerts_short().await?;
-        Ok(())
-    }
 }
 
 impl FpsCounter {

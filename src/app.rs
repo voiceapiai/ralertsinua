@@ -14,29 +14,35 @@ use crate::{
     cli::Cli,
     components::{fps::FpsCounter, list::RegionsList, map::Map, Component},
     config::{self, Locale},
-    data::DataRepository,
+    data::*,
     mode::Mode,
+    services::{alerts::AlertService, geo::GeoService},
     tui::{self, LayoutArea},
-    ukraine::{self, *},
+    ukraine::*,
 };
 
 pub struct App {
-    pub data_repository: DataRepository,
-    pub tick_rate: f64,
-    pub frame_rate: f64,
+    pub alerts_service: Arc<dyn AlertService>,
+    pub geo_service: Arc<dyn GeoService>,
     pub ukraine: Arc<RwLock<Ukraine>>,
     pub components: Vec<Box<dyn Component>>,
     pub should_quit: bool,
     pub should_suspend: bool,
     pub mode: Mode,
+    pub tick_rate: f64,
+    pub frame_rate: f64,
     pub last_tick_key_events: Vec<KeyEvent>,
 }
 
 impl App {
-    pub fn new(args: Cli, data_repository: DataRepository) -> Result<Self> {
-        let ukraine = Ukraine::new_arc();
+    pub fn new(
+        args: Cli,
+        ukraine: Arc<RwLock<Ukraine>>,
+        alerts_service: Arc<dyn AlertService>,
+        geo_service: Arc<dyn GeoService>,
+    ) -> Result<Self> {
         let map = Map::new(ukraine.clone());
-        let list = RegionsList::new(ukraine.clone());
+        let list = RegionsList::new(ukraine.clone(), alerts_service.clone());
         let fps = FpsCounter::new(ukraine.clone());
         let mode = Mode::Map;
         let components: Vec<Box<dyn Component>> =
@@ -49,22 +55,21 @@ impl App {
         // config::set_locale(args.locale)?;
 
         Ok(Self {
-            tick_rate,
-            frame_rate,
-            ukraine,
+            ukraine: ukraine.clone(),
+            alerts_service: alerts_service.clone(),
+            geo_service: geo_service.clone(),
             components,
             should_quit: false,
             should_suspend: false,
-            data_repository,
             mode,
+            tick_rate,
+            frame_rate,
             last_tick_key_events: Vec::new(),
         })
     }
 
     pub async fn init(&mut self) -> Result<()> {
-        let regions = self.data_repository.fetch_regions().await?;
-        let mut ukraine = self.ukraine.write().unwrap();
-        ukraine.set_regions(regions);
+        // TODO: if needed
         Ok(())
     }
 
@@ -197,13 +202,10 @@ impl App {
                         })?;
                     }
                     Action::Fetch => {
-                        let alerts_as = self.data_repository.fetch_alerts_string().await?;
-                        let mut ukraine = self.ukraine.write().unwrap();
-                        ukraine.set_alerts(alerts_as);
-                        let regions = ukraine.regions();
-                        let alerts_str = ukraine.get_alerts();
-                        let tx_action = Action::Refresh;
-                        info!("App->on:FetchAlerts->action_tx.send: {}", tx_action);
+                        let alerts_as = self.alerts_service.by_region().await?;
+                        let tx_action = Action::SetAlertsByRegion(alerts_as.to_string());
+
+                        // info!("App->on:FetchAlerts->action_tx.send: {}", tx_action);
                         action_tx.send(tx_action)?;
                     }
                     _ => {}

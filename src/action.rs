@@ -24,6 +24,7 @@ pub enum Action {
     Locale,
     Selected(Option<usize>),
     Fetch,
+    SetAlertsByRegion(String),
     Select(i8),
     // #[serde(skip)]
     // SetListItems(RegionArrayVec, String),

@@ -3,6 +3,7 @@
 /// The `MapRepository` trait defines the `get_data` method, which returns a future that resolves to a `Result` containing the data for Ukraine.
 use crate::{alerts::*, api::*, ukraine::*, utils::*};
 use arrayvec::ArrayString;
+use async_trait::async_trait;
 use color_eyre::eyre::{Context, Error, Result};
 use core::str;
 use getset::Getters;
@@ -21,7 +22,20 @@ const DB_NAME: &'static str = "ukraine.sqlite";
 // const DB_PATH: &'static str = ".data/ukraine.sqlite";
 const QUERY_CREATE_REGIONS_TABLE: &'static str = include_str!("../.data/create_regions_table.sql");
 const QUERY_SELECT_REGIONS: &'static str = "SELECT * FROM regions ORDER BY id";
-const QUERY_SELECT_REGION_GEO: &'static str = "SELECT geo FROM geo WHERE osm_id = ?";
+const QUERY_SELECT_REGION_GEO: &'static str = "SELECT geo FROM geo WHERE osm_id = $1";
+
+#[async_trait]
+pub trait DataRepository: Send + Sync + core::fmt::Debug {
+    async fn fetch_regions(&self) -> Result<RegionArrayVec>;
+
+    async fn fetch_region_geo(&self, osm_id: i64) -> Result<String>;
+
+    async fn fetch_borders(&self) -> Result<String>;
+
+    async fn fetch_alerts(&self) -> Result<Vec<Alert>>;
+
+    async fn fetch_alerts_string(&self) -> Result<AlertsResponseString>;
+}
 
 #[tracing::instrument(level = "trace")]
 pub async fn db_pool() -> Result<SqlitePool> {
@@ -39,14 +53,14 @@ pub async fn db_pool() -> Result<SqlitePool> {
         .await
         .wrap_err("Error connecting to the database: {}")?;
     // Create the tables together with the pool
-    DataRepository::create_tables(&pool).await?;
-    DataRepository::insert_regions_geo(&pool).await?;
+    DataRepositoryInstance::create_tables(&pool).await?;
+    DataRepositoryInstance::insert_regions_geo(&pool).await?;
 
     Ok(pool)
 }
 
 #[derive(Debug, Getters)]
-pub struct DataRepository {
+pub struct DataRepositoryInstance {
     /// The HTTP client
     #[getset(get = "pub")]
     client: AlertsInUaClient,
@@ -55,7 +69,7 @@ pub struct DataRepository {
     pool: SqlitePool,
 }
 
-impl DataRepository {
+impl DataRepositoryInstance {
     pub fn new(pool: SqlitePool, client: AlertsInUaClient) -> Self {
         Self { client, pool }
     }
@@ -128,8 +142,11 @@ impl DataRepository {
 
         Ok(wkt_string)
     }
+}
 
-    pub async fn fetch_regions(&self) -> Result<RegionArrayVec> {
+#[async_trait]
+impl DataRepository for DataRepositoryInstance {
+    async fn fetch_regions(&self) -> Result<RegionArrayVec> {
         use arrayvec::ArrayVec;
         let regions: Vec<Region> = sqlx::query_as(QUERY_SELECT_REGIONS)
             .fetch_all(self.pool())
@@ -139,8 +156,8 @@ impl DataRepository {
         Ok(ArrayVec::<Region, 27>::from_iter(regions))
     }
 
-    pub async fn fetch_region_geo(&self, osm_id: i64) -> Result<String> {
-        let geo_string: String = sqlx::query_scalar("SELECT geo FROM geo WHERE osm_id = $1")
+    async fn fetch_region_geo(&self, osm_id: i64) -> Result<String> {
+        let geo_string: String = sqlx::query_scalar(QUERY_SELECT_REGION_GEO)
             .bind(osm_id)
             .fetch_one(self.pool())
             .await
@@ -149,12 +166,12 @@ impl DataRepository {
         Ok(geo_string)
     }
 
-    pub async fn fetch_borders(&self) -> Result<String> {
+    async fn fetch_borders(&self) -> Result<String> {
         let borders = Self::read_wkt_file(FILE_PATH_WKT)?;
         Ok(borders)
     }
 
-    pub async fn fetch_alerts(&self) -> Result<Vec<Alert>> {
+    async fn fetch_alerts(&self) -> Result<Vec<Alert>> {
         let response: AlertsResponseAll = self
             .client
             .get(API_ALERTS_ACTIVE, None)
@@ -168,7 +185,7 @@ impl DataRepository {
     /// Fetches active air raid alerts **as string** from alerts.in.ua
     ///
     /// Example response: `"ANNNANNNNNNNANNNNNNNNNNNNNN"`
-    pub async fn fetch_alerts_string(&self) -> Result<AlertsResponseString> {
+    async fn fetch_alerts_string(&self) -> Result<AlertsResponseString> {
         let response: String = self
             .client()
             .get(API_ALERTS_ACTIVE_BY_REGION_STRING, None)
@@ -214,8 +231,8 @@ mod tests {
         let mut client = AlertsInUaClient::default();
         client.set_base_url(server.url());
         let pool = Pool::connect("sqlite::memory:").await?;
-        let ready = DataRepository::create_tables(&pool).await?;
-        let data_repository = DataRepository::new(pool, client);
+        let ready = DataRepositoryInstance::create_tables(&pool).await?;
+        let data_repository = DataRepositoryInstance::new(pool, client);
 
         let result = data_repository.fetch_alerts_string().await?;
 

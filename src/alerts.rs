@@ -29,6 +29,8 @@ pub struct Alert {
 
 pub type AlertsResponseString = ArrayString<27>;
 
+pub const DEFAULT_ALERTS_RESPONSE_STRING: &str = "NNNNNNNNNNNNNNNNNNNNNNNNNNN";
+
 #[derive(Debug, Deref, Default)]
 pub struct AlertsByRegion(ArrayString<27>);
 
@@ -42,7 +44,7 @@ pub trait AlertsByRegionState: Send + Sync + Debug {
     fn set_alerts(self: Box<Self>, alerts_as: AlertsResponseString)
         -> Box<dyn AlertsByRegionState>;
     fn get_alerts<'a>(&'a self) -> &'a str {
-        "NNNNNNNNNNNNNNNNNNNNNNNNNNN"
+        DEFAULT_ALERTS_RESPONSE_STRING
     }
 }
 
