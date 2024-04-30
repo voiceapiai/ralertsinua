@@ -7,7 +7,7 @@ use crate::{
     ukraine::{self, *},
 };
 use color_eyre::eyre::Result;
-use geo::{Geometry, HasDimensions, Polygon};
+use geo::{CoordsIter, Geometry, HasDimensions, LineString, Polygon};
 use ratatui::{
     prelude::*,
     widgets::{
@@ -44,6 +44,7 @@ pub struct Map {
     ukraine: Arc<RwLock<Ukraine>>,
     borders: Polygon,
     selected: Option<usize>,
+    last_selected_geo: Option<String>,
 }
 
 trait MapBounds {
@@ -87,6 +88,14 @@ impl Map {
             borders,
             ukraine,
             selected: None,
+            last_selected_geo: None,
+        }
+    }
+
+    fn get_last_selected_geo(&self) -> &str {
+        match self.last_selected_geo {
+            Some(ref response) => response.as_str(),
+            None => "",
         }
     }
 }
@@ -96,8 +105,28 @@ impl Shape for Map {
     #[tracing::instrument]
     #[inline]
     fn draw(&self, painter: &mut Painter) {
+        let lsg = self.get_last_selected_geo();
         let coords_iter = self.borders.exterior().coords().into_iter();
-        coords_iter.for_each(|&coord| {
+        // If region was selected means we have last selected geo - then iterate region borders
+        if !lsg.is_empty() {
+            use std::str::FromStr;
+            let geom: Geometry = Wkt::from_str(lsg).unwrap().try_into().unwrap();
+            match geom {
+                Geometry::Polygon(poly) => {
+                    let coords_iter = poly.exterior().coords().into_iter();
+                }
+                Geometry::MultiPolygon(multi_poly) => {
+                    // If you want to handle only the first polygon in a MultiPolygon
+                    if let Some(poly) = multi_poly.0.first() {
+                        let coords_iter = poly.exterior().coords().into_iter();
+                    }
+                }
+                _ => {
+                    // Handle other geometry types if necessary
+                }
+            }
+        };
+        coords_iter.for_each(|coord| {
             if let Some((x, y)) = painter.get_point(coord.x, coord.y) {
                 painter.paint(x, y, MARKER_COLOR.clone());
             }
@@ -130,6 +159,9 @@ impl Component for Map {
                     let selected_region = ukraine.regions().get(selected_i).unwrap();
                     info!("Map->update Action::Selected: {:?}", selected_region);
                 }
+            }
+            Action::SetRegionGeo(geo) => {
+                self.last_selected_geo = Some(geo);
             }
             _ => {}
         }

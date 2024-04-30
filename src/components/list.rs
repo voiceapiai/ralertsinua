@@ -5,7 +5,6 @@ use crate::{
     config::{get_config_prop, Locale},
     constants::*,
     data::DataRepositoryInstance,
-    services::alerts::*,
     tui::LayoutArea,
     ukraine::*,
 };
@@ -68,7 +67,6 @@ impl Region {
 pub struct RegionsList {
     command_tx: Option<UnboundedSender<Action>>,
     ukraine: Arc<RwLock<Ukraine>>,
-    alerts_service: Arc<dyn AlertService>,
     #[getset(get = "pub with_prefix")]
     list: List<'static>,
     #[getset(get = "pub", get_mut)]
@@ -79,14 +77,10 @@ pub struct RegionsList {
 }
 
 impl RegionsList {
-    pub fn new(
-        ukraine: Arc<RwLock<Ukraine>>,
-        alerts_service: Arc<dyn AlertService>,
-    ) -> RegionsList {
+    pub fn new(ukraine: Arc<RwLock<Ukraine>>) -> RegionsList {
         Self {
             command_tx: None,
             ukraine,
-            alerts_service,
             list: List::default(),
             state: ListState::default(),
             last_selected: None,
@@ -207,7 +201,7 @@ impl Component for RegionsList {
                 self.list = self.list(false);
                 info!("List->update->Action::Refresh: {}", action);
             }
-            Action::SetAlertsByRegion (alerts_as) => {
+            Action::SetAlertsByRegion(alerts_as) => {
                 self.last_alert_response = Some(alerts_as);
                 self.list = self.list(true);
                 // info!("List->update->Action::Fetch: {}", action);
@@ -247,6 +241,7 @@ impl Component for RegionsList {
             }
             KeyCode::Down => {
                 self.next();
+                let seleced_region = self.ukraine.read().unwrap().regions()[self.state().selected().unwrap()].clone();
                 let action = Action::Selected(self.state().selected());
                 Ok(Some(action))
             }

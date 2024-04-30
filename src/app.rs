@@ -42,7 +42,7 @@ impl App {
         geo_service: Arc<dyn GeoService>,
     ) -> Result<Self> {
         let map = Map::new(ukraine.clone());
-        let list = RegionsList::new(ukraine.clone(), alerts_service.clone());
+        let list = RegionsList::new(ukraine.clone());
         let fps = FpsCounter::new(ukraine.clone());
         let mode = Mode::Map;
         let components: Vec<Box<dyn Component>> =
@@ -207,6 +207,21 @@ impl App {
 
                         // info!("App->on:FetchAlerts->action_tx.send: {}", tx_action);
                         action_tx.send(tx_action)?;
+                    }
+                    Action::Selected(s) => {
+                        match s {
+                            Some(s) => {
+                                let ukraine = self.ukraine.read().unwrap();
+                                let region = ukraine.regions().get(s).unwrap();
+                                let region_geo =
+                                    self.geo_service.fetch_region_geo(region.osm_id).await?;
+                                let tx_action = Action::SetRegionGeo(region_geo.to_string());
+
+                                // info!("App->on:FetchAlerts->action_tx.send: {}", tx_action);
+                                action_tx.send(tx_action)?;
+                            }
+                            None => {}
+                        }
                     }
                     _ => {}
                 }
