@@ -24,6 +24,7 @@
       "env": {
         // "RUST_BACKTRACE": "1"
       },
+      "envFile": "${workspaceFolder}/.env",
       "cwd": "${workspaceFolder}"
     },
     {

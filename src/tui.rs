@@ -89,13 +89,13 @@ impl Tui {
         })
     }
 
-    pub fn tick_rate(mut self, tick_rate: f64) -> Self {
-        self.tick_rate = tick_rate;
+    pub fn tick_rate(mut self, tick_rate: &f64) -> Self {
+        self.tick_rate = *tick_rate;
         self
     }
 
-    pub fn frame_rate(mut self, frame_rate: f64) -> Self {
-        self.frame_rate = frame_rate;
+    pub fn frame_rate(mut self, frame_rate: &f64) -> Self {
+        self.frame_rate = *frame_rate;
         self
     }
 

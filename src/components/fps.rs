@@ -3,7 +3,7 @@ use super::Component;
 use crate::{
     action::Action,
     alerts::*,
-    config::get_config_prop,
+    config::*,
     tui::{Frame, LayoutArea},
     ukraine::*,
 };
@@ -28,11 +28,13 @@ pub struct FpsCounter {
     command_tx: Option<UnboundedSender<Action>>,
     throbber_state: ThrobberState,
     #[allow(unused)]
+    config: Arc<dyn ConfigService>,
+    #[allow(unused)]
     ukraine: Arc<RwLock<Ukraine>>,
 }
 
 impl FpsCounter {
-    pub fn new(ukraine: Arc<RwLock<Ukraine>>) -> Self {
+    pub fn new(ukraine: Arc<RwLock<Ukraine>>, config: Arc<dyn ConfigService>) -> Self {
         Self {
             app_start_time: Instant::now(),
             app_frames: 0,
@@ -43,6 +45,7 @@ impl FpsCounter {
 
             command_tx: Option::default(),
             throbber_state: ThrobberState::default(),
+            config,
             ukraine,
         }
     }
@@ -126,8 +129,8 @@ impl Component for FpsCounter {
             ])
             .split(area);
         // let left = rects[0].offset(Offset { x: 1, y: 0 }); // puts in title actually
-        let left = rects[1].clone().offset(Offset { x: 2, y: 0 }); // puts in title actually
-        let rect = rects[1].clone().offset(Offset { x: 4, y: 0 });
+        let left = rects[1].offset(Offset { x: 2, y: 0 }); // puts in title actually
+        let rect = rects[1].offset(Offset { x: 4, y: 0 });
 
         let s = format!(
             "{:.2} ticks per sec (app) {:.2} frames per sec (render)",

@@ -1,13 +1,13 @@
 use super::{Component, Frame};
 use crate::{
     action::Action,
-    config::get_config_prop,
+    config::*,
     constants::*,
     tui::LayoutArea,
     ukraine::{self, *},
 };
 use color_eyre::eyre::Result;
-use geo::{CoordsIter, Geometry, HasDimensions, LineString, Polygon};
+use geo::{BoundingRect, CoordsIter, Geometry, HasDimensions, LineString, Polygon};
 use ratatui::{
     prelude::*,
     widgets::{
@@ -25,7 +25,7 @@ use std::{collections::HashMap, time::Duration};
 use tokio::sync::mpsc::UnboundedSender;
 
 /// Ukraine borders represented as Polygon in WKT file
-const UKRAINE_BORDERS_POYGON_WKT: &'static str = include_str!("../../.data/ukraine.wkt");
+const UKRAINE_BORDERS_POYGON_WKT: &str = include_str!("../../.data/ukraine.wkt");
 /// Ukraine bounding box coords tuple - (min_x, min_y), (max_x, max_y)
 ///
 /// <em>Територія України розташована між 44°23' і 52°25' північної широти та між 22°08' і 40°13' східної довготи</em>
@@ -41,9 +41,10 @@ const PADDING: f64 = 0.5;
 pub struct Map {
     command_tx: Option<UnboundedSender<Action>>,
     #[allow(unused)]
+    config: Arc<dyn ConfigService>,
     ukraine: Arc<RwLock<Ukraine>>,
     borders: Polygon,
-    selected: Option<usize>,
+    last_selected: Option<usize>,
     last_selected_geo: Option<String>,
 }
 
@@ -77,7 +78,7 @@ impl MapBounds for Map {
 }
 
 impl Map {
-    pub fn new(ukraine: Arc<RwLock<Ukraine>>) -> Self {
+    pub fn new(ukraine: Arc<RwLock<Ukraine>>, config: Arc<dyn ConfigService>) -> Self {
         use std::str::FromStr;
         let borders: Polygon = Wkt::from_str(UKRAINE_BORDERS_POYGON_WKT)
             .unwrap()
@@ -87,16 +88,63 @@ impl Map {
             command_tx: Option::default(),
             borders,
             ukraine,
-            selected: None,
+            config,
+            last_selected: None,
             last_selected_geo: None,
         }
     }
 
     fn get_last_selected_geo(&self) -> &str {
         match self.last_selected_geo {
-            Some(ref response) => response.as_str(),
+            Some(ref lsg) => lsg.as_str(),
             None => "",
         }
+    }
+
+    fn get_x_y_bounds(&self) -> Result<([f64; 2], [f64; 2])> {
+        let lsg = self.get_last_selected_geo();
+        let x_y_bounds = match lsg.is_empty() {
+            false => {
+                use std::str::FromStr;
+                let geom: Geometry = Wkt::from_str(lsg).unwrap().try_into().unwrap();
+                let b = geom.bounding_rect().unwrap();
+                (
+                    [b.min().x - 0.0, b.max().x + 0.0],
+                    [b.min().y - 0.0, b.max().y + 0.0],
+                )
+            }
+            true => (Self::x_bounds(), Self::y_bounds()),
+        };
+        Ok(x_y_bounds)
+    }
+
+    fn get_curr_area(&self, r: Rect) -> Result<Rect> {
+        let percent = 50;
+        let lsg = self.get_last_selected_geo();
+        let curr_area = match lsg.is_empty() {
+            false => {
+                // INFO: https://ratatui.rs/how-to/layout/center-a-rect/
+                let popup_layout = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([
+                        Constraint::Percentage((100 - percent) / 2),
+                        Constraint::Percentage(percent),
+                        Constraint::Percentage((100 - percent) / 2),
+                    ])
+                    .split(r);
+
+                Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([
+                        Constraint::Percentage((100 - percent) / 2),
+                        Constraint::Percentage(percent),
+                        Constraint::Percentage((100 - percent) / 2),
+                    ])
+                    .split(popup_layout[1])[1]
+            }
+            true => r,
+        };
+        Ok(curr_area)
     }
 }
 
@@ -106,19 +154,19 @@ impl Shape for Map {
     #[inline]
     fn draw(&self, painter: &mut Painter) {
         let lsg = self.get_last_selected_geo();
-        let coords_iter = self.borders.exterior().coords().into_iter();
+        let coords_iter = self.borders.exterior().coords();
         // If region was selected means we have last selected geo - then iterate region borders
         if !lsg.is_empty() {
             use std::str::FromStr;
             let geom: Geometry = Wkt::from_str(lsg).unwrap().try_into().unwrap();
             match geom {
                 Geometry::Polygon(poly) => {
-                    let coords_iter = poly.exterior().coords().into_iter();
+                    let coords_iter = poly.exterior().coords();
                 }
                 Geometry::MultiPolygon(multi_poly) => {
                     // If you want to handle only the first polygon in a MultiPolygon
                     if let Some(poly) = multi_poly.0.first() {
-                        let coords_iter = poly.exterior().coords().into_iter();
+                        let coords_iter = poly.exterior().coords();
                     }
                 }
                 _ => {
@@ -128,7 +176,7 @@ impl Shape for Map {
         };
         coords_iter.for_each(|coord| {
             if let Some((x, y)) = painter.get_point(coord.x, coord.y) {
-                painter.paint(x, y, MARKER_COLOR.clone());
+                painter.paint(x, y, *MARKER_COLOR);
             }
         });
     }
@@ -152,12 +200,15 @@ impl Component for Map {
         match action {
             Action::Tick => {}
             Action::Selected(selected) => {
-                self.selected = selected;
                 if selected.is_some() {
+                    self.last_selected = selected;
                     let selected_i = selected.unwrap();
                     let ukraine = self.ukraine.read().unwrap();
                     let selected_region = ukraine.regions().get(selected_i).unwrap();
                     info!("Map->update Action::Selected: {:?}", selected_region);
+                } else {
+                    self.last_selected = None;
+                    self.last_selected_geo = None;
                 }
             }
             Action::SetRegionGeo(geo) => {
@@ -169,6 +220,9 @@ impl Component for Map {
     }
 
     fn draw(&mut self, f: &mut Frame<'_>, area: Rect) -> Result<()> {
+        let (x_bounds, y_bounds) = self.get_x_y_bounds()?;
+        let area = self.get_curr_area(area)?;
+
         let widget = Canvas::default()
             .block(
                 Block::default()
@@ -177,8 +231,8 @@ impl Component for Map {
                     .title_alignment(Alignment::Center),
             )
             .marker(Marker::Braille)
-            .x_bounds(Self::x_bounds())
-            .y_bounds(Self::y_bounds())
+            .x_bounds(x_bounds)
+            .y_bounds(y_bounds)
             .paint(|ctx| {
                 ctx.draw(self);
             })
@@ -194,10 +248,10 @@ mod tests {
 
     #[test]
     fn test_map_new() {
-        let map = Map::new(Ukraine::new_arc());
+        let map = Map::new(Ukraine::new_arc(), Arc::new(Config::init().unwrap()));
         assert!(map.command_tx.is_none());
-        assert!(map.borders.is_empty() == false);
-        assert!(map.ukraine.read().unwrap().regions().is_empty() == true);
+        assert!(!map.borders.is_empty());
+        assert!(map.ukraine.read().unwrap().regions().is_empty());
         // match map.borders.try_from()
     }
 }

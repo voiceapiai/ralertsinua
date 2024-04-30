@@ -43,7 +43,7 @@ impl AlertsByRegion {
 pub trait AlertsByRegionState: Send + Sync + Debug {
     fn set_alerts(self: Box<Self>, alerts_as: AlertsResponseString)
         -> Box<dyn AlertsByRegionState>;
-    fn get_alerts<'a>(&'a self) -> &'a str {
+    fn get_alerts(&self) -> &str {
         DEFAULT_ALERTS_RESPONSE_STRING
     }
 }
@@ -55,7 +55,7 @@ impl AlertsByRegionState for AlertsByRegion {
     ) -> Box<dyn AlertsByRegionState> {
         Box::new(AlertsByRegion(alerts_as))
     }
-    fn get_alerts<'a>(&'a self) -> &'a str {
+    fn get_alerts(&self) -> &str {
         // let alerts_statuses: Vec<char> = alerts_as.chars().collect::<Vec<char>>();
         self.as_str()
     }
@@ -67,6 +67,7 @@ pub struct AlertsResponseAll {
 }
 
 #[derive(Debug, strum_macros::EnumProperty, strum_macros::AsRefStr, Display)]
+#[derive(Default)]
 pub enum AlertStatus {
     /// Active
     #[strum(props(icon = "🜸", color = "red"))]
@@ -76,17 +77,14 @@ pub enum AlertStatus {
     P,
     /// No information
     #[strum(props(icon = "🌣", color = "blue"))]
+    #[default]
     N,
     /// Loading
     #[strum(props(icon = "↻", color = "white"))]
     L,
 }
 
-impl Default for AlertStatus {
-    fn default() -> Self {
-        AlertStatus::N
-    }
-}
+
 
 impl From<char> for AlertStatus {
     fn from(c: char) -> Self {
@@ -104,7 +102,7 @@ mod custom_date_format {
     use serde::{self, de::Error as sError, Deserialize, Deserializer};
 
     /// @see https://serde.rs/custom-date-format.html
-    const FORMAT: &'static str = "%Y-%m-%d %H:%M:%S";
+    const FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<DateTime<Utc>, D::Error>
     where

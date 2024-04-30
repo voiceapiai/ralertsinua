@@ -1,7 +1,7 @@
 /// This module contains the implementation of the `DataRepository` struct and the `MapRepository` trait.
 /// The `DataRepository` struct provides methods for interacting with a SQLite database and fetching data related to Ukraine.
 /// The `MapRepository` trait defines the `get_data` method, which returns a future that resolves to a `Result` containing the data for Ukraine.
-use crate::{alerts::*, api::*, ukraine::*, utils::*};
+use crate::{alerts::*, api::*, config::*, ukraine::*, utils::*};
 use arrayvec::ArrayString;
 use async_trait::async_trait;
 use color_eyre::eyre::{Context, Error, Result};
@@ -15,14 +15,14 @@ use strum::Display;
 use tracing::{error, info};
 
 #[allow(unused)]
-const FILE_PATH_CSV: &'static str = ".data/ukraine.csv";
+const FILE_PATH_CSV: &str = ".data/ukraine.csv";
 #[allow(unused)]
-const FILE_PATH_WKT: &'static str = ".data/ukraine.wkt";
-const DB_NAME: &'static str = "ukraine.sqlite";
+const FILE_PATH_WKT: &str = ".data/ukraine.wkt";
+const DB_NAME: &str = "ukraine.sqlite";
 // const DB_PATH: &'static str = ".data/ukraine.sqlite";
-const QUERY_CREATE_REGIONS_TABLE: &'static str = include_str!("../.data/create_regions_table.sql");
-const QUERY_SELECT_REGIONS: &'static str = "SELECT * FROM regions ORDER BY id";
-const QUERY_SELECT_REGION_GEO: &'static str = "SELECT geo FROM geo WHERE osm_id = $1";
+const QUERY_CREATE_REGIONS_TABLE: &str = include_str!("../.data/create_regions_table.sql");
+const QUERY_SELECT_REGIONS: &str = "SELECT * FROM regions ORDER BY id";
+const QUERY_SELECT_REGION_GEO: &str = "SELECT geo FROM geo WHERE osm_id = $1";
 
 #[async_trait]
 pub trait DataRepository: Send + Sync + core::fmt::Debug {
@@ -44,6 +44,7 @@ pub async fn db_pool() -> Result<SqlitePool> {
     } else {
         get_config_dir()
     };
+    let db_path = path.join(DB_NAME);
     let conn: SqliteConnectOptions = SqliteConnectOptions::new()
         .filename(path.join(DB_NAME))
         // .pragma(key, value)
@@ -51,7 +52,7 @@ pub async fn db_pool() -> Result<SqlitePool> {
 
     let pool = SqlitePool::connect_with(conn)
         .await
-        .wrap_err("Error connecting to the database: {}")?;
+        .wrap_err(format!("Error connecting to the database with path {}", db_path.to_str().unwrap()))?;
     // Create the tables together with the pool
     DataRepositoryInstance::create_tables(&pool).await?;
     DataRepositoryInstance::insert_regions_geo(&pool).await?;
@@ -195,11 +196,11 @@ impl DataRepository for DataRepositoryInstance {
         // info!("Fetched alerts as string: {}, length: {}", text, text.len());
         let res = Box::new(text.to_string());
         let mut a_string = ArrayString::<27>::new();
-        a_string.push_str(&text);
+        a_string.push_str(text);
 
         // Insert the response into the statuses table
         sqlx::query("INSERT INTO statuses (status) VALUES (?)")
-            .bind(&text)
+            .bind(text)
             .execute(self.pool())
             .await
             .wrap_err("Error inserting status into the database: {}")?;
@@ -211,6 +212,7 @@ impl DataRepository for DataRepositoryInstance {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use color_eyre::config;
     use mockito::Server as MockServer;
     use reqwest::Client;
     use sqlx::{Connection, Pool, SqliteConnection};
@@ -218,8 +220,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch_alerts_string() -> Result<()> {
-        std::env::set_var("ALERTSINUA_TOKEN", "TEST_TOKEN");
         let mut server = MockServer::new_async().await;
+        let mut config = Config::init().unwrap();
+        config.set_base_url(server.url());
+        let config: Arc<dyn ConfigService> = Arc::new(config);
         let mock = server
             .mock(
                 "GET",
@@ -228,10 +232,9 @@ mod tests {
             .with_body(r#""ANNAANNANNNPANANANNNNAANNNN""#)
             .create_async()
             .await;
-        let mut client = AlertsInUaClient::default();
-        client.set_base_url(server.url());
+        let client = AlertsInUaClient::new(config);
         let pool = Pool::connect("sqlite::memory:").await?;
-        let ready = DataRepositoryInstance::create_tables(&pool).await?;
+        DataRepositoryInstance::create_tables(&pool).await?;
         let data_repository = DataRepositoryInstance::new(pool, client);
 
         let result = data_repository.fetch_alerts_string().await?;

@@ -2,7 +2,7 @@ use super::{Component, Frame};
 use crate::{
     action::Action,
     alerts::{self, *},
-    config::{get_config_prop, Locale},
+    config::*,
     constants::*,
     data::DataRepositoryInstance,
     tui::LayoutArea,
@@ -66,6 +66,7 @@ impl Region {
 #[derive(Debug, Getters, MutGetters, Setters)]
 pub struct RegionsList {
     command_tx: Option<UnboundedSender<Action>>,
+    config: Arc<dyn ConfigService>,
     ukraine: Arc<RwLock<Ukraine>>,
     #[getset(get = "pub with_prefix")]
     list: List<'static>,
@@ -77,8 +78,9 @@ pub struct RegionsList {
 }
 
 impl RegionsList {
-    pub fn new(ukraine: Arc<RwLock<Ukraine>>) -> RegionsList {
+    pub fn new(ukraine: Arc<RwLock<Ukraine>>, config: Arc<dyn ConfigService>) -> RegionsList {
         Self {
+            config,
             command_tx: None,
             ukraine,
             list: List::default(),
@@ -110,7 +112,7 @@ impl RegionsList {
         let ukraine = self.ukraine.read().unwrap();
         let regions = ukraine.regions();
         let alerts_as = self.get_last_alert_response();
-        let locale = get_config_prop::<Locale>("settings.locale").unwrap();
+        let locale = Locale::from_str(self.config.get_locale().as_str()).unwrap(); // TODO: improve
 
         let items = regions.into_iter().enumerate().map(|(i, region)| {
             let region_a_s = if is_loading {
@@ -229,7 +231,7 @@ impl Component for RegionsList {
             .highlight_symbol(">>")
             .repeat_highlight_symbol(true);
 
-        f.render_stateful_widget(widget, area, &mut self.state_mut());
+        f.render_stateful_widget(widget, area, self.state_mut());
         Ok(())
     }
 
@@ -241,13 +243,20 @@ impl Component for RegionsList {
             }
             KeyCode::Down => {
                 self.next();
-                let seleced_region = self.ukraine.read().unwrap().regions()[self.state().selected().unwrap()].clone();
+                let seleced_region = self.ukraine.read().unwrap().regions()
+                    [self.state().selected().unwrap()]
+                .clone();
                 let action = Action::Selected(self.state().selected());
                 Ok(Some(action))
             }
             KeyCode::Up => {
                 self.previous();
                 let action = Action::Selected(self.state().selected());
+                Ok(Some(action))
+            }
+            KeyCode::Esc => {
+                self.unselect();
+                let action = Action::Selected(None);
                 Ok(Some(action))
             }
             // Other handlers you could add here.

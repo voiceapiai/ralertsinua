@@ -1,129 +1,111 @@
-#![allow(deprecated)]
 #![allow(non_camel_case_types)]
+use async_trait::async_trait;
 use color_eyre::eyre::{eyre, Error, Result, WrapErr};
-use config::{Config as ConfigRs, Value, ValueKind};
-use lazy_static::lazy_static;
+use delegate::delegate;
+use dotenv_config::EnvConfig;
+use dotenvy::dotenv;
+use getset::{Getters, MutGetters, Setters};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::convert::AsRef;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use std::string::ToString;
-use std::sync::RwLock;
+use std::{str::FromStr, string::ToString};
 use strum_macros::{Display, EnumString};
 use tracing::warn;
-
-// pub use config::ConfigError;
 
 use crate::error::*;
 use crate::utils::*;
 
-const FILE_NAME: &str = "config.toml";
+// const FILE_NAME: &str = "config.toml";
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, EnvConfig, MutGetters)]
 pub struct Config {
-    pub keybindings: HashMap<String, String>,
+    // pub keybindings: HashMap<String, String>, // FIXME: fails with new EnvConfig derive
+    #[getset(get_mut)]
     pub settings: Settings,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, EnvConfig, Getters, Setters)]
 pub struct Settings {
+    #[env_config(name = "ALERTSINUA_BASE_URL", default = "https://api.alerts.in.ua")]
+    #[getset(get = "pub", set = "pub")]
     pub base_url: String,
+    #[env_config(name = "ALERTSINUA_TOKEN", default = "")]
+    #[getset(get = "pub")]
     pub token: String,
-    pub locale: Locale,
+    #[env_config(default = "en", help = "Available locales: en, uk", parse(false))]
+    #[getset(get = "pub with_prefix", set = "pub")]
+    pub locale: String, // Locale, // FIXME: fails with new EnvConfig derive
+    #[env_config(name = "TICK_RATE", default = 1.0)]
+    #[getset(get = "pub")]
+    pub tick_rate: f64,
+    #[env_config(name = "FRAME_RATE", default = 1.0)]
+    #[getset(get = "pub")]
+    pub frame_rate: f64,
 }
 
-lazy_static! {
-    /// Global `Config` instance
-    ///
-    /// example taken from
-    static ref CONFIG: RwLock<ConfigRs> = RwLock::new(ConfigRs::builder()
-        // .set_default(key, value)
-        // Add in `./Settings.toml`
-        .add_source(config::File::from(Path::new(".data").join(FILE_NAME)))
-        // Add in
-        .add_source(config::File::from(get_config_dir().join(FILE_NAME)).required(false))
-        // Add in settings from the environment (with a prefix of APP)
-        // Eg.. `APP_DEBUG=1 ./target/app` would set the `debug` key
-        .add_source(config::Environment::with_prefix("ALERTSINUA"))
-        .build()
-        .map_err(|e|"Error loading configuration, {}")
-        .unwrap());
+#[async_trait]
+pub trait ConfigService: Sync + Send + core::fmt::Debug {
+    fn settings(&self) -> &Settings;
+    fn base_url(&self) -> &str;
+    fn set_base_url(&mut self, val: String) -> &mut Settings;
+    fn token(&self) -> &str;
+    fn get_locale(&self) -> String;
+    fn set_locale<L>(&self, val: L) -> String where L: Into<String>, Self: Sized;
+    fn toggle_locale(&self) -> String;
+    fn tick_rate(&self) -> &f64;
+    fn frame_rate(&self) -> &f64;
 }
 
-/// Get value from the global `Config` instance by path, e.g. `settings.locale`
-pub fn get_config_prop<P>(path: &str) -> Result<P>
-where
-    P: for<'de> Deserialize<'de>,
-{
-    let value = CONFIG
-        .read()
-        .map_err(|_| eyre!("Failed to read config at path: '{}'", path))?
-        .get::<P>(path)?;
-    Ok(value)
-}
-
-pub fn set_token(token: String) -> Result<()> {
-    if token.is_empty() {
-        return Err(Error::msg("Token cannot be empty"));
+impl ConfigService for Config {
+    delegate! {
+        to self.settings {
+            fn base_url(&self) -> &str;
+            fn set_base_url(&mut self, val: String) -> &mut Settings;
+            fn token(&self) -> &str;
+            fn tick_rate(&self) -> &f64;
+            fn frame_rate(&self) -> &f64;
+        }
     }
-    if token.len() != 46 {
-        return Err(Error::msg(format!(
-            "Token must be 32 characters long, but {} characteers provided",
-            token.len()
-        )));
+
+    fn settings(&self) -> &Settings {
+        &self.settings
     }
-    CONFIG
-        .write()
-        .map_err(|_| eyre!("Failed to acquire write lock on CONFIG"))?
-        .set("settings.token", ValueKind::String(token))?;
-    Ok(())
-}
 
-pub fn toggle_locale() -> Result<()> {
-    let curr_locale = get_config_prop::<Locale>("settings.locale")?;
-    let locale = if curr_locale == Locale::en {
-        Locale::uk
-    } else {
-        Locale::en
-    };
-    set_locale(locale)?;
-    Ok(())
-}
+    fn get_locale(&self) -> String {
+        rust_i18n::locale().to_string() // FIXME: dirty fix to not mutate self
+    }
 
-/// Set locale to `Config` and `rust_i18n`
-///
-/// Will accept `Locale` enum or `&str` or `String`
-pub fn set_locale(locale: impl Into<String>) -> Result<()> {
-    let locales = rust_i18n::available_locales!();
-    let locale: &str = &locale.into();
-    if !locales.contains(&locale) {
-        warn!("Locale '{}' is not available, using fallback 'en'", locale);
-        Ok(())
-    } else {
-        CONFIG
-            .write()
-            .map_err(|_| color_eyre::eyre::eyre!("Failed to acquire write lock on CONFIG"))?
-            .set("settings.locale", locale)?;
+    fn toggle_locale(&self) -> String {
+        let curr_locale = &self.get_locale();
+        let locale = if curr_locale == &Locale::en.to_string() {
+            Locale::uk
+        } else {
+            Locale::en
+        };
+        self.set_locale(locale.to_string());
+        self.get_locale()
+    }
+
+    fn set_locale<L>(&self, locale: L) -> String where L: Into<String> {
+        let locales = rust_i18n::available_locales!();
+        let locale: &str = &locale.into();
+        if !locales.contains(&locale) {
+            warn!("Locale '{}' is not available, using fallback 'en'", locale);
+            return self.get_locale();
+        }
+        // self.settings_mut().locale = locale.to_string(); // FIXME: dirty fix to not mutate self
         rust_i18n::set_locale(locale);
-        Ok(())
+        self.get_locale()
     }
 }
 
-#[derive(Display, Debug, EnumString, PartialEq, Deserialize, Serialize)]
+#[derive(Default, Display, Debug, Clone, EnumString, PartialEq, Deserialize, Serialize)]
 pub enum Locale {
+    #[default]
     en,
     uk,
 }
 
-impl Into<ValueKind> for Locale {
-    fn into(self) -> ValueKind {
-        ValueKind::String(self.to_string())
-    }
-}
-
-impl Into<String> for Locale {
-    fn into(self) -> String {
-        self.to_string()
+impl From<Locale> for String {
+    fn from(val: Locale) -> Self {
+        val.to_string()
     }
 }

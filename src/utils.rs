@@ -90,8 +90,8 @@ pub fn initialize_panic_handler() -> Result<()> {
 }
 
 pub fn get_local_data_dir() -> PathBuf {
-    let directory = PathBuf::from(".").join(".data");
-    directory
+    
+    PathBuf::from(".").join(".data")
 }
 
 pub fn get_data_dir() -> PathBuf {

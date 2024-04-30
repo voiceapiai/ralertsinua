@@ -1,12 +1,9 @@
-use crate::api::API_BASE_URL;
 use crate::utils::version;
 use clap::{Arg, Parser};
 
 #[derive(Parser, Debug)]
 #[command(author, version = version(), about)]
 pub struct Cli {
-    #[arg(short, long, value_name = "BASE_URL", help = "API base URL", default_value_t = String::from(API_BASE_URL), required = false)]
-    pub base_url: String,
 
     #[arg(
         short,

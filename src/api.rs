@@ -8,16 +8,17 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::env;
 use std::fmt;
+use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Duration;
 
-use crate::config::get_config_prop;
+use crate::config::*;
 
 pub type Headers = HashMap<String, String>;
 pub type Query<'a> = HashMap<&'a str, &'a str>;
 
-pub const API_BASE_URL: &str = "https://api.alerts.in.ua";
-pub const API_TOKEN: &str = dotenvy_macro::dotenv!("ALERTSINUA_TOKEN");
+// pub const API_BASE_URL: &str = "https://api.alerts.in.ua";
+// pub const API_TOKEN: &str = dotenvy_macro::dotenv!("ALERTSINUA_TOKEN");
 pub const API_ALERTS_ACTIVE: &str = "v1/alerts/active.json";
 pub const API_ALERTS_ACTIVE_BY_REGION_STRING: &str = "v1/iot/active_air_raid_alerts_by_oblast.json";
 
@@ -66,25 +67,24 @@ pub enum ReqwestError {
 
 #[derive(Debug, Clone)]
 pub struct AlertsInUaClient {
-    base_url: String,
+    config: Arc<dyn ConfigService>,
     client: reqwest::Client,
 }
 
-impl Default for AlertsInUaClient {
-    fn default() -> Self {
-        let base_url = API_BASE_URL.to_string();
+impl AlertsInUaClient {
+    pub fn new(config: Arc<dyn ConfigService>) -> Self {
         let client = reqwest::ClientBuilder::new()
             .timeout(Duration::from_secs(10))
             .build()
             // building with these options cannot fail
             .unwrap();
-        Self { base_url, client }
+        Self { config, client }
     }
 }
 
 impl AlertsInUaClient {
     fn get_api_url(&self, url: &str) -> String {
-        let mut base = self.base_url.clone();
+        let mut base = self.config.base_url().to_string();
         if !base.ends_with('/') {
             base.push('/');
         }
@@ -100,9 +100,7 @@ impl AlertsInUaClient {
         let url = self.get_api_url(url);
         let mut request = self.client.request(method.clone(), url);
         // Enable HTTP bearer authentication.
-        let token =
-            get_config_prop::<String>("settings.token").map_err(|_| ReqwestError::InvalidToken)?;
-        request = request.bearer_auth(token);
+        request = request.bearer_auth(self.config.token());
 
         // Configuring the request for the specific type (get/post/put/delete)
         request = add_data(request);
@@ -119,10 +117,10 @@ impl AlertsInUaClient {
         }
     }
 
-    #[cfg(test)]
-    pub fn set_base_url(&mut self, base_url: String) {
-        self.base_url = base_url;
-    }
+    // #[cfg(test)]
+    // pub fn set_base_url(&mut self, base_url: String) {
+    //     self.base_url = base_url;
+    // }
 }
 
 /// This trait represents the interface to be implemented for an HTTP client,
@@ -137,7 +135,7 @@ impl AlertsInUaClient {
 /// much sense).
 // #[cfg_attr(target_arch = "wasm32", maybe_async(?Send))]
 // #[cfg_attr(not(target_arch = "wasm32"), maybe_async)]
-pub trait BaseHttpClient: Send + Default + Clone + fmt::Debug {
+pub trait BaseHttpClient: Send + Clone + fmt::Debug {
     type Error;
 
     // This internal function should always be given an object value in JSON.

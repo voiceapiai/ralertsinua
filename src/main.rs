@@ -33,6 +33,7 @@ use tracing::info;
 use crate::{
     api::AlertsInUaClient,
     app::App,
+    config::{Config, ConfigService},
     data::*,
     ukraine::Ukraine,
     utils::{initialize_logging, initialize_panic_handler, version},
@@ -43,30 +44,30 @@ async fn tokio_main() -> Result<()> {
     initialize_logging()?;
     initialize_panic_handler()?;
 
-    // let config: Config = CONFIG
-    //     .read()
-    //     .unwrap()
-    //     .clone()
-    //     .try_deserialize()
-    //     .map_err(|e| color_eyre::eyre::eyre!("Failed to deserialize config: {}", e))
-    //     .unwrap();
-    // info!("\n{:?} \n\n-----------", config);
+    let config = Config::init().unwrap();
+    let args = Cli::parse();
+    // TODO: override config with args ?
+    let config: Arc<dyn ConfigService> = Arc::new(config);
+    info!("\n{:?} \n\n-----------", config.settings());
 
     let pool = db_pool().await?;
-    let client = AlertsInUaClient::default();
+    let client = AlertsInUaClient::new(config.clone());
 
     let data_repository: Arc<dyn DataRepository> =
         Arc::new(DataRepositoryInstance::new(pool, client));
     let alerts_service: Arc<dyn AlertService> =
         Arc::new(AlertServiceImpl::new(data_repository.clone()));
-    let geo_service: Arc<dyn GeoService> =
-        Arc::new(GeoServiceImpl::new(data_repository.clone()));
+    let geo_service: Arc<dyn GeoService> = Arc::new(GeoServiceImpl::new(data_repository.clone()));
 
     let regions = data_repository.fetch_regions().await?;
     let ukraine = Arc::new(RwLock::new(Ukraine::new(regions)));
 
-    let args = Cli::parse();
-    let mut app = App::new(args, ukraine, alerts_service, geo_service)?;
+    let mut app = App::new(
+        config.clone(),
+        ukraine.clone(),
+        alerts_service.clone(),
+        geo_service.clone(),
+    )?;
     app.run().await?;
 
     Ok(())

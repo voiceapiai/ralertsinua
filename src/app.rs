@@ -1,4 +1,4 @@
-use color_eyre::eyre::{Error, Result};
+use color_eyre::eyre::{ContextCompat, Error, Result};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::prelude::Rect;
 #[allow(unused)]
@@ -13,7 +13,7 @@ use crate::{
     action::Action,
     cli::Cli,
     components::{fps::FpsCounter, list::RegionsList, map::Map, Component},
-    config::{self, Locale},
+    config::*,
     data::*,
     mode::Mode,
     services::{alerts::AlertService, geo::GeoService},
@@ -22,6 +22,7 @@ use crate::{
 };
 
 pub struct App {
+    pub config: Arc<dyn ConfigService>,
     pub alerts_service: Arc<dyn AlertService>,
     pub geo_service: Arc<dyn GeoService>,
     pub ukraine: Arc<RwLock<Ukraine>>,
@@ -29,41 +30,32 @@ pub struct App {
     pub should_quit: bool,
     pub should_suspend: bool,
     pub mode: Mode,
-    pub tick_rate: f64,
-    pub frame_rate: f64,
     pub last_tick_key_events: Vec<KeyEvent>,
 }
 
 impl App {
     pub fn new(
-        args: Cli,
+        config: Arc<dyn ConfigService>,
         ukraine: Arc<RwLock<Ukraine>>,
         alerts_service: Arc<dyn AlertService>,
         geo_service: Arc<dyn GeoService>,
     ) -> Result<Self> {
-        let map = Map::new(ukraine.clone());
-        let list = RegionsList::new(ukraine.clone());
-        let fps = FpsCounter::new(ukraine.clone());
+        let map = Map::new(ukraine.clone(), config.clone());
+        let list = RegionsList::new(ukraine.clone(), config.clone());
+        let fps = FpsCounter::new(ukraine.clone(), config.clone());
         let mode = Mode::Map;
         let components: Vec<Box<dyn Component>> =
             vec![Box::new(map), Box::new(list), Box::new(fps)];
         // let tick_rate = std::time::Duration::from_secs(10);
-        let tick_rate = args.tick_rate;
-        let frame_rate = args.frame_rate;
-
-        // config::set_token(args.token)?;
-        // config::set_locale(args.locale)?;
-
         Ok(Self {
-            ukraine: ukraine.clone(),
-            alerts_service: alerts_service.clone(),
-            geo_service: geo_service.clone(),
+            config,
+            ukraine,
+            alerts_service,
+            geo_service,
             components,
             should_quit: false,
             should_suspend: false,
             mode,
-            tick_rate,
-            frame_rate,
             last_tick_key_events: Vec::new(),
         })
     }
@@ -78,8 +70,8 @@ impl App {
         let periodic_action_tx = action_tx.clone();
 
         let mut tui = tui::Tui::new()?
-            .tick_rate(self.tick_rate)
-            .frame_rate(self.frame_rate);
+            .tick_rate(self.config.tick_rate())
+            .frame_rate(self.config.frame_rate());
         // tui.mouse(true);
         tui.enter()?;
 
@@ -118,7 +110,7 @@ impl App {
                     tui::Event::Key(key_event) => {
                         info!("Got key event: {key_event:?}");
                         match key_event.code {
-                            KeyCode::Esc | KeyCode::Char('q') => {
+                            KeyCode::Char('q') => {
                                 action_tx.send(Action::Quit)?;
                             }
                             KeyCode::Char('c') | KeyCode::Char('C') => {
@@ -168,7 +160,7 @@ impl App {
                     Action::Suspend => self.should_suspend = true,
                     Action::Resume => self.should_suspend = false,
                     Action::Locale => {
-                        config::toggle_locale()?;
+                        self.config.toggle_locale();
                         action_tx.send(Action::Refresh)?;
                     }
                     Action::Resize(w, h) => {
@@ -207,6 +199,7 @@ impl App {
 
                         // info!("App->on:FetchAlerts->action_tx.send: {}", tx_action);
                         action_tx.send(tx_action)?;
+                        action_tx.send(Action::Refresh)?;
                     }
                     Action::Selected(s) => {
                         match s {
@@ -235,8 +228,8 @@ impl App {
                 tui.suspend()?;
                 action_tx.send(Action::Resume)?;
                 tui = tui::Tui::new()?
-                    .tick_rate(self.tick_rate)
-                    .frame_rate(self.frame_rate);
+                    .tick_rate(self.config.tick_rate())
+                    .frame_rate(self.config.frame_rate());
                 // tui.mouse(true);
                 tui.enter()?;
             } else if self.should_quit {
