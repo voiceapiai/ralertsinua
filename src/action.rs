@@ -2,7 +2,6 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 use crate::{alerts::*, ukraine::*};
-use arrayvec::ArrayVec;
 use serde::{
     de::{self, Deserializer, Visitor},
     Deserialize, Serialize,

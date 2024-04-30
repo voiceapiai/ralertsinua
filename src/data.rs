@@ -2,7 +2,6 @@
 /// The `DataRepository` struct provides methods for interacting with a SQLite database and fetching data related to Ukraine.
 /// The `MapRepository` trait defines the `get_data` method, which returns a future that resolves to a `Result` containing the data for Ukraine.
 use crate::{alerts::*, api::*, config::*, ukraine::*, utils::*};
-use arrayvec::ArrayString;
 use async_trait::async_trait;
 use color_eyre::eyre::{Context, Error, Result};
 use core::str;
@@ -26,7 +25,7 @@ const QUERY_SELECT_REGION_GEO: &str = "SELECT geo FROM geo WHERE osm_id = $1";
 
 #[async_trait]
 pub trait DataRepository: Send + Sync + core::fmt::Debug {
-    async fn fetch_regions(&self) -> Result<RegionArrayVec>;
+    async fn fetch_regions(&self) -> Result<Box<[Region]>>;
 
     async fn fetch_region_geo(&self, osm_id: i64) -> Result<String>;
 
@@ -34,7 +33,7 @@ pub trait DataRepository: Send + Sync + core::fmt::Debug {
 
     async fn fetch_alerts(&self) -> Result<Vec<Alert>>;
 
-    async fn fetch_alerts_string(&self) -> Result<AlertsResponseString>;
+    async fn fetch_alerts_string(&self) -> Result<Box<String>>;
 }
 
 #[tracing::instrument(level = "trace")]
@@ -147,14 +146,13 @@ impl DataRepositoryInstance {
 
 #[async_trait]
 impl DataRepository for DataRepositoryInstance {
-    async fn fetch_regions(&self) -> Result<RegionArrayVec> {
-        use arrayvec::ArrayVec;
+    async fn fetch_regions(&self) -> Result<Box<[Region]>> {
         let regions: Vec<Region> = sqlx::query_as(QUERY_SELECT_REGIONS)
             .fetch_all(self.pool())
             .await
             .wrap_err("Error querying regions from the database: {}")?;
 
-        Ok(ArrayVec::<Region, 27>::from_iter(regions))
+        Ok(regions.into_boxed_slice())
     }
 
     async fn fetch_region_geo(&self, osm_id: i64) -> Result<String> {
@@ -186,7 +184,7 @@ impl DataRepository for DataRepositoryInstance {
     /// Fetches active air raid alerts **as string** from alerts.in.ua
     ///
     /// Example response: `"ANNNANNNNNNNANNNNNNNNNNNNNN"`
-    async fn fetch_alerts_string(&self) -> Result<AlertsResponseString> {
+    async fn fetch_alerts_string(&self) -> Result<Box<String>> {
         let response: String = self
             .client()
             .get(API_ALERTS_ACTIVE_BY_REGION_STRING, None)
@@ -194,18 +192,16 @@ impl DataRepository for DataRepositoryInstance {
             .wrap_err("Error fetching alerts from API: {}")?;
         let text = response.trim_matches('"');
         // info!("Fetched alerts as string: {}, length: {}", text, text.len());
-        let res = Box::new(text.to_string());
-        let mut a_string = ArrayString::<27>::new();
-        a_string.push_str(text);
+        let text = Box::new(text.to_string());
 
         // Insert the response into the statuses table
         sqlx::query("INSERT INTO statuses (status) VALUES (?)")
-            .bind(text)
+            .bind(&*text)
             .execute(self.pool())
             .await
             .wrap_err("Error inserting status into the database: {}")?;
 
-        Ok(a_string)
+        Ok(text)
     }
 }
 
@@ -240,8 +236,7 @@ mod tests {
         let result = data_repository.fetch_alerts_string().await?;
 
         mock.assert();
-        assert_eq!(result.len(), 27);
-        assert_eq!(&result, "ANNAANNANNNPANANANNNNAANNNN");
+        assert_eq!(&*result, "ANNAANNANNNPANANANNNNAANNNN");
 
         Ok(())
     }

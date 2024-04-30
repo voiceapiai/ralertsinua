@@ -41,9 +41,8 @@ dependencies = [
 
 [[package]]
 name = "alertsinua-tui"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
- "arrayvec",
  "async-trait",
  "better-panic",
  "chrono",
@@ -177,12 +176,6 @@ name = "arc-swap"
 version = "1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
-
-[[package]]
-name = "arrayvec"
-version = "0.7.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
 
 [[package]]
 name = "askama"

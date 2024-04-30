@@ -1,4 +1,3 @@
-use arrayvec::ArrayString;
 use chrono::{DateTime, Utc};
 use derive_deref::{Deref, DerefMut};
 use ratatui::prelude::Color;
@@ -27,39 +26,9 @@ pub struct Alert {
     pub location_oblast_uid: Option<i32>,
 }
 
-pub type AlertsResponseString = ArrayString<27>;
+// pub type AlertsResponseString = ArrayString<27>;
 
 pub const DEFAULT_ALERTS_RESPONSE_STRING: &str = "NNNNNNNNNNNNNNNNNNNNNNNNNNN";
-
-#[derive(Debug, Deref, Default)]
-pub struct AlertsByRegion(ArrayString<27>);
-
-impl AlertsByRegion {
-    pub fn new(alerts_as: AlertsResponseString) -> Self {
-        Self(alerts_as)
-    }
-}
-
-pub trait AlertsByRegionState: Send + Sync + Debug {
-    fn set_alerts(self: Box<Self>, alerts_as: AlertsResponseString)
-        -> Box<dyn AlertsByRegionState>;
-    fn get_alerts(&self) -> &str {
-        DEFAULT_ALERTS_RESPONSE_STRING
-    }
-}
-
-impl AlertsByRegionState for AlertsByRegion {
-    fn set_alerts(
-        self: Box<Self>,
-        alerts_as: AlertsResponseString,
-    ) -> Box<dyn AlertsByRegionState> {
-        Box::new(AlertsByRegion(alerts_as))
-    }
-    fn get_alerts(&self) -> &str {
-        // let alerts_statuses: Vec<char> = alerts_as.chars().collect::<Vec<char>>();
-        self.as_str()
-    }
-}
 
 #[derive(Debug, Deserialize)]
 pub struct AlertsResponseAll {

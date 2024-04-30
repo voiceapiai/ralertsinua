@@ -1,6 +1,6 @@
 [package]
 name = "alertsinua-tui"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["voznik <mrvoznik@gmail.com>"]
 license = "MIT"
 edition = "2021"
@@ -12,7 +12,6 @@ default-locale = "en"
 load-path = "locales"
 
 [dependencies]
-arrayvec = "0.7.4"
 async-trait = "0.1.80"
 better-panic = "0.3"
 chrono = "0.4"

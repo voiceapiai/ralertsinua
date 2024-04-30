@@ -1,6 +1,5 @@
 use crate::{alerts::*, constants::*};
 #[allow(unused)]
-use arrayvec::ArrayVec;
 use derive_deref::Deref;
 use geo::{Coord, Polygon};
 use getset::{Getters, MutGetters, Setters};
@@ -32,13 +31,11 @@ pub struct RegionGeo {
     pub a_id: i8,
     pub geo: String,
 }
-pub type RegionArrayVec = ArrayVec<Region, 27>;
-pub type RegionListVec<'a> = ArrayVec<ListItem<'a>, 27>;
 
 #[derive(Debug, Default, Getters, Setters)]
 pub struct Ukraine {
     #[getset(get = "pub")]
-    regions: RegionArrayVec,
+    regions: Box<[Region]>,
 }
 
 impl Ukraine {
@@ -46,7 +43,7 @@ impl Ukraine {
         Arc::new(RwLock::new(Ukraine::default()))
     }
 
-    pub fn new(regions: RegionArrayVec) -> Self {
+    pub fn new(regions: Box<[Region]>) -> Self {
         Self { regions }
     }
 }

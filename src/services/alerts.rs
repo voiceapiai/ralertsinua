@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 #[async_trait]
 pub trait AlertService: Sync + Send + core::fmt::Debug {
-    async fn by_region(&self) -> Result<AlertsResponseString>;
+    async fn by_region(&self) -> Result<Box<String>>;
     async fn list(&self) -> Result<Vec<Alert>>;
     // fn get_last_alert_response(&self) -> &str;
     // async fn get(&self, id: i32) -> Result<Alert>;
@@ -26,7 +26,7 @@ impl AlertServiceImpl {
 
 #[async_trait]
 impl AlertService for AlertServiceImpl {
-    async fn by_region(&self) -> Result<AlertsResponseString> {
+    async fn by_region(&self) -> Result<Box<String>> {
         Ok(self.repository.fetch_alerts_string().await?)
     }
 

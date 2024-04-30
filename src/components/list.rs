@@ -8,7 +8,6 @@ use crate::{
     tui::LayoutArea,
     ukraine::*,
 };
-use arrayvec::ArrayVec;
 use async_trait::async_trait;
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent};
