@@ -1,7 +1,7 @@
 /// This module contains the implementation of the `DataRepository` struct and the `MapRepository` trait.
 /// The `DataRepository` struct provides methods for interacting with a SQLite database and fetching data related to Ukraine.
 /// The `MapRepository` trait defines the `get_data` method, which returns a future that resolves to a `Result` containing the data for Ukraine.
-use crate::{alerts::*, api::*, ukraine::*};
+use crate::{alerts::*, api::*, ukraine::*, utils::*};
 use arrayvec::ArrayString;
 use color_eyre::eyre::{Context, Error, Result};
 use core::str;
@@ -17,14 +17,22 @@ use tracing::{error, info};
 const FILE_PATH_CSV: &'static str = ".data/ukraine.csv";
 #[allow(unused)]
 const FILE_PATH_WKT: &'static str = ".data/ukraine.wkt";
-const DB_PATH: &'static str = ".data/ukraine.sqlite";
+const DB_NAME: &'static str = "ukraine.sqlite";
+// const DB_PATH: &'static str = ".data/ukraine.sqlite";
 const QUERY_CREATE_REGIONS_TABLE: &'static str = include_str!("../.data/create_regions_table.sql");
 const QUERY_SELECT_REGIONS: &'static str = "SELECT * FROM regions ORDER BY id";
+const QUERY_SELECT_REGION_GEO: &'static str = "SELECT geo FROM geo WHERE osm_id = ?";
 
 #[tracing::instrument(level = "trace")]
 pub async fn db_pool() -> Result<SqlitePool> {
+    let path = if cfg!(debug_assertions) {
+        get_local_data_dir()
+    } else {
+        get_config_dir()
+    };
     let conn: SqliteConnectOptions = SqliteConnectOptions::new()
-        .filename(DB_PATH)
+        .filename(path.join(DB_NAME))
+        // .pragma(key, value)
         .create_if_missing(true);
 
     let pool = SqlitePool::connect_with(conn)
@@ -61,11 +69,18 @@ impl DataRepository {
     }
 
     async fn insert_regions_geo(pool: &SqlitePool) -> Result<()> {
+        let count: i8 = sqlx::query_scalar("SELECT COUNT(*) FROM geo")
+            .fetch_one(pool)
+            .await
+            .wrap_err("Error querying geo table: {}")?;
+
+        if count > 0 {
+            return Ok(());
+        }
         let data = Self::read_csv_file_into::<RegionGeo>(FILE_PATH_CSV)?;
 
         for region in data.iter() {
             sqlx::query("INSERT INTO geo (osm_id,geo) VALUES (?, ?)")
-                .bind(region.a_id)
                 .bind(region.osm_id)
                 .bind(region.geo.as_str())
                 .execute(pool)
@@ -76,23 +91,34 @@ impl DataRepository {
         Ok(())
     }
 
-    #[tracing::instrument(level = "info")]
+    #[tracing::instrument]
     fn open_file(file_path: &str) -> Result<File> {
         return File::open(file_path).wrap_err("Error opening file, {}");
     }
 
+    #[tracing::instrument]
     fn read_csv_file_into<R>(file_path: &str) -> Result<Vec<R>>
     where
-        R: for<'de> Deserialize<'de>,
+        R: for<'de> Deserialize<'de> + Default,
     {
         use csv::ReaderBuilder;
         let file = Self::open_file(file_path)?;
         let mut rdr = ReaderBuilder::new().has_headers(true).from_reader(file);
-
-        Ok(rdr
+        let data = rdr
             .deserialize::<R>()
-            .map(|r| r.unwrap())
-            .collect::<Vec<R>>())
+            .map(|r| {
+                let rg: R = match r {
+                    Ok(rg) => rg,
+                    Err(e) => {
+                        error!("Error deserializing csv row: {}", e);
+                        return R::default();
+                    }
+                };
+                rg
+            })
+            .collect::<Vec<R>>();
+
+        Ok(data)
     }
 
     fn read_wkt_file(file_path: &str) -> Result<String> {
@@ -113,6 +139,16 @@ impl DataRepository {
         Ok(ArrayVec::<Region, 27>::from_iter(regions))
     }
 
+    pub async fn fetch_region_geo(&self, osm_id: i64) -> Result<String> {
+        let geo_string: String = sqlx::query_scalar("SELECT geo FROM geo WHERE osm_id = $1")
+            .bind(osm_id)
+            .fetch_one(self.pool())
+            .await
+            .wrap_err("Error querying region's geo from the database: {}")?;
+
+        Ok(geo_string)
+    }
+
     pub async fn fetch_borders(&self) -> Result<String> {
         let borders = Self::read_wkt_file(FILE_PATH_WKT)?;
         Ok(borders)
@@ -125,7 +161,7 @@ impl DataRepository {
             .await
             .wrap_err("Error fetching alerts from API: {}")?;
 
-        info!("Fetched {} alerts", response.alerts.len());
+        // info!("Fetched {} alerts", response.alerts.len());
         Ok(response.alerts)
     }
 
@@ -139,7 +175,7 @@ impl DataRepository {
             .await
             .wrap_err("Error fetching alerts from API: {}")?;
         let text = response.trim_matches('"');
-        info!("Fetched alerts as string: {}, length: {}", text, text.len());
+        // info!("Fetched alerts as string: {}, length: {}", text, text.len());
         let res = Box::new(text.to_string());
         let mut a_string = ArrayString::<27>::new();
         a_string.push_str(&text);

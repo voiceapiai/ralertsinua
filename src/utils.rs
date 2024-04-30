@@ -89,6 +89,11 @@ pub fn initialize_panic_handler() -> Result<()> {
     Ok(())
 }
 
+pub fn get_local_data_dir() -> PathBuf {
+    let directory = PathBuf::from(".").join(".data");
+    directory
+}
+
 pub fn get_data_dir() -> PathBuf {
     let directory = if let Some(s) = DATA_FOLDER.clone() {
         s
@@ -99,7 +104,6 @@ pub fn get_data_dir() -> PathBuf {
     };
     directory
 }
-
 
 /// Returns the path to the project's local config directory
 pub fn get_config_dir() -> PathBuf {

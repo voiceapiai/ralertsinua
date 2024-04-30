@@ -4,7 +4,7 @@ use crate::{
     config::get_config_prop,
     constants::*,
     tui::LayoutArea,
-    ukraine::*,
+    ukraine::{self, *},
 };
 use color_eyre::eyre::Result;
 use geo::{Geometry, HasDimensions, Polygon};
@@ -43,6 +43,7 @@ pub struct Map {
     #[allow(unused)]
     ukraine: Arc<RwLock<Ukraine>>,
     borders: Polygon,
+    selected: Option<usize>,
 }
 
 trait MapBounds {
@@ -85,6 +86,7 @@ impl Map {
             command_tx: Option::default(),
             borders,
             ukraine,
+            selected: None,
         }
     }
 }
@@ -120,8 +122,14 @@ impl Component for Map {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::Tick => {}
-            Action::Selected(i) => {
-                info!("Map->update Action::Selected: {:?}", i);
+            Action::Selected(selected) => {
+                self.selected = selected;
+                if selected.is_some() {
+                    let selected_i = selected.unwrap();
+                    let ukraine = self.ukraine.read().unwrap();
+                    let selected_region = ukraine.regions().get(selected_i).unwrap();
+                    info!("Map->update Action::Selected: {:?}", selected_region);
+                }
             }
             _ => {}
         }

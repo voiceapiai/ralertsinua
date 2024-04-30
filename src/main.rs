@@ -10,6 +10,7 @@ pub mod components;
 pub mod config;
 pub mod constants;
 pub mod data;
+pub mod fs;
 pub mod error;
 pub mod mode;
 pub mod tui;

@@ -8,14 +8,14 @@ CREATE TABLE IF NOT EXISTS regions (
 );
 
 CREATE TABLE IF NOT EXISTS geo (
-  osm_id INTEGER,
-  geo TEXT,
+  osm_id INTEGER NOT NULL UNIQUE,
+  geo TEXT NOT NULL,
   FOREIGN KEY(osm_id) REFERENCES regions(osm_id)
 );
 
 CREATE TABLE IF NOT EXISTS statuses (
-  timestamp INTEGER DEFAULT (strftime('%s', 'now')),
-  status TEXT CHECK(length(status) = 27)
+  timestamp INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+  status TEXT NOT NULL CHECK(length(status) = 27)
 );
 
 INSERT INTO regions (osm_id,a_id,name,name_en) VALUES

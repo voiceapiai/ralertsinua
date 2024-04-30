@@ -30,11 +30,10 @@ pub struct Region {
     pub name: String,
     pub name_en: String,
 }
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Default, Deserialize, sqlx::FromRow)]
 pub struct RegionGeo {
-    pub id: i8,
-    pub a_id: i8,
     pub osm_id: i64,
+    pub a_id: i8,
     pub geo: String,
 }
 pub type RegionArrayVec = ArrayVec<Region, 27>;
