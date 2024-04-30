@@ -1,0 +1,11 @@
+hello = "Hello, %{name}!"
+
+[views.Map]
+title = "Map"
+[views.List]
+title = "Regions"
+[views.Fps]
+title = "Fps"
+
+[messages]
+hello = "Hello, %{name}"

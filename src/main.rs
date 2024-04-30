@@ -1,48 +1,84 @@
-use alertsinua_tui::utils::*;
-use alertsinua_tui::app::App;
-use alertsinua_tui::data::*;
-use alertsinua_tui::event::{Event, EventHandler};
-use alertsinua_tui::handler::handle_key_events;
-use alertsinua_tui::tui::{Tui, TuiResult};
-use ratatui::backend::CrosstermBackend;
-use ratatui::Terminal;
-use std::io;
-use dotenv::dotenv;
-use tracing::{info, Level};
-use tracing_subscriber;
+#![allow(unused_variables)]
+#![allow(unused_imports)]
+
+pub mod action;
+pub mod alerts;
+pub mod api;
+pub mod app;
+pub mod cli;
+pub mod components;
+pub mod config;
+pub mod constants;
+pub mod data;
+pub mod error;
+pub mod fs;
+pub mod mode;
+pub mod services;
+pub mod tui;
+pub mod ukraine;
+pub mod utils;
+
+rust_i18n::i18n!();
+
+use clap::Parser;
+use cli::Cli;
+use color_eyre::eyre::Result;
+use services::{alerts::*, geo::*};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
+use tracing::info;
+
+use crate::{
+    api::AlertsInUaClient,
+    app::App,
+    config::{Config, ConfigService},
+    data::*,
+    ukraine::Ukraine,
+    utils::{initialize_logging, initialize_panic_handler, version},
+};
+
+async fn tokio_main() -> Result<()> {
+    dotenvy::dotenv().ok();
+    initialize_logging()?;
+    initialize_panic_handler()?;
+
+    let config = Config::init().unwrap();
+    let args = Cli::parse();
+    // TODO: override config with args ?
+    let config: Arc<dyn ConfigService> = Arc::new(config);
+    info!("\n{:?} \n\n-----------", config.settings());
+
+    let pool = db_pool().await?;
+    let client = AlertsInUaClient::new(config.clone());
+
+    let data_repository: Arc<dyn DataRepository> =
+        Arc::new(DataRepositoryInstance::new(pool, client));
+    let alerts_service: Arc<dyn AlertService> =
+        Arc::new(AlertServiceImpl::new(data_repository.clone()));
+    let geo_service: Arc<dyn GeoService> = Arc::new(GeoServiceImpl::new(data_repository.clone()));
+
+    let regions = data_repository.fetch_regions().await?;
+    let ukraine = Arc::new(RwLock::new(Ukraine::new(regions)));
+
+    let mut app = App::new(
+        config.clone(),
+        ukraine.clone(),
+        alerts_service.clone(),
+        geo_service.clone(),
+    )?;
+    app.run().await?;
+
+    Ok(())
+}
 
 #[tokio::main]
-async fn main() -> TuiResult<()> {
-    dotenv().ok();
-    initialize_logging();
-
-    let pool = db_pool().await;
-    let data_repository = DataRepository::new(pool);
-    let mut app = App::new(data_repository);
-    app.init().await?;
-    info!("App initialized with LogLevel={}", Level::INFO);
-
-    // Initialize the terminal user interface.
-    let backend = CrosstermBackend::new(io::stderr());
-    let terminal = Terminal::new(backend)?;
-    let events = EventHandler::new(250);
-    let mut tui = Tui::new(terminal, events);
-    tui.init()?;
-
-    // Start the main loop.
-    while app.running {
-        // Render the user interface.
-        tui.draw(&mut app)?;
-        // Handle events.
-        match tui.events.next().await? {
-            Event::Tick => app.tick(),
-            Event::Key(key_event) => handle_key_events(key_event, &mut app)?,
-            Event::Mouse(_) => {}
-            Event::Resize(_, _) => {}
-        }
+async fn main() -> Result<()> {
+    if let Err(e) = tokio_main().await {
+        eprintln!("{} error: Something went wrong", env!("CARGO_PKG_NAME"));
+        Err(e)
+    } else {
+        Ok(())
     }
-
-    // Exit the user interface.
-    tui.exit()?;
-    Ok(())
 }

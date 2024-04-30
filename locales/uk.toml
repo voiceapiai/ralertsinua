@@ -1,0 +1,11 @@
+hello = "Привіт, %{name}!"
+
+[views.Map]
+title = "Мапа"
+[views.List]
+title = "Області"
+[views.Fps]
+title = "Фпс"
+
+[messages]
+hello = "Привіт, %{name}"

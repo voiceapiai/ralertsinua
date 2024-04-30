@@ -1,7 +1,10 @@
-use arrayvec::ArrayString;
 use chrono::{DateTime, Utc};
+use derive_deref::{Deref, DerefMut};
+use ratatui::prelude::Color;
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumString};
+use std::fmt::Debug;
+pub use strum::{Display, EnumProperty, EnumString};
+use strum_macros;
 
 #[derive(Deserialize, Debug)]
 pub struct Alert {
@@ -23,22 +26,44 @@ pub struct Alert {
     pub location_oblast_uid: Option<i32>,
 }
 
+// pub type AlertsResponseString = ArrayString<27>;
+
+pub const DEFAULT_ALERTS_RESPONSE_STRING: &str = "NNNNNNNNNNNNNNNNNNNNNNNNNNN";
+
 #[derive(Debug, Deserialize)]
 pub struct AlertsResponseAll {
     pub alerts: Vec<Alert>,
 }
 
-pub type AlertsResponseString = ArrayString<27>;
-
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, EnumString, Display)]
+#[derive(Debug, strum_macros::EnumProperty, strum_macros::AsRefStr, Display)]
+#[derive(Default)]
 pub enum AlertStatus {
     /// Active
+    #[strum(props(icon = "🜸", color = "red"))]
     A,
     /// Partially active
+    #[strum(props(icon = "🌤", color = "yellow"))]
     P,
     /// No information
+    #[strum(props(icon = "🌣", color = "blue"))]
+    #[default]
     N,
+    /// Loading
+    #[strum(props(icon = "↻", color = "white"))]
+    L,
+}
+
+
+
+impl From<char> for AlertStatus {
+    fn from(c: char) -> Self {
+        match c {
+            'A' => AlertStatus::A,
+            'P' => AlertStatus::P,
+            'L' => AlertStatus::L,
+            _ => AlertStatus::N,
+        }
+    }
 }
 
 mod custom_date_format {
@@ -46,7 +71,7 @@ mod custom_date_format {
     use serde::{self, de::Error as sError, Deserialize, Deserializer};
 
     /// @see https://serde.rs/custom-date-format.html
-    const FORMAT: &'static str = "%Y-%m-%d %H:%M:%S";
+    const FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<DateTime<Utc>, D::Error>
     where
