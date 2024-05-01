@@ -3,7 +3,6 @@
 
 pub mod action;
 pub mod alerts;
-pub mod api;
 pub mod app;
 pub mod cli;
 pub mod components;
@@ -23,6 +22,7 @@ rust_i18n::i18n!();
 use clap::Parser;
 use cli::Cli;
 use color_eyre::eyre::Result;
+use ralertsinua_http::AlertsInUaClient;
 use services::{alerts::*, geo::*};
 use std::{
     collections::HashMap,
@@ -31,7 +31,6 @@ use std::{
 use tracing::info;
 
 use crate::{
-    api::AlertsInUaClient,
     app::App,
     config::{Config, ConfigService},
     data::*,
@@ -51,7 +50,7 @@ async fn tokio_main() -> Result<()> {
     info!("\n{:?} \n\n-----------", config.settings());
 
     let pool = db_pool().await?;
-    let client = AlertsInUaClient::new(config.clone());
+    let client = AlertsInUaClient::new(config.base_url(), config.token());
 
     let data_repository: Arc<dyn DataRepository> =
         Arc::new(DataRepositoryInstance::new(pool, client));

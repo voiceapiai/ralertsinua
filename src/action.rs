@@ -27,8 +27,3 @@ pub enum Action {
     SetAlertsByRegion(String),
     SetRegionGeo(String),
 }
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ActionWithLifetime<'a> {
-    SetListItems(&'a [Region], &'a [char]),
-}

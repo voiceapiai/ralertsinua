@@ -2,22 +2,16 @@
 //! @borrows https://github.com/ramsayleung/rspotify/blob/master/rspotify-http/src/reqwest.rs
 
 use reqwest::{Method, RequestBuilder};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde::Deserialize;
 use std::collections::HashMap;
-use std::convert::TryInto;
-use std::env;
 use std::fmt;
-use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Duration;
-
-use crate::config::*;
 
 pub type Headers = HashMap<String, String>;
 pub type Query<'a> = HashMap<&'a str, &'a str>;
 
-// pub const API_BASE_URL: &str = "https://api.alerts.in.ua";
+pub const API_BASE_URL: &str = "https://api.alerts.in.ua";
 // pub const API_TOKEN: &str = dotenvy_macro::dotenv!("ALERTSINUA_TOKEN");
 pub const API_ALERTS_ACTIVE: &str = "v1/alerts/active.json";
 pub const API_ALERTS_ACTIVE_BY_REGION_STRING: &str = "v1/iot/active_air_raid_alerts_by_oblast.json";
@@ -67,28 +61,35 @@ pub enum ReqwestError {
 
 #[derive(Debug, Clone)]
 pub struct AlertsInUaClient {
-    config: Arc<dyn ConfigService>,
+    base_url: String,
+    token: String,
     client: reqwest::Client,
 }
 
 impl AlertsInUaClient {
-    pub fn new(config: Arc<dyn ConfigService>) -> Self {
+    #[rustfmt::skip]
+    pub fn new<U, T>(base_url: U, token: T) -> Self where U: Into<String>, T: Into<String>,
+    {
         let client = reqwest::ClientBuilder::new()
             .timeout(Duration::from_secs(10))
             .build()
             // building with these options cannot fail
             .unwrap();
-        Self { config, client }
+        Self {
+            base_url: base_url.into(),
+            token: token.into(),
+            client,
+        }
     }
 }
 
 impl AlertsInUaClient {
     fn get_api_url(&self, url: &str) -> String {
-        let mut base = self.config.base_url().to_string();
-        if !base.ends_with('/') {
-            base.push('/');
+        let mut base_url = self.base_url.clone();
+        if !base_url.ends_with('/') {
+            base_url.push('/');
         }
-        base + url
+        base_url + url
     }
 
     async fn request<R, D>(&self, method: Method, url: &str, add_data: D) -> Result<R, ReqwestError>
@@ -100,7 +101,7 @@ impl AlertsInUaClient {
         let url = self.get_api_url(url);
         let mut request = self.client.request(method.clone(), url);
         // Enable HTTP bearer authentication.
-        request = request.bearer_auth(self.config.token());
+        request = request.bearer_auth(&self.token);
 
         // Configuring the request for the specific type (get/post/put/delete)
         request = add_data(request);
@@ -151,7 +152,7 @@ impl BaseHttpClient for AlertsInUaClient {
     type Error = ReqwestError;
 
     #[inline]
-    async fn get<R>(&self, url: &str, payload: Option<&Query<'_>>) -> Result<R, Self::Error>
+    async fn get<R>(&self, url: &str, _payload: Option<&Query<'_>>) -> Result<R, Self::Error>
     where
         R: for<'de> Deserialize<'de>,
     {

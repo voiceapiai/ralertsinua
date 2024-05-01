@@ -3,6 +3,7 @@ use crate::{alerts::*, constants::*};
 use derive_deref::Deref;
 use geo::{Coord, Polygon};
 use getset::{Getters, MutGetters, Setters};
+use ralertsinua_models::*;
 use ratatui::{
     layout::Rect,
     prelude::*,
@@ -14,23 +15,6 @@ use tracing::info;
 
 // use geo::algorithm::bounding_rect::BoundingRect;
 // use geo::algorithm::simplify_vw::SimplifyVw;
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, sqlx::FromRow)]
-pub struct Region {
-    pub id: i8,
-    pub a_id: i8,
-    pub osm_id: i64,
-    // #[sqlx(rename = "geo", default)]
-    // pub geo: String,
-    pub name: String,
-    pub name_en: String,
-}
-#[derive(Debug, Default, Deserialize, sqlx::FromRow)]
-pub struct RegionGeo {
-    pub osm_id: i64,
-    pub a_id: i8,
-    pub geo: String,
-}
 
 #[derive(Debug, Default, Getters, Setters)]
 pub struct Ukraine {

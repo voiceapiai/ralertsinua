@@ -13,6 +13,7 @@ use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use delegate::delegate;
 use getset::*;
+use ralertsinua_models::*;
 use ratatui::{
     layout::{Alignment, Constraint, Layout},
     prelude::*,
@@ -25,42 +26,6 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, str::FromStr, time::Duration};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
-
-impl<'a> From<&'a Region> for ratatui::text::Text<'a> {
-    // In addition to `List::new`, any iterator whose element is convertible to `ListItem` can be collected into `List`.
-    fn from(region: &'a Region) -> Self {
-        Text::from(format!("{}: {}", region.id, region.name,))
-    }
-}
-
-impl Region {
-    /// Builds new `ListItem` from `Region` instance, based on references only
-    pub fn to_list_item(
-        &self,
-        index: &usize,
-        alert_status: &AlertStatus,
-        locale: &Locale,
-    ) -> ListItem<'static> {
-        let icon: &str = alert_status.get_str("icon").unwrap();
-        let color_str: &str = alert_status.get_str("color").unwrap();
-        let color: Color = Color::from_str(color_str).unwrap();
-        let text: &str = if *locale == Locale::uk {
-            self.name.as_str()
-        } else {
-            self.name_en.as_str()
-        };
-        let list_item: ListItem = ListItem::new(format!("{} {}", icon, text)).style(color);
-
-        match alert_status {
-            AlertStatus::A => list_item
-                .add_modifier(Modifier::BOLD)
-                .add_modifier(Modifier::RAPID_BLINK),
-            AlertStatus::P => list_item.add_modifier(Modifier::ITALIC),
-            AlertStatus::L => list_item.add_modifier(Modifier::DIM),
-            _ => list_item,
-        }
-    }
-}
 
 #[derive(Debug, Getters, MutGetters, Setters)]
 pub struct RegionsList {
@@ -113,17 +78,44 @@ impl RegionsList {
         let alerts_as = self.get_last_alert_response();
         let locale = Locale::from_str(self.config.get_locale().as_str()).unwrap(); // TODO: improve
 
-        let items = regions.into_iter().enumerate().map(|(i, region)| {
+        let items = regions.into_iter().enumerate().map(|(i, r)| {
             let region_a_s = if is_loading {
                 AlertStatus::L
             } else {
                 AlertStatus::from(alerts_as.chars().nth(i).unwrap_or('N'))
             };
 
-            region.to_list_item(&i, &region_a_s, &locale)
+            Self::to_list_item(r, &i, &region_a_s, &locale)
         });
 
         List::new(items)
+    }
+
+    /// Builds new `ListItem` from `Region` instance, based on references only
+    pub fn to_list_item(
+        r: &Region,
+        index: &usize,
+        alert_status: &AlertStatus,
+        locale: &Locale,
+    ) -> ListItem<'static> {
+        let icon: &str = alert_status.get_str("icon").unwrap();
+        let color_str: &str = alert_status.get_str("color").unwrap();
+        let color: Color = Color::from_str(color_str).unwrap();
+        let text: &str = if *locale == Locale::uk {
+            r.name.as_str()
+        } else {
+            r.name_en.as_str()
+        };
+        let list_item: ListItem = ListItem::new(format!("{} {}", icon, text)).style(color);
+
+        match alert_status {
+            AlertStatus::A => list_item
+                .add_modifier(Modifier::BOLD)
+                .add_modifier(Modifier::RAPID_BLINK),
+            AlertStatus::P => list_item.add_modifier(Modifier::ITALIC),
+            AlertStatus::L => list_item.add_modifier(Modifier::DIM),
+            _ => list_item,
+        }
     }
 
     pub fn next(&mut self) {

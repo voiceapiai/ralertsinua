@@ -8,6 +8,7 @@ use crate::{
 };
 use color_eyre::eyre::Result;
 use geo::{BoundingRect, CoordsIter, Geometry, HasDimensions, LineString, Polygon};
+use ralertsinua_geo::*;
 use ratatui::{
     prelude::*,
     widgets::{
@@ -16,25 +17,12 @@ use ratatui::{
     },
 };
 use rust_i18n::t;
-use strum::Display;
-use tracing::info;
-use wkt::*;
-// use serde::{Deserialize, Serialize};
 #[allow(unused)]
 use std::{collections::HashMap, time::Duration};
+use strum::Display;
 use tokio::sync::mpsc::UnboundedSender;
+use tracing::info;
 
-/// Ukraine borders represented as Polygon in WKT file
-const UKRAINE_BORDERS_POYGON_WKT: &str = include_str!("../../.data/ukraine.wkt");
-/// Ukraine bounding box coords tuple - (min_x, min_y), (max_x, max_y)
-///
-/// <em>Територія України розташована між 44°23' і 52°25' північної широти та між 22°08' і 40°13' східної довготи</em>
-const UKRAINE_BBOX: [(f64, f64); 2] = [(22.08, 44.23), (40.13, 52.25)];
-/// Ukraine center
-///
-/// <em>Центр України знаходиться в точці з географічними координатами `49°01'` північної широти і `31°02'` східної довготи. Ця точка розміщена за 2 км на захід від м. Ватутіного у Черкаській області – с. Мар'янівка. За іншою версією – с. Добровеличківка Кіровоградської області.</em>
-#[allow(unused)]
-const UKRAINE_CENTER: (f64, f64) = (49.01, 31.02);
 const PADDING: f64 = 0.5;
 
 #[derive(Debug)]
@@ -43,50 +31,17 @@ pub struct Map {
     #[allow(unused)]
     config: Arc<dyn ConfigService>,
     ukraine: Arc<RwLock<Ukraine>>,
-    borders: Polygon,
+    map: Arc<dyn AlertsInUaMap>,
     last_selected: Option<usize>,
     last_selected_geo: Option<String>,
 }
 
-trait MapBounds {
-    fn boundingbox() -> [(f64, f64); 2];
-    fn x_bounds() -> [f64; 2];
-    fn y_bounds() -> [f64; 2];
-}
-
-impl MapBounds for Map {
-    #[inline]
-    fn boundingbox() -> [(f64, f64); 2] {
-        UKRAINE_BBOX
-    }
-
-    #[inline]
-    fn x_bounds() -> [f64; 2] {
-        [
-            UKRAINE_BBOX.first().unwrap().0 - PADDING,
-            UKRAINE_BBOX.last().unwrap().0 + PADDING,
-        ]
-    }
-
-    #[inline]
-    fn y_bounds() -> [f64; 2] {
-        [
-            UKRAINE_BBOX.first().unwrap().1 - PADDING,
-            UKRAINE_BBOX.last().unwrap().1 + PADDING,
-        ]
-    }
-}
-
 impl Map {
     pub fn new(ukraine: Arc<RwLock<Ukraine>>, config: Arc<dyn ConfigService>) -> Self {
-        use std::str::FromStr;
-        let borders: Polygon = Wkt::from_str(UKRAINE_BORDERS_POYGON_WKT)
-            .unwrap()
-            .try_into()
-            .unwrap();
+        let map: Arc<dyn AlertsInUaMap> = Arc::new(AlertsInUaMapBounds::default());
         Self {
             command_tx: Option::default(),
-            borders,
+            map,
             ukraine,
             config,
             last_selected: None,
@@ -99,23 +54,6 @@ impl Map {
             Some(ref lsg) => lsg.as_str(),
             None => "",
         }
-    }
-
-    fn get_x_y_bounds(&self) -> Result<([f64; 2], [f64; 2])> {
-        let lsg = self.get_last_selected_geo();
-        let x_y_bounds = match lsg.is_empty() {
-            false => {
-                use std::str::FromStr;
-                let geom: Geometry = Wkt::from_str(lsg).unwrap().try_into().unwrap();
-                let b = geom.bounding_rect().unwrap();
-                (
-                    [b.min().x - 0.0, b.max().x + 0.0],
-                    [b.min().y - 0.0, b.max().y + 0.0],
-                )
-            }
-            true => (Self::x_bounds(), Self::y_bounds()),
-        };
-        Ok(x_y_bounds)
     }
 
     fn get_curr_area(&self, r: Rect) -> Result<Rect> {
@@ -154,11 +92,11 @@ impl Shape for Map {
     #[inline]
     fn draw(&self, painter: &mut Painter) {
         let lsg = self.get_last_selected_geo();
-        let coords_iter = self.borders.exterior().coords();
+        let coords_iter = self.map.borders().exterior().coords();
         // If region was selected means we have last selected geo - then iterate region borders
         if !lsg.is_empty() {
             use std::str::FromStr;
-            let geom: Geometry = Wkt::from_str(lsg).unwrap().try_into().unwrap();
+            let geom: Geometry = from_wkt_to_geom(lsg).unwrap();
             match geom {
                 Geometry::Polygon(poly) => {
                     let coords_iter = poly.exterior().coords();
@@ -220,7 +158,10 @@ impl Component for Map {
     }
 
     fn draw(&mut self, f: &mut Frame<'_>, area: Rect) -> Result<()> {
-        let (x_bounds, y_bounds) = self.get_x_y_bounds()?;
+        let (x_bounds, y_bounds) = self
+            .map
+            .get_x_y_bounds(self.last_selected_geo.clone())
+            .unwrap();
         let area = self.get_curr_area(area)?;
 
         let widget = Canvas::default()
@@ -250,7 +191,7 @@ mod tests {
     fn test_map_new() {
         let map = Map::new(Ukraine::new_arc(), Arc::new(Config::init().unwrap()));
         assert!(map.command_tx.is_none());
-        assert!(!map.borders.is_empty());
+        assert!(!map.map.borders().is_empty());
         assert!(map.ukraine.read().unwrap().regions().is_empty());
         // match map.borders.try_from()
     }

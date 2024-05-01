@@ -1,7 +1,9 @@
 /// This module contains the implementation of the `DataRepository` struct and the `MapRepository` trait.
 /// The `DataRepository` struct provides methods for interacting with a SQLite database and fetching data related to Ukraine.
 /// The `MapRepository` trait defines the `get_data` method, which returns a future that resolves to a `Result` containing the data for Ukraine.
-use crate::{alerts::*, api::*, config::*, ukraine::*, utils::*};
+use crate::{alerts::*, config::*, ukraine::*, utils::*};
+use ralertsinua_http::*;
+use ralertsinua_models::*;
 use async_trait::async_trait;
 use color_eyre::eyre::{Context, Error, Result};
 use core::str;
@@ -228,7 +230,7 @@ mod tests {
             .with_body(r#""ANNAANNANNNPANANANNNNAANNNN""#)
             .create_async()
             .await;
-        let client = AlertsInUaClient::new(config);
+        let client = AlertsInUaClient::new(config.base_url(), config.token());
         let pool = Pool::connect("sqlite::memory:").await?;
         DataRepositoryInstance::create_tables(&pool).await?;
         let data_repository = DataRepositoryInstance::new(pool, client);
