@@ -1,13 +1,7 @@
 use super::{Component, Frame};
-use crate::{
-    action::Action,
-    config::*,
-    constants::*,
-    tui::LayoutArea,
-    ukraine::{self, *},
-};
+use crate::{action::Action, config::*, constants::*, tui::LayoutArea, ukraine::*};
 use color_eyre::eyre::Result;
-use geo::{BoundingRect, CoordsIter, Geometry, HasDimensions, LineString, Polygon};
+use geo::Geometry;
 use ralertsinua_geo::*;
 use ratatui::{
     prelude::*,
@@ -19,10 +13,9 @@ use ratatui::{
 use rust_i18n::t;
 #[allow(unused)]
 use std::{collections::HashMap, time::Duration};
-use strum::Display;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
-
+#[allow(unused)]
 const PADDING: f64 = 0.5;
 
 #[derive(Debug)]
@@ -95,7 +88,6 @@ impl Shape for Map {
         let coords_iter = self.map.borders().exterior().coords();
         // If region was selected means we have last selected geo - then iterate region borders
         if !lsg.is_empty() {
-            use std::str::FromStr;
             let geom: Geometry = from_wkt_to_geom(lsg).unwrap();
             match geom {
                 Geometry::Polygon(poly) => {
@@ -186,6 +178,7 @@ impl Component for Map {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use geo::HasDimensions;
 
     #[test]
     fn test_map_new() {

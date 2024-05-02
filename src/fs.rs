@@ -2,7 +2,6 @@ use color_eyre::eyre::Result;
 // use directories::ProjectDirs;
 // use lazy_static::lazy_static;
 use std::{
-    env,
     fs::{self},
     path::{Path, PathBuf},
 };

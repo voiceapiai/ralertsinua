@@ -1,19 +1,15 @@
-/// This module contains the implementation of the `DataRepository` struct and the `MapRepository` trait.
-/// The `DataRepository` struct provides methods for interacting with a SQLite database and fetching data related to Ukraine.
-/// The `MapRepository` trait defines the `get_data` method, which returns a future that resolves to a `Result` containing the data for Ukraine.
-use crate::{alerts::*, config::*, ukraine::*, utils::*};
-use ralertsinua_http::*;
-use ralertsinua_models::*;
+use crate::utils::*;
 use async_trait::async_trait;
-use color_eyre::eyre::{Context, Error, Result};
+use color_eyre::eyre::{Context, Result};
 use core::str;
 use getset::Getters;
+use ralertsinua_http::*;
+use ralertsinua_models::*;
 use serde::Deserialize;
 #[allow(unused)]
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
-use std::{fs::File, future::Future, io::Read, result::Result::Ok, sync::Arc, vec};
-use strum::Display;
-use tracing::{error, info};
+use std::{fs::File, io::Read, result::Result::Ok};
+use tracing::error;
 
 #[allow(unused)]
 const FILE_PATH_CSV: &str = ".data/ukraine.csv";
@@ -25,6 +21,7 @@ const QUERY_CREATE_REGIONS_TABLE: &str = include_str!("../.data/create_regions_t
 const QUERY_SELECT_REGIONS: &str = "SELECT * FROM regions ORDER BY id";
 const QUERY_SELECT_REGION_GEO: &str = "SELECT geo FROM geo WHERE osm_id = $1";
 
+/// The `DataRepository` trait provides methods for interacting with a SQLite database and fetching data related to Ukraine.
 #[async_trait]
 pub trait DataRepository: Send + Sync + core::fmt::Debug {
     async fn fetch_regions(&self) -> Result<Box<[Region]>>;
@@ -51,9 +48,10 @@ pub async fn db_pool() -> Result<SqlitePool> {
         // .pragma(key, value)
         .create_if_missing(true);
 
-    let pool = SqlitePool::connect_with(conn)
-        .await
-        .wrap_err(format!("Error connecting to the database with path {}", db_path.to_str().unwrap()))?;
+    let pool = SqlitePool::connect_with(conn).await.wrap_err(format!(
+        "Error connecting to the database with path {}",
+        db_path.to_str().unwrap()
+    ))?;
     // Create the tables together with the pool
     DataRepositoryInstance::create_tables(&pool).await?;
     DataRepositoryInstance::insert_regions_geo(&pool).await?;
@@ -209,12 +207,13 @@ impl DataRepository for DataRepositoryInstance {
 
 #[cfg(test)]
 mod tests {
+
+
     use super::*;
-    use color_eyre::config;
     use mockito::Server as MockServer;
-    use reqwest::Client;
-    use sqlx::{Connection, Pool, SqliteConnection};
-    use tokio::runtime::Runtime;
+    use std::sync::Arc;
+    use sqlx::Pool;
+    use crate::config::*;
 
     #[tokio::test]
     async fn test_fetch_alerts_string() -> Result<()> {
@@ -242,4 +241,10 @@ mod tests {
 
         Ok(())
     }
+
+    /// JSON string example to match later
+    #[allow(unused)]
+    const DEMO_ALERTS_RESPONSE: &str = r#"
+        {"alerts":[{"id":8757,"location_title":"Луганська область","location_type":"oblast","started_at":"2022-04-04T16:45:39.000Z","finished_at":null,"updated_at":"2023-10-29T18:22:37.357Z","alert_type":"air_raid","location_oblast":"Луганська область","location_uid":"16","notes":null,"country":null,"calculated":null,"location_oblast_uid":16},{"id":28288,"location_title":"Автономна Республіка Крим","location_type":"oblast","started_at":"2022-12-10T22:22:00.000Z","finished_at":null,"updated_at":"2023-10-29T16:56:12.340Z","alert_type":"air_raid","location_oblast":"Автономна Республіка Крим","location_uid":"29","notes":"Згідно інформації з Офіційних карт тривог","country":null,"calculated":null,"location_oblast_uid":29},{"id":71710,"location_title":"Мирівська територіальна громада","location_type":"hromada","started_at":"2024-04-18T05:43:26.000Z","finished_at":null,"updated_at":"..."}]}
+    "#;
 }

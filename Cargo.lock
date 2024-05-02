@@ -2722,9 +2722,14 @@ dependencies = [
 name = "ralertsinua-models"
 version = "0.1.0"
 dependencies = [
+ "chrono",
+ "color-eyre",
  "serde",
  "serde_json",
  "sqlx",
+ "strum",
+ "strum_macros",
+ "thiserror",
 ]
 
 [[package]]

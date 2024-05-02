@@ -1,4 +1,4 @@
-use color_eyre::eyre::{ContextCompat, Error, Result};
+use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::prelude::Rect;
 #[allow(unused)]
@@ -11,10 +11,8 @@ use tracing::{error, info};
 
 use crate::{
     action::Action,
-    cli::Cli,
     components::{fps::FpsCounter, list::RegionsList, map::Map, Component},
     config::*,
-    data::*,
     mode::Mode,
     services::{alerts::AlertService, geo::GeoService},
     tui::{self, LayoutArea},

@@ -90,7 +90,6 @@ pub fn initialize_panic_handler() -> Result<()> {
 }
 
 pub fn get_local_data_dir() -> PathBuf {
-    
     PathBuf::from(".").join(".data")
 }
 

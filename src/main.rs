@@ -1,15 +1,11 @@
 #![allow(unused_variables)]
-#![allow(unused_imports)]
-
 pub mod action;
-pub mod alerts;
 pub mod app;
 pub mod cli;
 pub mod components;
 pub mod config;
 pub mod constants;
 pub mod data;
-pub mod error;
 pub mod fs;
 pub mod mode;
 pub mod services;
@@ -24,10 +20,7 @@ use cli::Cli;
 use color_eyre::eyre::Result;
 use ralertsinua_http::AlertsInUaClient;
 use services::{alerts::*, geo::*};
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 use tracing::info;
 
 use crate::{
@@ -35,7 +28,7 @@ use crate::{
     config::{Config, ConfigService},
     data::*,
     ukraine::Ukraine,
-    utils::{initialize_logging, initialize_panic_handler, version},
+    utils::{initialize_logging, initialize_panic_handler},
 };
 
 async fn tokio_main() -> Result<()> {

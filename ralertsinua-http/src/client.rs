@@ -1,63 +1,22 @@
 //! The client implementation for the reqwest HTTP client, which is async
 //! @borrows https://github.com/ramsayleung/rspotify/blob/master/rspotify-http/src/reqwest.rs
 
-use reqwest::{Method, RequestBuilder};
+use reqwest::{Method, RequestBuilder, StatusCode};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Duration;
 
+use crate::ApiError;
+
 pub type Headers = HashMap<String, String>;
 pub type Query<'a> = HashMap<&'a str, &'a str>;
 
 pub const API_BASE_URL: &str = "https://api.alerts.in.ua";
-// pub const API_TOKEN: &str = dotenvy_macro::dotenv!("ALERTSINUA_TOKEN");
-pub const API_ALERTS_ACTIVE: &str = "v1/alerts/active.json";
-pub const API_ALERTS_ACTIVE_BY_REGION_STRING: &str = "v1/iot/active_air_raid_alerts_by_oblast.json";
-
-/// Custom enum that contains all the possible errors that may occur when using
-/// [`reqwest`].
-///
-/// Sample usage:
-///
-/// ```
-/// # #[tokio::main]
-/// # async fn main() {
-/// use http::{HttpError, AlertsInUaClient, BaseHttpClient};
-///
-/// let client = AlertsInUaClient::default();
-/// let response = client.get("wrongurl", None, &Default::default()).await;
-/// match response {
-///     Ok(data) => println!("request succeeded: {:?}", data),
-///     Err(HttpError::Client(e)) => eprintln!("request failed: {}", e),
-///     Err(HttpError::StatusCode(response)) => {
-///         let code = response.status().as_u16();
-///         match response.json::<rspotify_model::ApiError>().await {
-///             Ok(api_error) => eprintln!("status code {}: {:?}", code, api_error),
-///             Err(_) => eprintln!("status code {}", code),
-///         }
-///     },
-/// }
-/// # }
-/// ```
-#[derive(thiserror::Error, Debug)]
-pub enum ReqwestError {
-    /// The request couldn't be completed because there was an error when trying
-    /// to do so
-    #[error("request: {0}")]
-    Client(#[from] reqwest::Error),
-
-    /// The request was made, but the server returned an unsuccessful status
-    /// code, such as 404 or 503. In some cases, the response may contain a
-    /// custom message from Spotify with more information, which can be
-    /// serialized into `rspotify_model::ApiError`.
-    #[error("status code {}", reqwest::Response::status(.0))]
-    StatusCode(reqwest::Response),
-
-    #[error("invalid token")]
-    InvalidToken,
-}
+pub const API_VERSION: &str = "/v1";
+pub const API_ALERTS_ACTIVE: &str = "/alerts/active.json";
+pub const API_ALERTS_ACTIVE_BY_REGION_STRING: &str = "/iot/active_air_raid_alerts_by_oblast.json";
 
 #[derive(Debug, Clone)]
 pub struct AlertsInUaClient {
@@ -85,14 +44,13 @@ impl AlertsInUaClient {
 
 impl AlertsInUaClient {
     fn get_api_url(&self, url: &str) -> String {
-        let mut base_url = self.base_url.clone();
-        if !base_url.ends_with('/') {
-            base_url.push('/');
-        }
-        base_url + url
+        let version = API_VERSION;
+        let base_url = self.base_url.clone();
+        // if !base_url.ends_with('/') { base_url.push('/'); }
+        base_url + version + url
     }
 
-    async fn request<R, D>(&self, method: Method, url: &str, add_data: D) -> Result<R, ReqwestError>
+    async fn request<R, D>(&self, method: Method, url: &str, add_data: D) -> Result<R, ApiError>
     where
         R: for<'de> Deserialize<'de>,
         D: Fn(RequestBuilder) -> RequestBuilder,
@@ -111,17 +69,19 @@ impl AlertsInUaClient {
         let response = request.send().await?;
 
         // Making sure that the status code is OK
-        if response.status().is_success() {
-            response.json::<R>().await.map_err(Into::into)
-        } else {
-            Err(ReqwestError::StatusCode(response))
+
+        match response.error_for_status() {
+            Ok(res) => res.json::<R>().await.map_err(Into::into),
+            Err(err) => match err.status() {
+                Some(StatusCode::BAD_REQUEST) => Err(ApiError::InvalidParameterException),
+                Some(StatusCode::UNAUTHORIZED) => Err(ApiError::UnauthorizedError(err)),
+                Some(StatusCode::FORBIDDEN) => Err(ApiError::ForbiddenError),
+                Some(StatusCode::TOO_MANY_REQUESTS) => Err(ApiError::RateLimitError),
+                Some(StatusCode::INTERNAL_SERVER_ERROR) => Err(ApiError::InternalServerError),
+                _ => Err(ApiError::Unknown(err)),
+            },
         }
     }
-
-    // #[cfg(test)]
-    // pub fn set_base_url(&mut self, base_url: String) {
-    //     self.base_url = base_url;
-    // }
 }
 
 /// This trait represents the interface to be implemented for an HTTP client,
@@ -149,7 +109,7 @@ pub trait BaseHttpClient: Send + Clone + fmt::Debug {
 // #[cfg_attr(target_arch = "wasm32", async_impl(?Send))]
 // #[cfg_attr(not(target_arch = "wasm32"), async_impl)]
 impl BaseHttpClient for AlertsInUaClient {
-    type Error = ReqwestError;
+    type Error = ApiError;
 
     #[inline]
     async fn get<R>(&self, url: &str, _payload: Option<&Query<'_>>) -> Result<R, Self::Error>

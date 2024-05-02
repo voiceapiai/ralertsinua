@@ -1,7 +1,7 @@
-use crate::{error::*, ukraine::*, DataRepository};
+use color_eyre::eyre::{Result};
 use async_trait::async_trait;
-use color_eyre::eyre::{Context, Error, Result};
 use std::sync::Arc;
+use crate::DataRepository;
 
 #[async_trait]
 pub trait GeoService: Sync + Send {

@@ -2,7 +2,6 @@
 use super::Component;
 use crate::{
     action::Action,
-    alerts::*,
     config::*,
     tui::{Frame, LayoutArea},
     ukraine::*,

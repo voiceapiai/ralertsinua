@@ -1,10 +1,8 @@
 use super::{Component, Frame};
 use crate::{
     action::Action,
-    alerts::{self, *},
     config::*,
     constants::*,
-    data::DataRepositoryInstance,
     tui::LayoutArea,
     ukraine::*,
 };
@@ -15,15 +13,12 @@ use delegate::delegate;
 use getset::*;
 use ralertsinua_models::*;
 use ratatui::{
-    layout::{Alignment, Constraint, Layout},
     prelude::*,
     style::{Color, Modifier, Style, Stylize},
-    symbols::Marker,
-    widgets::{Block, Borders, List, ListItem, ListState},
+    widgets::{Block, List, ListItem, ListState},
 };
 use rust_i18n::t;
-use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, str::FromStr, time::Duration};
+use std::str::FromStr;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
 
@@ -258,7 +253,7 @@ impl Component for RegionsList {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // use super::*;
 
     /* #[test]
     fn test_map_new() {

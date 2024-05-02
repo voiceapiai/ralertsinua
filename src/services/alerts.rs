@@ -1,6 +1,7 @@
-use crate::{alerts::*, error::*, ukraine::*, DataRepository};
+use crate::DataRepository;
 use async_trait::async_trait;
-use color_eyre::eyre::{Context, Error, Result};
+use color_eyre::eyre::Result;
+use ralertsinua_models::Alert;
 use std::sync::Arc;
 
 #[async_trait]

@@ -1,7 +1,5 @@
-use chrono::{DateTime, Utc};
-use derive_deref::{Deref, DerefMut};
-use ratatui::prelude::Color;
-use serde::{Deserialize, Serialize};
+use chrono::{DateTime, FixedOffset, Utc};
+use serde::Deserialize;
 use std::fmt::Debug;
 pub use strum::{Display, EnumProperty, EnumString};
 use strum_macros;
@@ -13,6 +11,7 @@ pub struct Alert {
     pub location_type: String,
     pub started_at: String,
     pub finished_at: Option<String>,
+    // #[serde(skip_serializing)]
     #[serde(with = "custom_date_format")]
     pub updated_at: DateTime<Utc>,
     pub alert_type: String,
@@ -26,8 +25,6 @@ pub struct Alert {
     pub location_oblast_uid: Option<i32>,
 }
 
-// pub type AlertsResponseString = ArrayString<27>;
-
 pub const DEFAULT_ALERTS_RESPONSE_STRING: &str = "NNNNNNNNNNNNNNNNNNNNNNNNNNN";
 
 #[derive(Debug, Deserialize)]
@@ -35,8 +32,7 @@ pub struct AlertsResponseAll {
     pub alerts: Vec<Alert>,
 }
 
-#[derive(Debug, strum_macros::EnumProperty, strum_macros::AsRefStr, Display)]
-#[derive(Default)]
+#[derive(Debug, strum_macros::EnumProperty, strum_macros::AsRefStr, Display, Default)]
 pub enum AlertStatus {
     /// Active
     #[strum(props(icon = "🜸", color = "red"))]
@@ -53,8 +49,6 @@ pub enum AlertStatus {
     L,
 }
 
-
-
 impl From<char> for AlertStatus {
     fn from(c: char) -> Self {
         match c {
@@ -64,6 +58,11 @@ impl From<char> for AlertStatus {
             _ => AlertStatus::N,
         }
     }
+}
+
+#[allow(unused)]
+fn parse_alert_date(date: &str) -> DateTime<FixedOffset> {
+    DateTime::parse_from_rfc3339(date).unwrap()
 }
 
 mod custom_date_format {
@@ -82,8 +81,3 @@ mod custom_date_format {
         Ok(DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc))
     }
 }
-
-/// JSON string example to match later
-pub const DEMO_ALERTS_RESPONSE: &str = r#"
-{"alerts":[{"id":8757,"location_title":"Луганська область","location_type":"oblast","started_at":"2022-04-04T16:45:39.000Z","finished_at":null,"updated_at":"2023-10-29T18:22:37.357Z","alert_type":"air_raid","location_oblast":"Луганська область","location_uid":"16","notes":null,"country":null,"calculated":null,"location_oblast_uid":16},{"id":28288,"location_title":"Автономна Республіка Крим","location_type":"oblast","started_at":"2022-12-10T22:22:00.000Z","finished_at":null,"updated_at":"2023-10-29T16:56:12.340Z","alert_type":"air_raid","location_oblast":"Автономна Республіка Крим","location_uid":"29","notes":"Згідно інформації з Офіційних карт тривог","country":null,"calculated":null,"location_oblast_uid":29},{"id":71710,"location_title":"Мирівська територіальна громада","location_type":"hromada","started_at":"2024-04-18T05:43:26.000Z","finished_at":null,"updated_at":"..."}]}
-"#;
