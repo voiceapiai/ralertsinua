@@ -93,6 +93,8 @@ impl RegionsList {
         alert_status: &AlertStatus,
         locale: &Locale,
     ) -> ListItem<'static> {
+        use strum::EnumProperty;
+
         let icon: &str = alert_status.get_str("icon").unwrap();
         let color_str: &str = alert_status.get_str("color").unwrap();
         let color: Color = Color::from_str(color_str).unwrap();

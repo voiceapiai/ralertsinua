@@ -9,14 +9,13 @@ use std::fmt;
 use std::time::Duration;
 
 use crate::ApiError;
+use ralertsinua_models::*;
 
 pub type Headers = HashMap<String, String>;
 pub type Query<'a> = HashMap<&'a str, &'a str>;
 
 pub const API_BASE_URL: &str = "https://api.alerts.in.ua";
-pub const API_VERSION: &str = "/v1";
-pub const API_ALERTS_ACTIVE: &str = "/alerts/active.json";
-pub const API_ALERTS_ACTIVE_BY_REGION_STRING: &str = "/iot/active_air_raid_alerts_by_oblast.json";
+pub const API_VERSION: &str = "/v0";
 
 #[derive(Debug, Clone)]
 pub struct AlertsInUaClient {
@@ -75,7 +74,10 @@ impl AlertsInUaClient {
             Err(err) => match err.status() {
                 Some(StatusCode::BAD_REQUEST) => Err(ApiError::InvalidParameterException),
                 Some(StatusCode::UNAUTHORIZED) => Err(ApiError::UnauthorizedError(err)),
-                Some(StatusCode::FORBIDDEN) => Err(ApiError::ForbiddenError),
+                Some(StatusCode::FORBIDDEN) => Err(ApiError::InvalidParameterException),
+                Some(StatusCode::METHOD_NOT_ALLOWED) | Some(StatusCode::NOT_FOUND) => {
+                    Err(ApiError::InvalidURL(err))
+                }
                 Some(StatusCode::TOO_MANY_REQUESTS) => Err(ApiError::RateLimitError),
                 Some(StatusCode::INTERNAL_SERVER_ERROR) => Err(ApiError::InternalServerError),
                 _ => Err(ApiError::Unknown(err)),
@@ -101,24 +103,72 @@ pub trait BaseHttpClient: Send + Clone + fmt::Debug {
 
     // This internal function should always be given an object value in JSON.
     #[allow(async_fn_in_trait)]
-    async fn get<R>(&self, url: &str, payload: Option<&Query>) -> Result<R, Self::Error>
+    async fn get<R>(&self, url: &str, payload: &Query) -> Result<R, Self::Error>
     where
         R: for<'de> Deserialize<'de>;
 }
 
-// #[cfg_attr(target_arch = "wasm32", async_impl(?Send))]
-// #[cfg_attr(not(target_arch = "wasm32"), async_impl)]
 impl BaseHttpClient for AlertsInUaClient {
     type Error = ApiError;
 
     #[inline]
-    async fn get<R>(&self, url: &str, _payload: Option<&Query<'_>>) -> Result<R, Self::Error>
+    async fn get<R>(&self, url: &str, _payload: &Query<'_>) -> Result<R, Self::Error>
     where
         R: for<'de> Deserialize<'de>,
     {
-        // self.request(Method::GET, url, |req| req.query(payload))
         self.request(Method::GET, url, |r| r).await
     }
 }
 
-// =============================================================================
+/// The API for the AlertsInUaClient
+pub trait AlertsInUaApi: Send + Clone + fmt::Debug {
+    type Error;
+
+    #[allow(async_fn_in_trait)]
+    async fn get_active_alerts(&self) -> Result<AlertsResponseAll, Self::Error>;
+
+    #[allow(async_fn_in_trait)] // 'week_ago'
+    async fn get_alerts_history(
+        &self,
+        region_aid: &i8,
+        period: &str,
+    ) -> Result<AlertsResponseAll, Self::Error>;
+
+    #[allow(async_fn_in_trait)] // 'week_ago'
+    async fn get_air_raid_alert_status(&self, region_aid: &i8) -> Result<String, Self::Error>;
+
+    #[allow(async_fn_in_trait)]
+    async fn get_air_raid_alert_statuses_by_region(&self) -> Result<String, Self::Error>;
+}
+
+impl AlertsInUaApi for AlertsInUaClient {
+    type Error = ApiError;
+
+    #[inline]
+    async fn get_active_alerts(&self) -> Result<AlertsResponseAll, Self::Error> {
+        let url = "/alerts/active.json";
+        self.get(url, &Query::default()).await
+    }
+
+    #[inline]
+    async fn get_alerts_history(
+        &self,
+        region_aid: &i8,
+        period: &str,
+    ) -> Result<AlertsResponseAll, Self::Error> {
+        let url = format!("/regions/{}/alerts/{}.json", region_aid, period);
+        self.get(&url, &Query::default()).await
+    }
+
+    #[inline]
+    async fn get_air_raid_alert_status(&self, region_aid: &i8) -> Result<String, Self::Error> {
+        let url = format!("/iot/active_air_raid_alerts/{}.json", region_aid);
+        self.get(&url, &Query::default()).await
+    }
+
+    #[inline]
+    async fn get_air_raid_alert_statuses_by_region(&self) -> Result<String, Self::Error> {
+        let url = "/iot/active_air_raid_alerts_by_oblast.json";
+        self.get(url, &Query::default()).await
+    }
+}

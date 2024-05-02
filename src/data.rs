@@ -1,14 +1,16 @@
-use crate::utils::*;
+use crate::{
+    fs::{self},
+    utils::*,
+};
 use async_trait::async_trait;
 use color_eyre::eyre::{Context, Result};
 use core::str;
 use getset::Getters;
 use ralertsinua_http::*;
 use ralertsinua_models::*;
-use serde::Deserialize;
 #[allow(unused)]
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
-use std::{fs::File, io::Read, result::Result::Ok};
+#[allow(unused)]
 use tracing::error;
 
 #[allow(unused)]
@@ -91,7 +93,7 @@ impl DataRepositoryInstance {
         if count > 0 {
             return Ok(());
         }
-        let data = Self::read_csv_file_into::<RegionGeo>(FILE_PATH_CSV)?;
+        let data = fs::read_csv_file_into::<RegionGeo>(FILE_PATH_CSV)?;
 
         for region in data.iter() {
             sqlx::query("INSERT INTO geo (osm_id,geo) VALUES (?, ?)")
@@ -103,44 +105,6 @@ impl DataRepositoryInstance {
         }
 
         Ok(())
-    }
-
-    #[tracing::instrument]
-    fn open_file(file_path: &str) -> Result<File> {
-        return File::open(file_path).wrap_err("Error opening file, {}");
-    }
-
-    #[tracing::instrument]
-    fn read_csv_file_into<R>(file_path: &str) -> Result<Vec<R>>
-    where
-        R: for<'de> Deserialize<'de> + Default,
-    {
-        use csv::ReaderBuilder;
-        let file = Self::open_file(file_path)?;
-        let mut rdr = ReaderBuilder::new().has_headers(true).from_reader(file);
-        let data = rdr
-            .deserialize::<R>()
-            .map(|r| {
-                let rg: R = match r {
-                    Ok(rg) => rg,
-                    Err(e) => {
-                        error!("Error deserializing csv row: {}", e);
-                        return R::default();
-                    }
-                };
-                rg
-            })
-            .collect::<Vec<R>>();
-
-        Ok(data)
-    }
-
-    fn read_wkt_file(file_path: &str) -> Result<String> {
-        let mut file = Self::open_file(file_path)?;
-        let mut wkt_string = String::new();
-        file.read_to_string(&mut wkt_string)?;
-
-        Ok(wkt_string)
     }
 }
 
@@ -166,14 +130,14 @@ impl DataRepository for DataRepositoryInstance {
     }
 
     async fn fetch_borders(&self) -> Result<String> {
-        let borders = Self::read_wkt_file(FILE_PATH_WKT)?;
+        let borders = fs::read_wkt_file(FILE_PATH_WKT)?;
         Ok(borders)
     }
 
     async fn fetch_alerts(&self) -> Result<Vec<Alert>> {
         let response: AlertsResponseAll = self
             .client
-            .get(API_ALERTS_ACTIVE, None)
+            .get_active_alerts()
             .await
             .wrap_err("Error fetching alerts from API: {}")?;
 
@@ -187,7 +151,7 @@ impl DataRepository for DataRepositoryInstance {
     async fn fetch_alerts_string(&self) -> Result<Box<String>> {
         let response: String = self
             .client()
-            .get(API_ALERTS_ACTIVE_BY_REGION_STRING, None)
+            .get_air_raid_alert_statuses_by_region()
             .await
             .wrap_err("Error fetching alerts from API: {}")?;
         let text = response.trim_matches('"');
@@ -208,12 +172,11 @@ impl DataRepository for DataRepositoryInstance {
 #[cfg(test)]
 mod tests {
 
-
     use super::*;
-    use mockito::Server as MockServer;
-    use std::sync::Arc;
-    use sqlx::Pool;
     use crate::config::*;
+    use mockito::Server as MockServer;
+    use sqlx::Pool;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_fetch_alerts_string() -> Result<()> {

@@ -1,7 +1,7 @@
 use chrono::{DateTime, FixedOffset, Utc};
 use serde::Deserialize;
 use std::fmt::Debug;
-pub use strum::{Display, EnumProperty, EnumString};
+use strum::Display;
 use strum_macros;
 
 #[derive(Deserialize, Debug)]

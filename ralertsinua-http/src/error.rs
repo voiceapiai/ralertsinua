@@ -54,4 +54,7 @@ pub enum ApiError {
 
     #[error("API Error: Invalid parameter")]
     InvalidParameterException,
+
+    #[error("API Error: Invalid URL: {0}")]
+    InvalidURL(reqwest::Error),
 }
