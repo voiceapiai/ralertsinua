@@ -1,11 +1,3 @@
-#![allow(async_fn_in_trait)]
-use super::Component;
-use crate::{
-    action::Action,
-    config::*,
-    tui::{Frame, LayoutArea},
-    ukraine::*,
-};
 use async_trait::async_trait;
 use color_eyre::eyre::Result;
 use ratatui::{layout::Offset, prelude::*, widgets::*};
@@ -13,6 +5,9 @@ use std::time::Instant;
 use throbber_widgets_tui::{Throbber, ThrobberState, WhichUse, BRAILLE_SIX_DOUBLE};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
+
+use super::Component;
+use crate::{action::Action, config::*, layout::*, tui::Frame, ukraine::*};
 
 #[derive(Debug, Clone)]
 pub struct FpsCounter {
@@ -82,12 +77,12 @@ impl FpsCounter {
 
 #[async_trait]
 impl Component for FpsCounter {
-    fn display(&mut self) -> Result<String> {
+    fn display(&self) -> Result<String> {
         Ok("FpsCounter".to_string())
     }
 
-    fn placement(&mut self) -> LayoutArea {
-        LayoutArea::Left_75
+    fn placement(&self) -> (LayoutArea, Option<LayoutTab>) {
+        (LayoutArea::Footer, None)
     }
 
     async fn init(&mut self, area: Rect) -> Result<()> {
@@ -119,16 +114,15 @@ impl Component for FpsCounter {
         Ok(None)
     }
 
-    fn draw(&mut self, f: &mut Frame<'_>, area: Rect) -> Result<()> {
+    fn draw(&mut self, f: &mut Frame<'_>, area: &Rect) -> Result<()> {
         let rects = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![
                 Constraint::Min(0),
                 Constraint::Length(2), // last row
             ])
-            .split(area);
-        // let left = rects[0].offset(Offset { x: 1, y: 0 }); // puts in title actually
-        let left = rects[1].offset(Offset { x: 2, y: 0 }); // puts in title actually
+            .split(*area);
+        let left = rects[1].offset(Offset { x: 1, y: 0 });
         let rect = rects[1].offset(Offset { x: 4, y: 0 });
 
         let s = format!(

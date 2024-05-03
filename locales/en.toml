@@ -6,6 +6,12 @@ title = "Map"
 title = "Regions"
 [views.Fps]
 title = "Fps"
+[views.Logger]
+title = "Logger"
+
+[tabs]
+home = "Home"
+logger = "Logger"
 
 [messages]
 hello = "Hello, %{name}"

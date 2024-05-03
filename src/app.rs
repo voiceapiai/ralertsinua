@@ -1,6 +1,8 @@
+use std::collections::VecDeque;
+
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use ratatui::prelude::Rect;
+use ratatui::prelude::*;
 #[allow(unused)]
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -11,11 +13,14 @@ use tracing::{error, info};
 
 use crate::{
     action::Action,
-    components::{fps::FpsCounter, list::RegionsList, map::Map, Component},
+    components::{
+        fps::FpsCounter, header::Header, list::RegionsList, logger::Logger, map::Map, Component,
+    },
     config::*,
+    layout::*,
     mode::Mode,
     services::{alerts::AlertService, geo::GeoService},
-    tui::{self, LayoutArea},
+    tui::{self},
     ukraine::*,
 };
 
@@ -25,9 +30,12 @@ pub struct App {
     pub geo_service: Arc<dyn GeoService>,
     pub ukraine: Arc<RwLock<Ukraine>>,
     pub components: Vec<Box<dyn Component>>,
+    /// View stack: The top (=front) of the stack is the view that is displayed
+    pub view_stack: VecDeque<Box<dyn Component>>,
     pub should_quit: bool,
     pub should_suspend: bool,
     pub mode: Mode,
+    pub selected_tab: LayoutTab,
     pub last_tick_key_events: Vec<KeyEvent>,
 }
 
@@ -38,12 +46,19 @@ impl App {
         alerts_service: Arc<dyn AlertService>,
         geo_service: Arc<dyn GeoService>,
     ) -> Result<Self> {
+        let header = Header::new(config.clone());
         let map = Map::new(ukraine.clone(), config.clone());
         let list = RegionsList::new(ukraine.clone(), config.clone());
         let fps = FpsCounter::new(ukraine.clone(), config.clone());
+        let logger = Logger::new(config.clone());
         let mode = Mode::Map;
-        let components: Vec<Box<dyn Component>> =
-            vec![Box::new(map), Box::new(list), Box::new(fps)];
+        let components: Vec<Box<dyn Component>> = vec![
+            Box::new(header),
+            Box::new(map),
+            Box::new(list),
+            Box::new(fps),
+            Box::new(logger),
+        ];
         // let tick_rate = std::time::Duration::from_secs(10);
         Ok(Self {
             config,
@@ -51,9 +66,11 @@ impl App {
             alerts_service,
             geo_service,
             components,
+            view_stack: VecDeque::new(),
             should_quit: false,
             should_suspend: false,
             mode,
+            selected_tab: LayoutTab::default(),
             last_tick_key_events: Vec::new(),
         })
     }
@@ -61,6 +78,14 @@ impl App {
     pub async fn init(&mut self) -> Result<()> {
         // TODO: if needed
         Ok(())
+    }
+
+    pub fn next_tab(&mut self) {
+        self.selected_tab = self.selected_tab.next();
+    }
+
+    pub fn previous_tab(&mut self) {
+        self.selected_tab = self.selected_tab.previous();
     }
 
     pub async fn run(&mut self) -> Result<()> {
@@ -75,6 +100,9 @@ impl App {
 
         self.init().await?;
 
+        // ---------------------------------------------------------------------
+        // EXAMPLE PERIODIC
+        // ---------------------------------------------------------------------
         // dispatch fetch action after 2 seconds
         tokio::spawn(async move {
             sleep(Duration::from_secs(2)).await;
@@ -88,10 +116,6 @@ impl App {
         for component in self.components.iter_mut() {
             component.register_action_handler(action_tx.clone())?;
         }
-
-        /* for component in self.components.iter_mut() {
-            component.register_config_handler(self.config.clone())?;
-        } */
 
         for component in self.components.iter_mut() {
             component.init(tui.size()?).await?;
@@ -117,10 +141,18 @@ impl App {
                                 }
                             }
                             KeyCode::Down => {
-                                action_tx.send(Action::Select(1))?;
+                                action_tx.send(Action::SelectRegion(1))?;
                             }
                             KeyCode::Up => {
-                                action_tx.send(Action::Select(-1))?;
+                                action_tx.send(Action::SelectRegion(-1))?;
+                            }
+                            KeyCode::Right => {
+                                self.next_tab();
+                                action_tx.send(Action::SelectTab(self.selected_tab as usize))?;
+                            }
+                            KeyCode::Left => {
+                                self.previous_tab();
+                                action_tx.send(Action::SelectTab(self.selected_tab as usize))?;
                             }
                             KeyCode::Char('u') => {
                                 action_tx.send(Action::Fetch)?;
@@ -163,32 +195,39 @@ impl App {
                     }
                     Action::Resize(w, h) => {
                         tui.resize(Rect::new(0, 0, w, h))?;
-                        tui.draw(|f| {
+                        // FIXME
+                        /* tui.draw(|f| {
                             for component in self.components.iter_mut() {
-                                let r = component.draw(f, f.size());
+                                let r = component.draw(f, &f.size());
                                 if let Err(e) = r {
                                     action_tx
                                         .send(Action::Error(format!("Failed to draw: {:?}", e)))
                                         .unwrap();
                                 }
                             }
-                        })?;
+                        })?; */
                     }
+
                     Action::Render => {
+                        let layout = tui.layout().clone();
                         tui.draw(|f| {
-                            let [left, right] = tui::Tui::areas::<2>(f);
-                            for (i, component) in self.components.iter_mut().enumerate() {
-                                let area = match component.placement() {
-                                    LayoutArea::Left_75 => left,
-                                    LayoutArea::Right_25 => right,
-                                };
-                                let r = component.draw(f, area);
-                                if let Err(e) = r {
-                                    action_tx
-                                        .send(Action::Error(format!("Failed to draw: {:?}", e)))
-                                        .unwrap();
-                                }
-                            }
+                            self.components
+                                .iter_mut()
+                                .filter(|c| {
+                                    let (_, cmp_tab) = c.placement();
+                                    return cmp_tab.is_none()
+                                        || cmp_tab.unwrap() == self.selected_tab;
+                                })
+                                .for_each(|component| {
+                                    let (cmp_area, _) = component.placement();
+                                    let area = layout.get_area(cmp_area);
+                                    let r = component.draw(f, &area);
+                                    if let Err(e) = r {
+                                        action_tx
+                                            .send(Action::Error(format!("Failed to draw: {:?}", e)))
+                                            .unwrap();
+                                    }
+                                });
                         })?;
                     }
                     Action::Fetch => {

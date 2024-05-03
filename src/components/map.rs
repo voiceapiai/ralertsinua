@@ -1,5 +1,3 @@
-use super::{Component, Frame};
-use crate::{action::Action, config::*, constants::*, tui::LayoutArea, ukraine::*};
 use color_eyre::eyre::Result;
 use geo::Geometry;
 use ralertsinua_geo::*;
@@ -15,6 +13,10 @@ use rust_i18n::t;
 use std::{collections::HashMap, time::Duration};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
+
+use super::{Component, Frame};
+use crate::{action::Action, config::*, constants::*, layout::*, ukraine::*};
+
 #[allow(unused)]
 const PADDING: f64 = 0.5;
 
@@ -49,7 +51,7 @@ impl Map {
         }
     }
 
-    fn get_curr_area(&self, r: Rect) -> Result<Rect> {
+    fn get_curr_area(&self, r: &Rect) -> Result<Rect> {
         let percent = 50;
         let lsg = self.get_last_selected_geo();
         let curr_area = match lsg.is_empty() {
@@ -62,7 +64,7 @@ impl Map {
                         Constraint::Percentage(percent),
                         Constraint::Percentage((100 - percent) / 2),
                     ])
-                    .split(r);
+                    .split(*r);
 
                 Layout::default()
                     .direction(Direction::Horizontal)
@@ -73,7 +75,7 @@ impl Map {
                     ])
                     .split(popup_layout[1])[1]
             }
-            true => r,
+            true => *r,
         };
         Ok(curr_area)
     }
@@ -113,12 +115,12 @@ impl Shape for Map {
 }
 
 impl Component for Map {
-    fn display(&mut self) -> Result<String> {
+    fn display(&self) -> Result<String> {
         Ok("Map".to_string())
     }
 
-    fn placement(&mut self) -> LayoutArea {
-        LayoutArea::Left_75
+    fn placement(&self) -> (LayoutArea, Option<LayoutTab>) {
+        (LayoutArea::Left, Some(LayoutTab::Tab1))
     }
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
@@ -149,7 +151,12 @@ impl Component for Map {
         Ok(None)
     }
 
-    fn draw(&mut self, f: &mut Frame<'_>, area: Rect) -> Result<()> {
+    fn draw(&mut self, f: &mut Frame<'_>, area: &Rect) -> Result<()> {
+        /*
+            FIXME:
+            The application panicked (crashed).
+            called `Result::unwrap()` on an `Err` value: MismatchedGeometry { expected: "geo_types::geometry::polygon::Polygon", found: "geo_types::geometry::multi_polygon::MultiPolygon" } in src/components/map.rs:158
+         */
         let (x_bounds, y_bounds) = self
             .map
             .get_x_y_bounds(self.last_selected_geo.clone())

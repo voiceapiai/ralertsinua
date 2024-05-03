@@ -20,12 +20,14 @@ const PADDING: f64 = 0.5;
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 type XYBounds = ([f64; 2], [f64; 2]);
 
+#[inline]
 pub fn from_wkt_to_poly(wkts: &str) -> Result<Polygon> {
     let result: Polygon = Wkt::from_str(wkts)?.try_into()?; // .map_err(|_| GeoError::Unknown)?;
 
     Ok(result)
 }
 
+#[inline]
 pub fn from_wkt_to_geom(wkts: &str) -> Result<Geometry> {
     let result: Geometry = Wkt::from_str(wkts)?.try_into()?; // .map_err(|_| GeoError::Unknown)?;
 
@@ -39,6 +41,7 @@ pub struct AlertsInUaMapBounds {
 }
 
 impl Default for AlertsInUaMapBounds {
+    #[inline]
     fn default() -> Self {
         Self {
             bounding_box: Rect::new(
@@ -59,10 +62,12 @@ pub trait AlertsInUaMap: Sync + Send + std::fmt::Debug {
 impl AlertsInUaMap for AlertsInUaMapBounds {
     // delegate! { to self { fn bounding_box() -> &Rect; } }
 
+    #[inline]
     fn bounding_box(&self) -> &Rect {
         &self.bounding_box
     }
 
+    #[inline]
     fn borders(&self) -> &Polygon {
         &self.borders
     }

@@ -6,12 +6,15 @@ use async_trait::async_trait;
 
 use crate::{
     action::Action,
-    tui::{Event, Frame, LayoutArea},
+    layout::{LayoutArea, LayoutTab},
+    tui::{Event, Frame},
 };
 
 pub mod fps;
 pub mod list;
 pub mod map;
+pub mod header;
+pub mod logger;
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 /// Implementors of this trait can be registered with the main application loop and will be able to receive events,
@@ -122,10 +125,10 @@ pub trait Component: Send + Sync {
     /// # Returns
     ///
     /// * `Result<()>` - An Ok result or an error.
-    fn draw(&mut self, f: &mut Frame<'_>, area: Rect) -> Result<()>;
+    fn draw(&mut self, f: &mut Frame<'_>, area: &Rect) -> Result<()>;
 
-    fn display(&mut self) -> Result<String>;
+    fn display(&self) -> Result<String>;
 
-    fn placement(&mut self) -> LayoutArea;
+    fn placement(&self) -> (LayoutArea, Option<LayoutTab>);
 
 }

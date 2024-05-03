@@ -7,6 +7,7 @@ pub mod config;
 pub mod constants;
 pub mod data;
 pub mod fs;
+pub mod layout;
 pub mod mode;
 pub mod services;
 pub mod tui;
@@ -34,6 +35,7 @@ use crate::{
 async fn tokio_main() -> Result<()> {
     dotenvy::dotenv().ok();
     initialize_logging()?;
+    info!(target:"AlertsInUa", "Logging initialized");
     initialize_panic_handler()?;
 
     let config = Config::init().unwrap();

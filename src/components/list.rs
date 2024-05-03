@@ -1,11 +1,3 @@
-use super::{Component, Frame};
-use crate::{
-    action::Action,
-    config::*,
-    constants::*,
-    tui::LayoutArea,
-    ukraine::*,
-};
 use async_trait::async_trait;
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -21,6 +13,9 @@ use rust_i18n::t;
 use std::str::FromStr;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
+
+use super::{Component, Frame};
+use crate::{action::Action, config::*, constants::*, layout::*, ukraine::*};
 
 #[derive(Debug, Getters, MutGetters, Setters)]
 pub struct RegionsList {
@@ -165,12 +160,12 @@ impl RegionsList {
 
 #[async_trait]
 impl Component for RegionsList {
-    fn display(&mut self) -> Result<String> {
+    fn display(&self) -> Result<String> {
         Ok("List".to_string())
     }
 
-    fn placement(&mut self) -> LayoutArea {
-        LayoutArea::Right_25
+    fn placement(&self) -> (LayoutArea, Option<LayoutTab>) {
+        (LayoutArea::Right, Some(LayoutTab::Tab1))
     }
 
     async fn init(&mut self, area: Rect) -> Result<()> {
@@ -201,7 +196,7 @@ impl Component for RegionsList {
         Ok(None)
     }
 
-    fn draw(&mut self, f: &mut Frame<'_>, area: Rect) -> Result<()> {
+    fn draw(&mut self, f: &mut Frame<'_>, area: &Rect) -> Result<()> {
         let widget = self
             .list
             .clone()
@@ -219,7 +214,7 @@ impl Component for RegionsList {
             .highlight_symbol(">>")
             .repeat_highlight_symbol(true);
 
-        f.render_stateful_widget(widget, area, self.state_mut());
+        f.render_stateful_widget(widget, *area, self.state_mut());
         Ok(())
     }
 

@@ -1,8 +1,7 @@
 use chrono::{DateTime, FixedOffset, Utc};
 use serde::Deserialize;
 use std::fmt::Debug;
-use strum::Display;
-use strum_macros;
+use strum::{AsRefStr, Display, EnumProperty};
 
 #[derive(Deserialize, Debug)]
 pub struct Alert {
@@ -32,7 +31,7 @@ pub struct AlertsResponseAll {
     pub alerts: Vec<Alert>,
 }
 
-#[derive(Debug, strum_macros::EnumProperty, strum_macros::AsRefStr, Display, Default)]
+#[derive(Debug, EnumProperty, AsRefStr, Display, Default)]
 pub enum AlertStatus {
     /// Active
     #[strum(props(icon = "🜸", color = "red"))]

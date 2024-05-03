@@ -13,9 +13,10 @@ use ralertsinua_models::*;
 
 pub type Headers = HashMap<String, String>;
 pub type Query<'a> = HashMap<&'a str, &'a str>;
+type Result<T> = std::result::Result<T, ApiError>;
 
 pub const API_BASE_URL: &str = "https://api.alerts.in.ua";
-pub const API_VERSION: &str = "/v0";
+pub const API_VERSION: &str = "/v1";
 
 #[derive(Debug, Clone)]
 pub struct AlertsInUaClient {
@@ -49,7 +50,7 @@ impl AlertsInUaClient {
         base_url + version + url
     }
 
-    async fn request<R, D>(&self, method: Method, url: &str, add_data: D) -> Result<R, ApiError>
+    async fn request<R, D>(&self, method: Method, url: &str, add_data: D) -> Result<R>
     where
         R: for<'de> Deserialize<'de>,
         D: Fn(RequestBuilder) -> RequestBuilder,
@@ -99,20 +100,16 @@ impl AlertsInUaClient {
 // #[cfg_attr(target_arch = "wasm32", maybe_async(?Send))]
 // #[cfg_attr(not(target_arch = "wasm32"), maybe_async)]
 pub trait BaseHttpClient: Send + Clone + fmt::Debug {
-    type Error;
-
     // This internal function should always be given an object value in JSON.
     #[allow(async_fn_in_trait)]
-    async fn get<R>(&self, url: &str, payload: &Query) -> Result<R, Self::Error>
+    async fn get<R>(&self, url: &str, payload: &Query) -> Result<R>
     where
         R: for<'de> Deserialize<'de>;
 }
 
 impl BaseHttpClient for AlertsInUaClient {
-    type Error = ApiError;
-
     #[inline]
-    async fn get<R>(&self, url: &str, _payload: &Query<'_>) -> Result<R, Self::Error>
+    async fn get<R>(&self, url: &str, _payload: &Query<'_>) -> Result<R>
     where
         R: for<'de> Deserialize<'de>,
     {
@@ -122,30 +119,26 @@ impl BaseHttpClient for AlertsInUaClient {
 
 /// The API for the AlertsInUaClient
 pub trait AlertsInUaApi: Send + Clone + fmt::Debug {
-    type Error;
-
     #[allow(async_fn_in_trait)]
-    async fn get_active_alerts(&self) -> Result<AlertsResponseAll, Self::Error>;
+    async fn get_active_alerts(&self) -> Result<AlertsResponseAll>;
 
     #[allow(async_fn_in_trait)] // 'week_ago'
     async fn get_alerts_history(
         &self,
         region_aid: &i8,
         period: &str,
-    ) -> Result<AlertsResponseAll, Self::Error>;
+    ) -> Result<AlertsResponseAll>;
 
     #[allow(async_fn_in_trait)] // 'week_ago'
-    async fn get_air_raid_alert_status(&self, region_aid: &i8) -> Result<String, Self::Error>;
+    async fn get_air_raid_alert_status(&self, region_aid: &i8) -> Result<String>;
 
     #[allow(async_fn_in_trait)]
-    async fn get_air_raid_alert_statuses_by_region(&self) -> Result<String, Self::Error>;
+    async fn get_air_raid_alert_statuses_by_region(&self) -> Result<String>;
 }
 
 impl AlertsInUaApi for AlertsInUaClient {
-    type Error = ApiError;
-
     #[inline]
-    async fn get_active_alerts(&self) -> Result<AlertsResponseAll, Self::Error> {
+    async fn get_active_alerts(&self) -> Result<AlertsResponseAll> {
         let url = "/alerts/active.json";
         self.get(url, &Query::default()).await
     }
@@ -155,19 +148,19 @@ impl AlertsInUaApi for AlertsInUaClient {
         &self,
         region_aid: &i8,
         period: &str,
-    ) -> Result<AlertsResponseAll, Self::Error> {
+    ) -> Result<AlertsResponseAll> {
         let url = format!("/regions/{}/alerts/{}.json", region_aid, period);
         self.get(&url, &Query::default()).await
     }
 
     #[inline]
-    async fn get_air_raid_alert_status(&self, region_aid: &i8) -> Result<String, Self::Error> {
+    async fn get_air_raid_alert_status(&self, region_aid: &i8) -> Result<String> {
         let url = format!("/iot/active_air_raid_alerts/{}.json", region_aid);
         self.get(&url, &Query::default()).await
     }
 
     #[inline]
-    async fn get_air_raid_alert_statuses_by_region(&self) -> Result<String, Self::Error> {
+    async fn get_air_raid_alert_statuses_by_region(&self) -> Result<String> {
         let url = "/iot/active_air_raid_alerts_by_oblast.json";
         self.get(url, &Query::default()).await
     }

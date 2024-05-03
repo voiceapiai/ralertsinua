@@ -130,7 +130,7 @@ impl DataRepository for DataRepositoryInstance {
     }
 
     async fn fetch_borders(&self) -> Result<String> {
-        let borders = fs::read_wkt_file(FILE_PATH_WKT)?;
+        let borders = fs::read_file_into_string(FILE_PATH_WKT)?;
         Ok(borders)
     }
 

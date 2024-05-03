@@ -18,7 +18,8 @@ pub enum Action {
     Locale,
     Selected(Option<usize>),
     Fetch,
-    Select(i8),
+    SelectTab(usize),
+    SelectRegion(i8),
     SetAlertsByRegion(String),
     SetRegionGeo(String),
 }

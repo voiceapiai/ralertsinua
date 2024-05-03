@@ -59,12 +59,13 @@ strum = "0.26"
 strum_macros = "0.26"
 sys-locale = "0.3"
 thiserror = "1.0"
+throbber-widgets-tui = "0.5"
 tokio = { version = "1.35.1", features = ["full"] }
 tokio-util = "0.7.9"
 tracing = "0.1"
 tracing-error = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "serde"] }
-throbber-widgets-tui = "0.5"
+tui-logger = { version = "0.11", features = ["tracing-support"] }
 wkt = "0.10.3"
 mockito = "1.4.0"
 # either = "1.11"
