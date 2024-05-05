@@ -1,16 +1,19 @@
+use async_trait::async_trait;
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::layout::Rect;
 use tokio::sync::mpsc::UnboundedSender;
-use async_trait::async_trait;
 
 use crate::{
     action::Action,
-    tui::{Event, Frame, LayoutArea},
+    layout::*,
+    tui::{Event, Frame},
 };
 
 pub mod fps;
+pub mod header;
 pub mod list;
+pub mod logger;
 pub mod map;
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
@@ -122,10 +125,9 @@ pub trait Component: Send + Sync {
     /// # Returns
     ///
     /// * `Result<()>` - An Ok result or an error.
-    fn draw(&mut self, f: &mut Frame<'_>, area: Rect) -> Result<()>;
+    fn draw(&mut self, f: &mut Frame<'_>, area: &Rect) -> Result<()>;
 
-    fn display(&mut self) -> Result<String>;
+    fn display(&self) -> Result<String>;
 
-    fn placement(&mut self) -> LayoutArea;
-
+    fn placement(&self) -> LayoutPoint;
 }

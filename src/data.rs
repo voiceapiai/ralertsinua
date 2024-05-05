@@ -1,80 +1,45 @@
-/// This module contains the implementation of the `DataRepository` struct and the `MapRepository` trait.
-/// The `DataRepository` struct provides methods for interacting with a SQLite database and fetching data related to Ukraine.
-/// The `MapRepository` trait defines the `get_data` method, which returns a future that resolves to a `Result` containing the data for Ukraine.
-use crate::{alerts::*, api::*, config::*, ukraine::*, utils::*};
 use async_trait::async_trait;
-use color_eyre::eyre::{Context, Error, Result};
-use core::str;
-use getset::Getters;
-use serde::Deserialize;
+use color_eyre::eyre::{Result, WrapErr};
+use delegate::delegate;
+// use getset::Getters;
+use ralertsinua_geo::AlertsInUaGeo;
+use ralertsinua_http::*;
+use ralertsinua_models::*;
 #[allow(unused)]
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
-use std::{fs::File, future::Future, io::Read, result::Result::Ok, sync::Arc, vec};
-use strum::Display;
-use tracing::{error, info};
+use tracing::error;
 
-#[allow(unused)]
-const FILE_PATH_CSV: &str = ".data/ukraine.csv";
-#[allow(unused)]
-const FILE_PATH_WKT: &str = ".data/ukraine.wkt";
-const DB_NAME: &str = "ukraine.sqlite";
-// const DB_PATH: &'static str = ".data/ukraine.sqlite";
-const QUERY_CREATE_REGIONS_TABLE: &str = include_str!("../.data/create_regions_table.sql");
-const QUERY_SELECT_REGIONS: &str = "SELECT * FROM regions ORDER BY id";
-const QUERY_SELECT_REGION_GEO: &str = "SELECT geo FROM geo WHERE osm_id = $1";
+pub use std::sync::{Arc, RwLock};
 
+/// The `DataRepository` trait provides methods for interacting with a SQLite database and fetching data related to Ukraine.
 #[async_trait]
-pub trait DataRepository: Send + Sync + core::fmt::Debug {
-    async fn fetch_regions(&self) -> Result<Box<[Region]>>;
+pub trait AlertsInUaFacade: Send + Sync + core::fmt::Debug {
+    fn borders(&self) -> &str;
+    fn regions(&self) -> &'static [Region; 27];
 
-    async fn fetch_region_geo(&self, osm_id: i64) -> Result<String>;
-
-    async fn fetch_borders(&self) -> Result<String>;
+    // async fn fetch_region_geo(&self, osm_id: i64) -> Result<String>;
 
     async fn fetch_alerts(&self) -> Result<Vec<Alert>>;
 
-    async fn fetch_alerts_string(&self) -> Result<Box<String>>;
+    async fn fetch_alerts_string(&self) -> Result<String>;
 }
 
-#[tracing::instrument(level = "trace")]
-pub async fn db_pool() -> Result<SqlitePool> {
-    let path = if cfg!(debug_assertions) {
-        get_local_data_dir()
-    } else {
-        get_config_dir()
-    };
-    let db_path = path.join(DB_NAME);
-    let conn: SqliteConnectOptions = SqliteConnectOptions::new()
-        .filename(path.join(DB_NAME))
-        // .pragma(key, value)
-        .create_if_missing(true);
-
-    let pool = SqlitePool::connect_with(conn)
-        .await
-        .wrap_err(format!("Error connecting to the database with path {}", db_path.to_str().unwrap()))?;
-    // Create the tables together with the pool
-    DataRepositoryInstance::create_tables(&pool).await?;
-    DataRepositoryInstance::insert_regions_geo(&pool).await?;
-
-    Ok(pool)
+#[derive(Debug)]
+pub struct AlertsInUaContainer {
+    // #[getset(get = "pub")]
+    api_client: AlertsInUaClient,
+    // #[getset(get = "pub")]
+    geo_client: AlertsInUaGeo,
 }
 
-#[derive(Debug, Getters)]
-pub struct DataRepositoryInstance {
-    /// The HTTP client
-    #[getset(get = "pub")]
-    client: AlertsInUaClient,
-    /// The database pool.
-    #[getset(get = "pub")]
-    pool: SqlitePool,
-}
-
-impl DataRepositoryInstance {
-    pub fn new(pool: SqlitePool, client: AlertsInUaClient) -> Self {
-        Self { client, pool }
+impl AlertsInUaContainer {
+    pub fn new(api_client: AlertsInUaClient, geo_client: AlertsInUaGeo) -> Self {
+        Self {
+            api_client,
+            geo_client,
+        }
     }
 
-    async fn create_tables(pool: &SqlitePool) -> Result<()> {
+    /* async fn create_tables(pool: &SqlitePool) -> Result<()> {
         sqlx::query(QUERY_CREATE_REGIONS_TABLE)
             .execute(pool)
             .await
@@ -91,7 +56,7 @@ impl DataRepositoryInstance {
         if count > 0 {
             return Ok(());
         }
-        let data = Self::read_csv_file_into::<RegionGeo>(FILE_PATH_CSV)?;
+        let data = fs::read_csv_file_into::<RegionGeo>(FILE_PATH_CSV)?;
 
         for region in data.iter() {
             sqlx::query("INSERT INTO geo (osm_id,geo) VALUES (?, ?)")
@@ -103,77 +68,32 @@ impl DataRepositoryInstance {
         }
 
         Ok(())
-    }
-
-    #[tracing::instrument]
-    fn open_file(file_path: &str) -> Result<File> {
-        return File::open(file_path).wrap_err("Error opening file, {}");
-    }
-
-    #[tracing::instrument]
-    fn read_csv_file_into<R>(file_path: &str) -> Result<Vec<R>>
-    where
-        R: for<'de> Deserialize<'de> + Default,
-    {
-        use csv::ReaderBuilder;
-        let file = Self::open_file(file_path)?;
-        let mut rdr = ReaderBuilder::new().has_headers(true).from_reader(file);
-        let data = rdr
-            .deserialize::<R>()
-            .map(|r| {
-                let rg: R = match r {
-                    Ok(rg) => rg,
-                    Err(e) => {
-                        error!("Error deserializing csv row: {}", e);
-                        return R::default();
-                    }
-                };
-                rg
-            })
-            .collect::<Vec<R>>();
-
-        Ok(data)
-    }
-
-    fn read_wkt_file(file_path: &str) -> Result<String> {
-        let mut file = Self::open_file(file_path)?;
-        let mut wkt_string = String::new();
-        file.read_to_string(&mut wkt_string)?;
-
-        Ok(wkt_string)
-    }
+    } */
 }
 
 #[async_trait]
-impl DataRepository for DataRepositoryInstance {
-    async fn fetch_regions(&self) -> Result<Box<[Region]>> {
-        let regions: Vec<Region> = sqlx::query_as(QUERY_SELECT_REGIONS)
-            .fetch_all(self.pool())
-            .await
-            .wrap_err("Error querying regions from the database: {}")?;
-
-        Ok(regions.into_boxed_slice())
+impl AlertsInUaFacade for AlertsInUaContainer {
+    delegate! {
+        to self.geo_client {
+            fn borders(&self) -> &str;
+            fn regions(&self) -> &'static [Region; 27];
+        }
     }
 
-    async fn fetch_region_geo(&self, osm_id: i64) -> Result<String> {
-        let geo_string: String = sqlx::query_scalar(QUERY_SELECT_REGION_GEO)
+    /* async fn fetch_region_geo(&self, osm_id: i64) -> Result<String> {
+         let geo_string: String = sqlx::query_scalar(QUERY_SELECT_REGION_GEO)
             .bind(osm_id)
             .fetch_one(self.pool())
             .await
             .wrap_err("Error querying region's geo from the database: {}")?;
 
         Ok(geo_string)
-    }
-
-    async fn fetch_borders(&self) -> Result<String> {
-        let borders = Self::read_wkt_file(FILE_PATH_WKT)?;
-        Ok(borders)
-    }
+    } */
 
     async fn fetch_alerts(&self) -> Result<Vec<Alert>> {
         let response: AlertsResponseAll = self
-            .client
-            .get(API_ALERTS_ACTIVE, None)
+            .api_client
+            .get_active_alerts()
             .await
             .wrap_err("Error fetching alerts from API: {}")?;
 
@@ -184,60 +104,14 @@ impl DataRepository for DataRepositoryInstance {
     /// Fetches active air raid alerts **as string** from alerts.in.ua
     ///
     /// Example response: `"ANNNANNNNNNNANNNNNNNNNNNNNN"`
-    async fn fetch_alerts_string(&self) -> Result<Box<String>> {
+    async fn fetch_alerts_string(&self) -> Result<String> {
         let response: String = self
-            .client()
-            .get(API_ALERTS_ACTIVE_BY_REGION_STRING, None)
+            .api_client
+            .get_air_raid_alert_statuses_by_region()
             .await
             .wrap_err("Error fetching alerts from API: {}")?;
-        let text = response.trim_matches('"');
-        // info!("Fetched alerts as string: {}, length: {}", text, text.len());
-        let text = Box::new(text.to_string());
-
-        // Insert the response into the statuses table
-        sqlx::query("INSERT INTO statuses (status) VALUES (?)")
-            .bind(&*text)
-            .execute(self.pool())
-            .await
-            .wrap_err("Error inserting status into the database: {}")?;
+        let text = response.trim_matches('"').to_string();
 
         Ok(text)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use color_eyre::config;
-    use mockito::Server as MockServer;
-    use reqwest::Client;
-    use sqlx::{Connection, Pool, SqliteConnection};
-    use tokio::runtime::Runtime;
-
-    #[tokio::test]
-    async fn test_fetch_alerts_string() -> Result<()> {
-        let mut server = MockServer::new_async().await;
-        let mut config = Config::init().unwrap();
-        config.set_base_url(server.url());
-        let config: Arc<dyn ConfigService> = Arc::new(config);
-        let mock = server
-            .mock(
-                "GET",
-                mockito::Matcher::Any, /* API_ALERTS_ACTIVE_BY_REGION_STRING */
-            )
-            .with_body(r#""ANNAANNANNNPANANANNNNAANNNN""#)
-            .create_async()
-            .await;
-        let client = AlertsInUaClient::new(config);
-        let pool = Pool::connect("sqlite::memory:").await?;
-        DataRepositoryInstance::create_tables(&pool).await?;
-        let data_repository = DataRepositoryInstance::new(pool, client);
-
-        let result = data_repository.fetch_alerts_string().await?;
-
-        mock.assert();
-        assert_eq!(&*result, "ANNAANNANNNPANANANNNNAANNNN");
-
-        Ok(())
     }
 }

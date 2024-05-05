@@ -6,6 +6,12 @@ title = "Мапа"
 title = "Області"
 [views.Fps]
 title = "Фпс"
+[views.Logger]
+title = "Логи"
+
+[tabs]
+home = "Головна"
+logger = "Логи"
 
 [messages]
 hello = "Привіт, %{name}"

@@ -1,28 +1,46 @@
-use color_eyre::eyre::Result;
-// use directories::ProjectDirs;
-// use lazy_static::lazy_static;
-use std::{
-    env,
-    fs::{self},
-    path::{Path, PathBuf},
-};
+use color_eyre::eyre::{Result, WrapErr};
+use serde::Deserialize;
+use std::fs::{read_to_string, File};
+use tracing::error;
 
-use crate::utils::get_config_dir;
+// use rust_embed::RustEmbed;
+// #[derive(RustEmbed)]
+// #[folder = "assets/"]
+// pub struct Asset;
 
-pub fn copy_config_files() -> Result<()> {
-    let config_dir = get_config_dir();
-    fs::create_dir_all(&config_dir)?;
+#[inline]
+pub fn open_file(file_path: &str) -> Result<File> {
+    File::open(file_path).wrap_err(format!("Error opening file, {}", file_path))
+}
 
-    for file in &[
-        "ukraine.csv",
-        "ukraine.wkt",
-        "ukraine.sqlite",
-        "create_regions_table.sql",
-    ] {
-        let from: PathBuf = Path::new(".config").join(file);
-        let to = config_dir.join(file);
-        fs::copy(from, to)?;
-    }
+#[inline]
+pub fn read_csv_file_into<R>(file_path: &str) -> Result<Vec<R>>
+where
+    R: for<'de> Deserialize<'de> + Default,
+{
+    use csv::ReaderBuilder;
+    let mut rdr = ReaderBuilder::new()
+        .has_headers(true)
+        .from_path(file_path)
+        .wrap_err("Error opening file")?;
+    let data = rdr
+        .deserialize::<R>()
+        .map(|r| {
+            let rg: R = match r {
+                Ok(rg) => rg,
+                Err(e) => {
+                    error!("Error deserializing csv row: {}", e);
+                    return R::default();
+                }
+            };
+            rg
+        })
+        .collect::<Vec<R>>();
 
-    Ok(())
+    Ok(data)
+}
+
+#[inline]
+pub fn read_file_into_string(file_path: &str) -> Result<String> {
+    read_to_string(file_path).wrap_err("Error opening file")
 }
