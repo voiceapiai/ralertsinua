@@ -170,13 +170,37 @@ impl AlertsInUaApi for AlertsInUaClient {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use mockito::Server as MockServer;
+    use serde_json::json;
 
-    // #[tokio::test]
+    #[tokio::test]
+    async fn test_get_active_alerts() -> Result<()> {
+        let mut server = MockServer::new_async().await;
+        let client = AlertsInUaClient::new(server.url(), "token");
+        let mock = server
+            .mock(
+                "GET",
+                mockito::Matcher::Any, /* API_ALERTS_ACTIVE_BY_REGION_STRING */
+            )
+            .with_body(r#"{"alerts":[]}"#)
+            .create_async()
+            .await;
+        let expected_response: AlertsResponseAll =
+            serde_json::from_value(json!({ "alerts": [] })).unwrap();
+
+        let result = client.get_active_alerts().await?;
+
+        mock.assert();
+        assert_eq!(result, expected_response);
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_get_air_raid_alert_statuses_by_region() -> Result<()> {
         let mut server = MockServer::new_async().await;
+        let client = AlertsInUaClient::new(server.url(), "token");
         let mock = server
             .mock(
                 "GET",
@@ -185,7 +209,6 @@ mod tests {
             .with_body(r#""ANNAANNANNNPANANANNNNAANNNN""#)
             .create_async()
             .await;
-        let client = AlertsInUaClient::new(server.url(), "token");
 
         let result = client.get_air_raid_alert_statuses_by_region().await?;
 
@@ -194,10 +217,4 @@ mod tests {
 
         Ok(())
     }
-
-    /// JSON string example to match later
-    #[allow(unused)]
-    const DEMO_ALERTS_RESPONSE: &str = r#"
-        {"alerts":[{"id":8757,"location_title":"Луганська область","location_type":"oblast","started_at":"2022-04-04T16:45:39.000Z","finished_at":null,"updated_at":"2023-10-29T18:22:37.357Z","alert_type":"air_raid","location_oblast":"Луганська область","location_uid":"16","notes":null,"country":null,"calculated":null,"location_oblast_uid":16},{"id":28288,"location_title":"Автономна Республіка Крим","location_type":"oblast","started_at":"2022-12-10T22:22:00.000Z","finished_at":null,"updated_at":"2023-10-29T16:56:12.340Z","alert_type":"air_raid","location_oblast":"Автономна Республіка Крим","location_uid":"29","notes":"Згідно інформації з Офіційних карт тривог","country":null,"calculated":null,"location_oblast_uid":29},{"id":71710,"location_title":"Мирівська територіальна громада","location_type":"hromada","started_at":"2024-04-18T05:43:26.000Z","finished_at":null,"updated_at":"..."}]}
-    "#;
 }

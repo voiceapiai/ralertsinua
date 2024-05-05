@@ -1,7 +1,12 @@
 [package]
 name = "ralertsinua-geo"
-version = "0.1.0"
+description = "Geo compatibility layer for alerts.in.ua"
+categories = ["api-bindings"]
+keywords = ["geo", "api",  "tui", "cli"]
+version = "0.3.0"
 edition = "2021"
+authors = ["voznik <mrvoznik@gmail.com>"]
+readme = "../README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

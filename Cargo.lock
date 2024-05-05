@@ -639,6 +639,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b42b6fa04a440b495c8b04d0e71b707c585f83cb9cb28cf8cd0d976c315e31b4"
 dependencies = [
  "powerfmt",
+ "serde",
 ]
 
 [[package]]
@@ -2414,7 +2415,7 @@ dependencies = [
 
 [[package]]
 name = "ralertsinua"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "better-panic",
@@ -2454,6 +2455,7 @@ dependencies = [
  "sys-locale",
  "thiserror",
  "throbber-widgets-tui",
+ "time",
  "tokio",
  "tokio-util",
  "tracing",
@@ -2461,12 +2463,11 @@ dependencies = [
  "tracing-subscriber",
  "tui-logger",
  "vergen",
- "wkt",
 ]
 
 [[package]]
 name = "ralertsinua-geo"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "color-eyre",
  "delegate",
@@ -2482,7 +2483,7 @@ dependencies = [
 
 [[package]]
 name = "ralertsinua-http"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "mockito",
  "ralertsinua-models",
@@ -2490,19 +2491,20 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]
 name = "ralertsinua-models"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
- "chrono",
  "color-eyre",
  "serde",
  "serde_json",
  "strum",
  "strum_macros",
  "thiserror",
+ "time",
 ]
 
 [[package]]

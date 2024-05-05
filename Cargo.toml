@@ -1,9 +1,13 @@
 [package]
 name = "ralertsinua"
-version = "0.2.0"
+description = "Rust async API wrapper (reqwest) & TUI (ratatui) for alerts.in.ua"
+categories = ["api-bindings", "geo"]
+keywords = ["geo", "api",  "tui", "cli"]
+version = "0.3.0"
 authors = ["voznik <mrvoznik@gmail.com>"]
 license = "MIT"
 edition = "2021"
+
 build = "build.rs"
 
 [workspace]
@@ -23,12 +27,12 @@ async-trait = "0.1.80"
 better-panic = "0.3"
 chrono = "0.4"
 clap = { version = "4.5", features = [
-  "derive",
-  "cargo",
-  "wrap_help",
-  "unicode",
-  "string",
-  "unstable-styles",
+    "derive",
+    "cargo",
+    "wrap_help",
+    "unicode",
+    "string",
+    "unstable-styles",
 ] }
 color-eyre = "0.6"
 crossterm = { version = "0.27.0", features = ["serde", "event-stream"] }
@@ -50,7 +54,7 @@ log = "0.4.21"
 pretty_assertions = "1.4.0"
 ratatui = { version = "0.26.2", features = ["serde", "macros"] }
 reqwest = { version = "0.12", features = ["json"] }
-rust-embed="8.3.0"
+rust-embed = "8.3.0"
 serde = { version = "1.0.198", features = ["derive"] }
 serde_json = "1.0.116"
 signal-hook = "0.3.17"
@@ -61,17 +65,14 @@ strum_macros = "0.26"
 sys-locale = "0.3"
 thiserror = "1.0"
 throbber-widgets-tui = "0.5"
+time = { version = "0.3.36", features = ["serde", "formatting", "parsing"] }
 tokio = { version = "1.35.1", features = ["full"] }
 tokio-util = "0.7.9"
 tracing = "0.1"
 tracing-error = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "serde"] }
 tui-logger = { version = "0.11", features = ["tracing-support"] }
-wkt = "0.10.3"
-mockito = "1.4.0"
-# either = "1.11"
-# futures-util = "0.3"
-# geozero = { version = "0.12.0", features = ["with-csv", "with-geo"] }
 
 [build-dependencies]
+mockito = "1.4.0"
 vergen = { version = "8.2.6", features = ["build", "git", "gitoxide", "cargo"] }

@@ -22,7 +22,6 @@ pub struct AlertsInUaGeo {
     regions: &'static [Region; 27],
 }
 
-// #[async_trait]
 impl AlertsInUaGeo {
     #[inline]
     pub fn new() -> Self {
@@ -36,5 +35,24 @@ impl AlertsInUaGeo {
 impl Default for AlertsInUaGeo {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new() {
+        let geo = AlertsInUaGeo::new();
+        assert_eq!(geo.borders, UKRAINE_BORDERS_POYGON_WKT);
+        assert_eq!(geo.regions.len(), 27);
+    }
+
+    #[test]
+    fn test_default() {
+        let geo = AlertsInUaGeo::default();
+        assert_eq!(geo.borders, UKRAINE_BORDERS_POYGON_WKT);
+        assert_eq!(geo.regions.len(), 27);
     }
 }
