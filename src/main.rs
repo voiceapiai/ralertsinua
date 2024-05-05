@@ -9,9 +9,7 @@ pub mod data;
 pub mod fs;
 pub mod layout;
 pub mod mode;
-pub mod services;
 pub mod tui;
-pub mod ukraine;
 pub mod utils;
 
 rust_i18n::i18n!();
@@ -19,16 +17,15 @@ rust_i18n::i18n!();
 use clap::Parser;
 use cli::Cli;
 use color_eyre::eyre::Result;
+use ralertsinua_geo::AlertsInUaGeo;
 use ralertsinua_http::AlertsInUaClient;
-use services::{alerts::*, geo::*};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use tracing::info;
 
 use crate::{
     app::App,
     config::{Config, ConfigService},
     data::*,
-    ukraine::Ukraine,
     utils::{initialize_logging, initialize_panic_handler},
 };
 
@@ -44,24 +41,14 @@ async fn tokio_main() -> Result<()> {
     let config: Arc<dyn ConfigService> = Arc::new(config);
     info!("\n{:?} \n\n-----------", config.settings());
 
-    let pool = db_pool().await?;
-    let client = AlertsInUaClient::new(config.base_url(), config.token());
+    // let pool = db_pool().await?;
+    let api_client = AlertsInUaClient::new(config.base_url(), config.token());
+    let geo_client = AlertsInUaGeo::new();
 
-    let data_repository: Arc<dyn DataRepository> =
-        Arc::new(DataRepositoryInstance::new(pool, client));
-    let alerts_service: Arc<dyn AlertService> =
-        Arc::new(AlertServiceImpl::new(data_repository.clone()));
-    let geo_service: Arc<dyn GeoService> = Arc::new(GeoServiceImpl::new(data_repository.clone()));
+    let facade: Arc<dyn AlertsInUaFacade> =
+        Arc::new(AlertsInUaContainer::new(api_client, geo_client));
 
-    let regions = data_repository.fetch_regions().await?;
-    let ukraine = Arc::new(RwLock::new(Ukraine::new(regions)));
-
-    let mut app = App::new(
-        config.clone(),
-        ukraine.clone(),
-        alerts_service.clone(),
-        geo_service.clone(),
-    )?;
+    let mut app = App::new(config.clone(), facade.clone())?;
     app.run().await?;
 
     Ok(())

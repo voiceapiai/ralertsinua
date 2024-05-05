@@ -15,13 +15,13 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
 
 use super::{Component, Frame};
-use crate::{action::Action, config::*, constants::*, layout::*, ukraine::*};
+use crate::{action::Action, config::*, constants::*, data::*, layout::*};
 
 #[derive(Debug, Getters, MutGetters, Setters)]
 pub struct RegionsList {
     command_tx: Option<UnboundedSender<Action>>,
     config: Arc<dyn ConfigService>,
-    ukraine: Arc<RwLock<Ukraine>>,
+    facade: Arc<dyn AlertsInUaFacade>,
     #[getset(get = "pub with_prefix")]
     list: List<'static>,
     #[getset(get = "pub", get_mut)]
@@ -32,11 +32,14 @@ pub struct RegionsList {
 }
 
 impl RegionsList {
-    pub fn new(ukraine: Arc<RwLock<Ukraine>>, config: Arc<dyn ConfigService>) -> RegionsList {
+    pub fn new(
+        config: Arc<dyn ConfigService>,
+        facade: Arc<dyn AlertsInUaFacade>,
+    ) -> RegionsList {
         Self {
             config,
             command_tx: None,
-            ukraine,
+            facade,
             list: List::default(),
             state: ListState::default(),
             last_selected: None,
@@ -45,9 +48,6 @@ impl RegionsList {
     }
 
     delegate! {
-        to self.list {
-            pub fn len(&mut self) -> usize;
-        }
 
         to self.state {
             pub fn selected(&self) -> Option<usize>;
@@ -63,12 +63,10 @@ impl RegionsList {
 
     /// Get List Widget with ListItems of regions
     fn list(&mut self, is_loading: bool) -> List<'static> {
-        let ukraine = self.ukraine.read().unwrap();
-        let regions = ukraine.regions();
         let alerts_as = self.get_last_alert_response();
         let locale = Locale::from_str(self.config.get_locale().as_str()).unwrap(); // TODO: improve
 
-        let items = regions.into_iter().enumerate().map(|(i, r)| {
+        let items = self.facade.regions().iter().enumerate().map(|(i, r)| {
             let region_a_s = if is_loading {
                 AlertStatus::L
             } else {
@@ -111,10 +109,9 @@ impl RegionsList {
     }
 
     pub fn next(&mut self) {
-        let lock = self.ukraine.read().unwrap();
         let i = match self.state.selected() {
             Some(i) => {
-                if i >= lock.regions().len() - 1 {
+                if i >= self.facade.regions().len() - 1 {
                     0
                 } else {
                     i + 1
@@ -126,11 +123,10 @@ impl RegionsList {
     }
 
     pub fn previous(&mut self) {
-        let lock = self.ukraine.read().unwrap();
         let i = match self.state.selected() {
             Some(i) => {
                 if i == 0 {
-                    lock.regions().len() - 1
+                    self.facade.regions().len() - 1
                 } else {
                     i - 1
                 }
@@ -152,8 +148,7 @@ impl RegionsList {
     }
 
     pub fn go_bottom(&mut self) {
-        let lock = self.ukraine.read().unwrap();
-        self.state.select(Some(lock.regions().len() - 1));
+        self.state.select(Some(self.facade.regions().len() - 1));
         // drop(lock);
     }
 }
@@ -164,8 +159,8 @@ impl Component for RegionsList {
         Ok("List".to_string())
     }
 
-    fn placement(&self) -> (LayoutArea, Option<LayoutTab>) {
-        (LayoutArea::Right, Some(LayoutTab::Tab1))
+    fn placement(&self) -> LayoutPoint {
+        LayoutPoint(LayoutArea::Right, Some(LayoutTab::Tab1))
     }
 
     async fn init(&mut self, area: Rect) -> Result<()> {
@@ -226,9 +221,8 @@ impl Component for RegionsList {
             }
             KeyCode::Down => {
                 self.next();
-                let seleced_region = self.ukraine.read().unwrap().regions()
-                    [self.state().selected().unwrap()]
-                .clone();
+                let seleced_region =
+                    self.facade.regions()[self.state().selected().unwrap()].clone();
                 let action = Action::Selected(self.state().selected());
                 Ok(Some(action))
             }

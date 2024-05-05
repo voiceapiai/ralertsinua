@@ -3,9 +3,14 @@ use serde::Deserialize;
 use std::fs::{read_to_string, File};
 use tracing::error;
 
+// use rust_embed::RustEmbed;
+// #[derive(RustEmbed)]
+// #[folder = "assets/"]
+// pub struct Asset;
+
 #[inline]
 pub fn open_file(file_path: &str) -> Result<File> {
-    return File::open(file_path).wrap_err("Error opening file, {}");
+    File::open(file_path).wrap_err(format!("Error opening file, {}", file_path))
 }
 
 #[inline]

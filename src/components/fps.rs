@@ -7,7 +7,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
 
 use super::Component;
-use crate::{action::Action, config::*, layout::*, tui::Frame, ukraine::*};
+use crate::{action::Action, config::*, data::*, layout::*, tui::Frame};
 
 #[derive(Debug, Clone)]
 pub struct FpsCounter {
@@ -24,11 +24,11 @@ pub struct FpsCounter {
     #[allow(unused)]
     config: Arc<dyn ConfigService>,
     #[allow(unused)]
-    ukraine: Arc<RwLock<Ukraine>>,
+    facade: Arc<dyn AlertsInUaFacade>,
 }
 
 impl FpsCounter {
-    pub fn new(ukraine: Arc<RwLock<Ukraine>>, config: Arc<dyn ConfigService>) -> Self {
+    pub fn new(config: Arc<dyn ConfigService>, facade: Arc<dyn AlertsInUaFacade>) -> Self {
         Self {
             app_start_time: Instant::now(),
             app_frames: 0,
@@ -40,7 +40,7 @@ impl FpsCounter {
             command_tx: Option::default(),
             throbber_state: ThrobberState::default(),
             config,
-            ukraine,
+            facade,
         }
     }
 
@@ -81,8 +81,8 @@ impl Component for FpsCounter {
         Ok("FpsCounter".to_string())
     }
 
-    fn placement(&self) -> (LayoutArea, Option<LayoutTab>) {
-        (LayoutArea::Footer, None)
+    fn placement(&self) -> LayoutPoint {
+        LayoutPoint(LayoutArea::Footer, None)
     }
 
     async fn init(&mut self, area: Rect) -> Result<()> {
@@ -129,7 +129,8 @@ impl Component for FpsCounter {
             "{:.2} ticks per sec (app) {:.2} frames per sec (render)",
             self.app_fps, self.render_fps
         );
-        let block = Block::default().title(block::Title::from(s.dim()).alignment(Alignment::Left));
+        let block =
+            Block::default().title(block::Title::from(s.dim()).alignment(Alignment::Left));
         f.render_widget(block, rect);
         // Show "spinner"
         let throb = Throbber::default()

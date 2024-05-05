@@ -1,6 +1,8 @@
 use serde::*;
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(
+    Default, Debug, Clone, Eq, PartialEq, Serialize, Deserialize /* sqlx::FromRow */,
+)]
 pub struct Region {
     pub id: i8,
     pub a_id: i8,
@@ -11,7 +13,7 @@ pub struct Region {
     pub name_en: String,
 }
 
-#[derive(Debug, Default, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Default, Deserialize)]
 pub struct RegionGeo {
     pub osm_id: i64,
     pub a_id: i8,

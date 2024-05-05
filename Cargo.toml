@@ -50,10 +50,11 @@ log = "0.4.21"
 pretty_assertions = "1.4.0"
 ratatui = { version = "0.26.2", features = ["serde", "macros"] }
 reqwest = { version = "0.12", features = ["json"] }
+rust-embed="8.3.0"
 serde = { version = "1.0.198", features = ["derive"] }
 serde_json = "1.0.116"
 signal-hook = "0.3.17"
-sqlx = { version = "0.7.4", features = ["sqlite", "runtime-tokio-native-tls"] }
+# sqlx = { version = "0.7.4", features = ["sqlite", "runtime-tokio-native-tls"] }
 strip-ansi-escapes = "0.2.0"
 strum = "0.26"
 strum_macros = "0.26"

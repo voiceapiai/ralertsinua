@@ -1,11 +1,7 @@
 use color_eyre::eyre::Result;
 use crossterm::event::KeyEvent;
 use log::LevelFilter;
-use ratatui::{
-    layout::Rect,
-    prelude::*,
-    widgets::Block,
-};
+use ratatui::{layout::Rect, prelude::*, widgets::Block};
 use rust_i18n::t;
 use std::sync::Arc;
 
@@ -41,8 +37,8 @@ impl Component for Logger {
         Ok("Logger".to_string())
     }
 
-    fn placement(&self) -> (LayoutArea, Option<LayoutTab>) {
-        (LayoutArea::Inner, Some(LayoutTab::Tab2))
+    fn placement(&self) -> LayoutPoint {
+        LayoutPoint(LayoutArea::Inner, Some(LayoutTab::Tab2))
     }
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
@@ -51,15 +47,18 @@ impl Component for Logger {
     }
 
     fn handle_key_events(&mut self, key_event: KeyEvent) -> Result<Option<Action>> {
+        #[allow(clippy::match_single_binding)]
         match key_event.code {
-            // Other handlers you could add here.
+            // TODO: Other handlers you could add here.
             _ => Ok(None),
         }
     }
 
     fn draw(&mut self, f: &mut Frame<'_>, area: &Rect) -> Result<()> {
         let widget = TuiLoggerWidget::default()
-            .block(Block::bordered().title(t!("views.Logger.title").to_string().light_blue()))
+            .block(
+                Block::bordered().title(t!("views.Logger.title").to_string().light_blue()),
+            )
             .style_error(Style::default().fg(Color::Red))
             .style_debug(Style::default().fg(Color::Green))
             .style_warn(Style::default().fg(Color::Yellow))

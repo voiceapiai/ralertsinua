@@ -43,7 +43,7 @@ impl LayoutTab {
     }
 }
 
-#[derive(Default, Clone, Copy, Display, FromRepr, EnumIter, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, Display, FromRepr, EnumIter, PartialEq)]
 pub enum LayoutArea {
     Header,
     Tabs,
@@ -55,6 +55,9 @@ pub enum LayoutArea {
     #[default]
     Hidden,
 }
+
+#[derive(Debug, Clone)]
+pub struct LayoutPoint(pub LayoutArea, pub Option<LayoutTab>);
 
 #[derive(Clone, Default)]
 pub struct AppLayout {

@@ -1,5 +1,5 @@
 use color_eyre::eyre::Result;
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::KeyEvent;
 use ratatui::{
     layout::Rect,
     // prelude::*,
@@ -36,8 +36,8 @@ impl Component for Header {
         Ok("Header".to_string())
     }
 
-    fn placement(&self) -> (LayoutArea, Option<LayoutTab>) {
-        (LayoutArea::Tabs, None)
+    fn placement(&self) -> LayoutPoint {
+        LayoutPoint(LayoutArea::Tabs, None)
     }
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {

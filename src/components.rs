@@ -1,20 +1,20 @@
+use async_trait::async_trait;
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::layout::Rect;
 use tokio::sync::mpsc::UnboundedSender;
-use async_trait::async_trait;
 
 use crate::{
     action::Action,
-    layout::{LayoutArea, LayoutTab},
+    layout::*,
     tui::{Event, Frame},
 };
 
 pub mod fps;
-pub mod list;
-pub mod map;
 pub mod header;
+pub mod list;
 pub mod logger;
+pub mod map;
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 /// Implementors of this trait can be registered with the main application loop and will be able to receive events,
@@ -129,6 +129,5 @@ pub trait Component: Send + Sync {
 
     fn display(&self) -> Result<String>;
 
-    fn placement(&self) -> (LayoutArea, Option<LayoutTab>);
-
+    fn placement(&self) -> LayoutPoint;
 }

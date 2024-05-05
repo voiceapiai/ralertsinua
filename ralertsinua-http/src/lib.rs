@@ -1,5 +1,5 @@
-pub mod error;
 pub mod client;
+pub mod error;
 
-pub use error::*;
 pub use client::*;
+pub use error::*;

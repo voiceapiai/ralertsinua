@@ -4,7 +4,6 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(author, version = version(), about)]
 pub struct Cli {
-
     #[arg(
         short,
         long,
