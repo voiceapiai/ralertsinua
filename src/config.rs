@@ -1,17 +1,13 @@
 #![allow(non_camel_case_types)]
 use async_trait::async_trait;
-use color_eyre::eyre::{eyre, Error, Result, WrapErr};
+use color_eyre::eyre::Result;
 use delegate::delegate;
 use dotenv_config::EnvConfig;
-use dotenvy::dotenv;
 use getset::{Getters, MutGetters, Setters};
 use serde::{Deserialize, Serialize};
-use std::{str::FromStr, string::ToString};
+use std::string::ToString;
 use strum_macros::{Display, EnumString};
 use tracing::warn;
-
-use crate::error::*;
-use crate::utils::*;
 
 // const FILE_NAME: &str = "config.toml";
 
@@ -48,7 +44,10 @@ pub trait ConfigService: Sync + Send + core::fmt::Debug {
     fn set_base_url(&mut self, val: String) -> &mut Settings;
     fn token(&self) -> &str;
     fn get_locale(&self) -> String;
-    fn set_locale<L>(&self, val: L) -> String where L: Into<String>, Self: Sized;
+    fn set_locale<L>(&self, val: L) -> String
+    where
+        L: Into<String>,
+        Self: Sized;
     fn toggle_locale(&self) -> String;
     fn tick_rate(&self) -> &f64;
     fn frame_rate(&self) -> &f64;
@@ -84,7 +83,10 @@ impl ConfigService for Config {
         self.get_locale()
     }
 
-    fn set_locale<L>(&self, locale: L) -> String where L: Into<String> {
+    fn set_locale<L>(&self, locale: L) -> String
+    where
+        L: Into<String>,
+    {
         let locales = rust_i18n::available_locales!();
         let locale: &str = &locale.into();
         if !locales.contains(&locale) {

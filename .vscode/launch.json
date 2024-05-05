@@ -1,7 +1,4 @@
 {
-  // Use IntelliSense to learn about possible attributes.
-  // Hover to view descriptions of existing attributes.
-  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
   "configurations": [
     {
@@ -12,11 +9,11 @@
         "args": [
           // "watch -x",
           "build",
-          "--bin=alertsinua-tui",
-          "--package=alertsinua-tui"
+          "--bin=ralertsinua",
+          "--package=ralertsinua"
         ],
         "filter": {
-          "name": "alertsinua-tui",
+          "name": "ralertsinua",
           "kind": "bin"
         }
       },
@@ -30,16 +27,16 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug unit tests in library 'alertsinua-tui'",
+      "name": "Debug unit tests in library 'ralertsinua'",
       "cargo": {
         "args": [
           "test",
           "--no-run",
           "--lib",
-          "--package=alertsinua-tui"
+          "--package=ralertsinua"
         ],
         "filter": {
-          "name": "alertsinua-tui",
+          "name": "ralertsinua",
           "kind": "lib"
         }
       },
@@ -49,16 +46,16 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug unit tests in executable 'alertsinua-tui'",
+      "name": "Debug unit tests in executable 'ralertsinua'",
       "cargo": {
         "args": [
           "test",
           "--no-run",
-          "--bin=alertsinua-tui",
-          "--package=alertsinua-tui"
+          "--bin=ralertsinua",
+          "--package=ralertsinua"
         ],
         "filter": {
-          "name": "alertsinua-tui",
+          "name": "ralertsinua",
           "kind": "bin"
         }
       },

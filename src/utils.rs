@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use tracing::error;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{
-    self, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt, Layer,
+    self, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt,
 };
 
 const VERSION_MESSAGE: &str = concat!(
@@ -19,7 +19,8 @@ const VERSION_MESSAGE: &str = concat!(
 );
 
 lazy_static! {
-    pub static ref PROJECT_NAME: String = env!("CARGO_CRATE_NAME").to_uppercase().to_string();
+    pub static ref PROJECT_NAME: String =
+        env!("CARGO_CRATE_NAME").to_uppercase().to_string();
     pub static ref DATA_FOLDER: Option<PathBuf> =
         env::var(format!("{}_DATA", PROJECT_NAME.clone()))
             .ok()
@@ -90,7 +91,6 @@ pub fn initialize_panic_handler() -> Result<()> {
 }
 
 pub fn get_local_data_dir() -> PathBuf {
-    
     PathBuf::from(".").join(".data")
 }
 
@@ -133,11 +133,12 @@ pub fn initialize_logging() -> Result<()> {
         .with_line_number(true)
         .with_writer(log_file)
         .with_target(false)
-        .with_ansi(false)
-        .with_filter(tracing_subscriber::filter::EnvFilter::from_default_env());
+        .with_ansi(false);
+    // .with_filter(tracing_subscriber::filter::EnvFilter::from_default_env());
     tracing_subscriber::registry()
         .with(file_subscriber)
         .with(ErrorLayer::default())
+        .with(tui_logger::tracing_subscriber_layer())
         .init();
     Ok(())
 }

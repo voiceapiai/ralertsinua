@@ -45,8 +45,7 @@ rust-project.json
 .ionide
 
 ### Local
-# Ignore all local history of files
-.data/*.sqlite
-.data/*.log
+tmp/
+assets/*.sqlite
 
 # End of https://www.toptal.com/developers/gitignore/api/rust,rust-analyzer,visualstudiocode,dotenv
