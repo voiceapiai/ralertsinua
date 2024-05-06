@@ -2499,12 +2499,15 @@ name = "ralertsinua-models"
 version = "0.3.0"
 dependencies = [
  "color-eyre",
+ "delegate",
+ "getset",
  "serde",
  "serde_json",
  "strum",
  "strum_macros",
  "thiserror",
  "time",
+ "time-macros",
 ]
 
 [[package]]

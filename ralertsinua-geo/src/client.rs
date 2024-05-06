@@ -11,7 +11,7 @@ pub type WktString = String;
 pub trait AlertsInUaGeoService: Sync + Send {
     fn borders(&self) -> Result<WktString>;
     fn regions(&self) -> Result<&'static [Region; 27]>;
-    // async fn fetch_region_geo(&self, osm_id: i64) -> Result<String>;
+    // async fn fetch_region_geo(&self, osm_id: i32) -> Result<String>;
 } */
 
 #[derive(Debug, Clone, Getters)]

@@ -16,9 +16,9 @@ pub trait AlertsInUaFacade: Send + Sync + core::fmt::Debug {
     fn borders(&self) -> &str;
     fn regions(&self) -> &'static [Region; 27];
 
-    // async fn fetch_region_geo(&self, osm_id: i64) -> Result<String>;
+    // async fn fetch_region_geo(&self, osm_id: i32) -> Result<String>;
 
-    async fn fetch_alerts(&self) -> Result<Vec<Alert>>;
+    async fn fetch_alerts(&self) -> Result<Alerts>;
 
     async fn fetch_alerts_string(&self) -> Result<String>;
 }
@@ -80,7 +80,7 @@ impl AlertsInUaFacade for AlertsInUaContainer {
         }
     }
 
-    /* async fn fetch_region_geo(&self, osm_id: i64) -> Result<String> {
+    /* async fn fetch_region_geo(&self, osm_id: i32) -> Result<String> {
          let geo_string: String = sqlx::query_scalar(QUERY_SELECT_REGION_GEO)
             .bind(osm_id)
             .fetch_one(self.pool())
@@ -90,15 +90,15 @@ impl AlertsInUaFacade for AlertsInUaContainer {
         Ok(geo_string)
     } */
 
-    async fn fetch_alerts(&self) -> Result<Vec<Alert>> {
-        let response: AlertsResponseAll = self
+    async fn fetch_alerts(&self) -> Result<Alerts> {
+        let response: Alerts = self
             .api_client
             .get_active_alerts()
             .await
             .wrap_err("Error fetching alerts from API: {}")?;
 
         // info!("Fetched {} alerts", response.alerts.len());
-        Ok(response.alerts)
+        Ok(response)
     }
 
     /// Fetches active air raid alerts **as string** from alerts.in.ua

@@ -122,14 +122,10 @@ impl BaseHttpClient for AlertsInUaClient {
 /// The API for the AlertsInUaClient
 pub trait AlertsInUaApi: Send + Clone + fmt::Debug {
     #[allow(async_fn_in_trait)]
-    async fn get_active_alerts(&self) -> Result<AlertsResponseAll>;
+    async fn get_active_alerts(&self) -> Result<Alerts>;
 
     #[allow(async_fn_in_trait)] // 'week_ago'
-    async fn get_alerts_history(
-        &self,
-        region_aid: &i8,
-        period: &str,
-    ) -> Result<AlertsResponseAll>;
+    async fn get_alerts_history(&self, region_aid: &i8, period: &str) -> Result<Alerts>;
 
     #[allow(async_fn_in_trait)] // 'week_ago'
     async fn get_air_raid_alert_status(&self, region_aid: &i8) -> Result<String>;
@@ -140,17 +136,13 @@ pub trait AlertsInUaApi: Send + Clone + fmt::Debug {
 
 impl AlertsInUaApi for AlertsInUaClient {
     #[inline]
-    async fn get_active_alerts(&self) -> Result<AlertsResponseAll> {
+    async fn get_active_alerts(&self) -> Result<Alerts> {
         let url = "/alerts/active.json";
         self.get(url, &Query::default()).await
     }
 
     #[inline]
-    async fn get_alerts_history(
-        &self,
-        region_aid: &i8,
-        period: &str,
-    ) -> Result<AlertsResponseAll> {
+    async fn get_alerts_history(&self, region_aid: &i8, period: &str) -> Result<Alerts> {
         let url = format!("/regions/{}/alerts/{}.json", region_aid, period);
         self.get(&url, &Query::default()).await
     }
@@ -186,7 +178,7 @@ mod tests {
             .with_body(r#"{"alerts":[]}"#)
             .create_async()
             .await;
-        let expected_response: AlertsResponseAll =
+        let expected_response: Alerts =
             serde_json::from_value(json!({ "alerts": [] })).unwrap();
 
         let result = client.get_active_alerts().await?;
