@@ -16,6 +16,7 @@ readme = "../README.md"
 color-eyre = "0.6"
 delegate = "0.12.0"
 getset = "0.1"
+ratatui = { version = "0.26.2", optional = true }
 serde = { version = "1.0.198", features = ["derive"] }
 serde_json = "1.0.116"
 strum = "0.26"
@@ -23,3 +24,14 @@ strum_macros = "0.26"
 thiserror = "1.0"
 time = { version = "0.3.36", features = ["serde", "formatting", "parsing", "macros"] }
 time-macros = "0.2.18"
+
+[features]
+# default = []
+tui = ["ratatui"]
+
+[package.metadata.docs.rs]
+# When generating the docs, we also want to include the CLI methods, and working
+# links for `dotenvy`. We generate them for ureq so that the function signatures
+# of the endpoints don't look gnarly (because of `async-trait`).
+features = ["cli", "env-file"]
+no-default-features = true

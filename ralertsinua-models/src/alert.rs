@@ -1,4 +1,4 @@
-use crate::alert_type::*;
+use crate::{alert_type::*, LocationType};
 use serde::Deserialize;
 use time::OffsetDateTime;
 
@@ -6,7 +6,8 @@ use time::OffsetDateTime;
 pub struct Alert {
     pub id: i32,
     pub location_title: String,
-    pub location_type: String,
+    #[serde(with = "crate::location_type::into_location_type")]
+    pub location_type: LocationType,
     #[serde(with = "time::serde::iso8601")]
     pub started_at: OffsetDateTime,
     #[serde(with = "time::serde::iso8601")]
@@ -18,12 +19,13 @@ pub struct Alert {
     pub location_oblast: String,
     #[serde(with = "into_int")]
     pub location_uid: i32,
+    // #[serde(with = "into_int")]
+    pub location_oblast_uid: i32,
     pub notes: Option<String>,
     #[serde(default)]
     pub country: Option<String>,
     #[serde(default)]
     pub calculated: Option<bool>,
-    pub location_oblast_uid: Option<i32>,
 }
 
 pub mod into_int {
@@ -53,7 +55,7 @@ mod tests {
             "finished_at": null,
             "id": 8757,
             "location_oblast": "Луганська область",
-            "location_oblast_uid": 16,
+            "location_oblast_uid": "16",
             "location_title": "Луганська область",
             "location_type": "oblast",
             "location_uid": "16",
@@ -71,10 +73,10 @@ mod tests {
 
         assert_eq!(alert.id, 8757);
         assert_eq!(alert.location_title, "Луганська область");
-        assert_eq!(alert.location_type, "oblast");
+        assert_eq!(alert.location_type, LocationType::Region);
         assert_eq!(alert.location_oblast, "Луганська область");
         assert_eq!(alert.location_uid, 16);
-        assert_eq!(alert.location_oblast_uid, Some(16));
+        assert_eq!(alert.location_oblast_uid, 16);
         assert_eq!(alert.alert_type, AlertType::AirRaid);
         assert_eq!(alert.notes, None);
         assert_eq!(alert.country, None);

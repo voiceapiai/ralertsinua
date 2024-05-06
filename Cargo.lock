@@ -2501,6 +2501,7 @@ dependencies = [
  "color-eyre",
  "delegate",
  "getset",
+ "ratatui",
  "serde",
  "serde_json",
  "strum",

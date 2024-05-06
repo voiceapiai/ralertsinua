@@ -68,7 +68,7 @@ impl App {
     }
 
     pub async fn init(&mut self) -> Result<()> {
-        // TODO: if needed
+        self.facade.fetch_active_alerts().await?;
         Ok(())
     }
 
@@ -228,12 +228,12 @@ impl App {
                         })?;
                     }
                     Action::Fetch => {
-                        let alerts_as = self.facade.fetch_alerts_string().await?;
-                        let tx_action = Action::SetAlertsByRegion(alerts_as.to_string());
+                        // let alerts_as = self.facade.get_air_raid_alert_statuses_by_region().await?;
+                        // let tx_action = Action::SetAlertsByRegion(alerts_as.to_string());
 
-                        // info!("App->on:FetchAlerts->action_tx.send: {}", tx_action);
-                        action_tx.send(tx_action)?;
-                        action_tx.send(Action::Refresh)?;
+                        // // info!("App->on:FetchAlerts->action_tx.send: {}", tx_action);
+                        // action_tx.send(tx_action)?;
+                        // action_tx.send(Action::Refresh)?;
                     }
                     Action::Selected(Some(s)) => {
                         let region = self.facade.regions().get(s).unwrap();

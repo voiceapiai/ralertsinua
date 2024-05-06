@@ -54,51 +54,43 @@ impl RegionsList {
         }
     }
 
+    #[allow(unused)]
     fn get_last_alert_response(&self) -> &str {
         match self.last_alert_response {
             Some(ref response) => response.as_str(),
-            None => DEFAULT_ALERTS_RESPONSE_STRING,
+            None => "",
         }
     }
 
     /// Get List Widget with ListItems of regions
     fn list(&mut self, is_loading: bool) -> List<'static> {
-        let alerts_as = self.get_last_alert_response();
         let locale = Locale::from_str(self.config.get_locale().as_str()).unwrap(); // TODO: improve
-
-        let items = self.facade.regions().iter().enumerate().map(|(i, r)| {
-            let region_a_s = if is_loading {
-                AlertStatus::L
-            } else {
-                AlertStatus::from(alerts_as.chars().nth(i).unwrap_or('N'))
-            };
-
-            Self::to_list_item(r, &i, &region_a_s, &locale)
-        });
+        let oblast_statuses = self.facade.oblast_statuses();
+        let items = oblast_statuses
+            .iter()
+            .map(|item| Self::to_list_item(item, &locale));
 
         List::new(items)
     }
 
-    /// Builds new `ListItem` from `Region` instance, based on references only
+    /// Builds new `ListItem` from `Region`-like instance, based on references only
     pub fn to_list_item(
-        r: &Region,
-        index: &usize,
-        alert_status: &AlertStatus,
+        item: &AirRaidAlertOblastStatus,
         locale: &Locale,
     ) -> ListItem<'static> {
         use strum::EnumProperty;
 
-        let icon: &str = alert_status.get_str("icon").unwrap();
-        let color_str: &str = alert_status.get_str("color").unwrap();
+        let icon: &str = item.status().get_str("icon").unwrap();
+        let color_str: &str = item.status().get_str("color").unwrap();
         let color: Color = Color::from_str(color_str).unwrap();
         let text: &str = if *locale == Locale::uk {
-            r.name.as_str()
+            item.location_title()
         } else {
-            r.name_en.as_str()
+            item.location_title_en()
         };
         let list_item: ListItem = ListItem::new(format!("{} {}", icon, text)).style(color);
 
-        match alert_status {
+        match item.status() {
             AlertStatus::A => list_item
                 .add_modifier(Modifier::BOLD)
                 .add_modifier(Modifier::RAPID_BLINK),
@@ -164,6 +156,9 @@ impl Component for RegionsList {
     }
 
     async fn init(&mut self, area: Rect) -> Result<()> {
+        self.facade
+            .fetch_air_raid_alert_statuses_by_region()
+            .await?;
         self.list = self.list(true);
         Ok(())
     }

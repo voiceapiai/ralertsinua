@@ -1,24 +1,24 @@
 use serde::Deserialize;
 
-pub const DEFAULT_ALERTS_RESPONSE_STRING: &str = "NNNNNNNNNNNNNNNNNNNNNNNNNNN";
-
 #[derive(
     Debug,
     Default,
     Deserialize,
+    Clone,
+    PartialEq,
     strum_macros::EnumProperty,
     strum_macros::AsRefStr,
     strum_macros::Display,
 )]
 pub enum AlertStatus {
     /// Active
-    #[strum(props(icon = "🜸", color = "red"))]
+    #[strum(props(icon = "🜸", color = "red"))] // 🔴
     A,
     /// Partially active
-    #[strum(props(icon = "🌤", color = "yellow"))]
+    #[strum(props(icon = "🌤", color = "yellow"))] // 🟡
     P,
     /// No information
-    #[strum(props(icon = "🌣", color = "blue"))]
+    #[strum(props(icon = "🌣", color = "blue"))] // 🟢
     #[default]
     N,
     /// Loading

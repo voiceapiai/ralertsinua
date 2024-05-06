@@ -4,7 +4,7 @@ use serde::Deserialize;
 use time::{format_description::BorrowedFormatItem, OffsetDateTime};
 use time_macros::format_description;
 
-use crate::{Alert, AlertType};
+use crate::{Alert, AlertType, LocationType};
 
 /// "2024/05/06 10:02:45 +0000"
 /// const LAST_UPDATED_AT_FORMAT: &str = "%Y/%m/%d %H:%M:%S %z";
@@ -65,7 +65,7 @@ impl Alerts {
     pub fn get_alerts_by_alert_type(&self, alert_type: AlertType) -> Vec<Alert> {
         self.alerts
             .iter()
-            .filter(|alert| alert.alert_type == alert_type)
+            .filter(|alert: &&Alert| alert.alert_type == alert_type)
             .cloned() // Add this line to clone the alerts
             .collect()
     }
@@ -78,7 +78,7 @@ impl Alerts {
             .collect()
     }
 
-    pub fn get_alerts_by_location_type(&self, location_type: &str) -> Vec<Alert> {
+    pub fn get_alerts_by_location_type(&self, location_type: LocationType) -> Vec<Alert> {
         self.alerts
             .iter()
             .filter(|alert| alert.location_type == location_type)
@@ -86,29 +86,26 @@ impl Alerts {
             .collect()
     }
 
-    pub fn get_alerts_by_region(&self, oblast_title: &str) -> Vec<Alert> {
+    pub fn get_alerts_by_region(&self, title: &str) -> Vec<Alert> {
         self.alerts
             .iter()
-            .filter(|alert| alert.location_oblast == oblast_title)
+            .filter(|alert| alert.location_oblast == title)
             .cloned()
             .collect()
     }
 
-    pub fn get_alerts_by_region_uid(&self, oblast_uid: i32) -> Vec<Alert> {
+    pub fn get_alerts_by_region_uid(&self, int_uid: i32) -> Vec<Alert> {
         self.alerts
             .iter()
-            .filter(|alert| {
-                alert.location_oblast_uid.is_some()
-                    && alert.location_oblast_uid.unwrap() == oblast_uid
-            })
+            .filter(|alert| alert.location_oblast_uid == int_uid)
             .cloned()
             .collect()
     }
 
-    pub fn get_alerts_by_location_uid(&self, location_uid: i32) -> Vec<Alert> {
+    pub fn get_alerts_by_location_uid(&self, int_uid: i32) -> Vec<Alert> {
         self.alerts
             .iter()
-            .filter(|alert| alert.location_uid == location_uid)
+            .filter(|alert| alert.location_uid == int_uid)
             .cloned()
             .collect()
     }
@@ -141,6 +138,7 @@ mod tests {
         use super::*;
         use crate::AlertType;
         use serde_json::json;
+        // use time_macros::datetime;
 
         let data = json!({
             "alerts": [
@@ -182,22 +180,56 @@ mod tests {
             }
         });
 
-        let all: Alerts = serde_json::from_value(data).unwrap();
-        assert_eq!(all.alerts.len(), 2);
+        let alerts: Alerts = serde_json::from_value(data).unwrap();
+        let alert1 = &alerts.alerts[0];
+        let alert2 = &alerts.alerts[1];
 
-        let alert = &all.alerts[0];
-        assert_eq!(alert.id, 8757);
-        assert_eq!(alert.location_title, "Луганська область");
-        assert_eq!(alert.location_type, "oblast");
-        assert_eq!(alert.location_oblast, "Луганська область");
-        assert_eq!(alert.location_uid, 16);
-        assert_eq!(alert.location_oblast_uid, Some(16));
-        assert_eq!(alert.alert_type, AlertType::AirRaid);
-        assert_eq!(alert.notes, None);
-        assert_eq!(alert.country, None);
-        assert_eq!(alert.calculated, None);
-        assert_eq!(alert.started_at.unix_timestamp(), 1_649_090_739);
-        assert_eq!(alert.updated_at.unix_timestamp(), 1_698_603_757);
-        assert_eq!(alert.finished_at, None);
+        assert_eq!(alerts.iter().next(), Some(alert1));
+        assert_eq!(alerts.len(), 2);
+        assert_eq!(alerts.is_empty(), false);
+        assert_eq!(
+            alerts.meta.get_last_updated_at().unix_timestamp(),
+            1_714_989_765
+        );
+
+        let expected_alert = alerts.get_air_raid_alerts();
+        assert_eq!(expected_alert.len(), 1);
+        assert_eq!(expected_alert[0].id, alert1.id);
+
+        let expected_alert = alerts.get_artillery_shelling_alerts();
+        assert_eq!(expected_alert.len(), 1);
+        assert_eq!(expected_alert[0].id, alert2.id);
+
+        let expected_alert = alerts.get_nuclear_alerts();
+        assert_eq!(expected_alert.len(), 0);
+
+        let expected_alert = alerts.get_chemical_alerts();
+        assert_eq!(expected_alert.len(), 0);
+
+        let expected_alert = alerts.get_urban_fights_alerts();
+        assert_eq!(expected_alert.len(), 0);
+
+        let expected_alert = alerts.get_alerts_by_alert_type(AlertType::UrbanFights);
+        assert_eq!(expected_alert.len(), 0);
+
+        let expected_alert = alerts.get_alerts_by_region_uid(16);
+        assert_eq!(expected_alert.len(), 1);
+        assert_eq!(expected_alert[0].id, alert1.id);
+
+        let expected_alert = alerts.get_alerts_by_location_uid(351);
+        assert_eq!(expected_alert.len(), 1);
+        assert_eq!(expected_alert[0].id, alert2.id);
+
+        let expected_alert = alerts.get_alerts_by_location_title("Луганська область");
+        assert_eq!(expected_alert.len(), 1);
+        assert_eq!(expected_alert[0].id, alert1.id);
+
+        let expected_alert = alerts.get_alerts_by_region("Луганська область");
+        assert_eq!(expected_alert.len(), 1);
+        assert_eq!(expected_alert[0].id, alert1.id);
+
+        let expected_alert = alerts.get_alerts_by_location_type(LocationType::Hromada);
+        assert_eq!(expected_alert.len(), 1);
+        assert_eq!(expected_alert[0].id, alert2.id);
     }
 }
