@@ -3,6 +3,7 @@ use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use delegate::delegate;
 use getset::*;
+use ralertsinua_http::*;
 use ralertsinua_models::*;
 use ratatui::{
     prelude::*,
@@ -10,18 +11,21 @@ use ratatui::{
     widgets::{Block, List, ListItem, ListState},
 };
 use rust_i18n::t;
-use std::str::FromStr;
+use std::{str::FromStr, sync::Arc};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
 
 use super::{Component, Frame};
-use crate::{action::Action, config::*, constants::*, data::*, layout::*};
+use crate::{action::Action, config::*, constants::*, layout::*};
 
 #[derive(Debug, Getters, MutGetters, Setters)]
 pub struct RegionsList {
     command_tx: Option<UnboundedSender<Action>>,
     config: Arc<dyn ConfigService>,
-    facade: Arc<dyn AlertsInUaFacade>,
+    // facade: Arc<dyn AlertsInUaFacade>,
+    api_client: Arc<dyn AlertsInUaApi>,
+    #[getset(get = "pub")]
+    oblast_statuses: AirRaidAlertOblastStatuses,
     #[getset(get = "pub with_prefix")]
     list: List<'static>,
     #[getset(get = "pub", get_mut)]
@@ -34,12 +38,15 @@ pub struct RegionsList {
 impl RegionsList {
     pub fn new(
         config: Arc<dyn ConfigService>,
-        facade: Arc<dyn AlertsInUaFacade>,
+        // facade: Arc<dyn AlertsInUaFacade>,
+        api_client: Arc<dyn AlertsInUaApi>,
     ) -> RegionsList {
         Self {
             config,
             command_tx: None,
-            facade,
+            // facade,
+            api_client,
+            oblast_statuses: AirRaidAlertOblastStatuses::default(),
             list: List::default(),
             state: ListState::default(),
             last_selected: None,
@@ -65,7 +72,7 @@ impl RegionsList {
     /// Get List Widget with ListItems of regions
     fn list(&mut self, is_loading: bool) -> List<'static> {
         let locale = Locale::from_str(self.config.get_locale().as_str()).unwrap(); // TODO: improve
-        let oblast_statuses = self.facade.oblast_statuses();
+        let oblast_statuses = self.oblast_statuses();
         let items = oblast_statuses
             .iter()
             .map(|item| Self::to_list_item(item, &locale));
@@ -103,7 +110,7 @@ impl RegionsList {
     pub fn next(&mut self) {
         let i = match self.state.selected() {
             Some(i) => {
-                if i >= self.facade.regions().len() - 1 {
+                if i >= self.oblast_statuses().len() - 1 {
                     0
                 } else {
                     i + 1
@@ -118,7 +125,7 @@ impl RegionsList {
         let i = match self.state.selected() {
             Some(i) => {
                 if i == 0 {
-                    self.facade.regions().len() - 1
+                    self.oblast_statuses().len() - 1
                 } else {
                     i - 1
                 }
@@ -140,7 +147,7 @@ impl RegionsList {
     }
 
     pub fn go_bottom(&mut self) {
-        self.state.select(Some(self.facade.regions().len() - 1));
+        self.state.select(Some(self.oblast_statuses().len() - 1));
         // drop(lock);
     }
 }
@@ -156,10 +163,13 @@ impl Component for RegionsList {
     }
 
     async fn init(&mut self, area: Rect) -> Result<()> {
-        self.facade
-            .fetch_air_raid_alert_statuses_by_region()
+        let result = self
+            .api_client
+            .get_air_raid_alert_statuses_by_region()
             .await?;
+        self.oblast_statuses = result;
         self.list = self.list(true);
+
         Ok(())
     }
 
@@ -216,9 +226,10 @@ impl Component for RegionsList {
             }
             KeyCode::Down => {
                 self.next();
+                let selected_idx = self.state().selected();
                 let seleced_region =
-                    self.facade.regions()[self.state().selected().unwrap()].clone();
-                let action = Action::Selected(self.state().selected());
+                    self.oblast_statuses().get_all()[selected_idx.unwrap()].clone();
+                let action = Action::Selected(selected_idx);
                 Ok(Some(action))
             }
             KeyCode::Up => {

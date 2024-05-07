@@ -1,8 +1,11 @@
+use std::sync::Arc;
+
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ralertsinua_geo::*;
+use ralertsinua_http::*;
+use ralertsinua_models::*;
 use ratatui::prelude::*;
-#[allow(unused)]
-use serde::{Deserialize, Serialize};
 use tokio::{
     sync::mpsc,
     time::{sleep, Duration},
@@ -16,7 +19,6 @@ use crate::{
         Component,
     },
     config::*,
-    data::*,
     layout::*,
     mode::Mode,
     tui,
@@ -24,7 +26,9 @@ use crate::{
 
 pub struct App {
     pub config: Arc<dyn ConfigService>,
-    pub facade: Arc<dyn AlertsInUaFacade>,
+    // pub facade: Arc<dyn AlertsInUaFacade>,
+    pub api_client: Arc<dyn AlertsInUaApi>,
+    pub geo_client: Arc<dyn AlertsInUaGeo>,
     pub components: Vec<Box<dyn Component>>,
     /// View stack: The top (=front) of the stack is the view that is displayed
     // pub view_stack: VecDeque<Box<dyn Component>>,
@@ -38,12 +42,14 @@ pub struct App {
 impl App {
     pub fn new(
         config: Arc<dyn ConfigService>,
-        facade: Arc<dyn AlertsInUaFacade>,
+        // facade: Arc<dyn AlertsInUaFacade>,
+        api_client: Arc<dyn AlertsInUaApi>,
+        geo_client: Arc<dyn AlertsInUaGeo>,
     ) -> Result<Self> {
         let header = Header::new(config.clone());
-        let map = Map::new(config.clone(), facade.clone());
-        let list = RegionsList::new(config.clone(), facade.clone());
-        let fps = FpsCounter::new(config.clone(), facade.clone());
+        let map = Map::new(config.clone(), geo_client.clone());
+        let list = RegionsList::new(config.clone(), api_client.clone());
+        let fps = FpsCounter::new(config.clone());
         let logger = Logger::new(config.clone());
         let mode = Mode::Map;
         let components: Vec<Box<dyn Component>> = vec![
@@ -56,7 +62,9 @@ impl App {
         // let tick_rate = std::time::Duration::from_secs(10);
         Ok(Self {
             config,
-            facade,
+            // facade,
+            api_client,
+            geo_client,
             components,
             // view_stack: VecDeque::new(),
             should_quit: false,
@@ -68,7 +76,12 @@ impl App {
     }
 
     pub async fn init(&mut self) -> Result<()> {
-        self.facade.fetch_active_alerts().await?;
+        let response: Alerts = self.api_client.get_active_alerts().await?;
+
+        info!("fetch_alerts: total {} alerts", response.len());
+        response.iter().for_each(|alert| {
+            info!("fetch_alerts:alert {:?}", alert);
+        });
         Ok(())
     }
 
@@ -236,12 +249,10 @@ impl App {
                         // action_tx.send(Action::Refresh)?;
                     }
                     Action::Selected(Some(s)) => {
-                        let region = self.facade.regions().get(s).unwrap();
-                        let region_geo = ""; // self.geo_service.fetch_region_geo(region.osm_id).await?;
-                        let tx_action = Action::SetRegionGeo(region_geo.to_string());
+                        // let region_geo = ""; // self.geo_service.fetch_region_geo(region.osm_id).await?;
+                        // let tx_action = Action::SetRegionGeo(region_geo.to_string());
 
-                        // info!("App->on:FetchAlerts->action_tx.send: {}", tx_action);
-                        action_tx.send(tx_action)?;
+                        // action_tx.send(tx_action)?;
                     }
                     _ => {}
                 }

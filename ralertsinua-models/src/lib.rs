@@ -6,7 +6,7 @@ pub mod alert_type;
 pub mod alerts;
 pub mod error;
 pub mod location_type;
-pub mod region;
+pub mod constants;
 
 pub use air_raid_alert_oblast_status::*;
 pub use air_raid_alert_oblast_statuses::*;
@@ -16,4 +16,4 @@ pub use alert_type::*;
 pub use alerts::*;
 pub use error::*;
 pub use location_type::*;
-pub use region::*;
+pub use constants::*;

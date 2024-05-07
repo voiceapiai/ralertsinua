@@ -1,6 +1,7 @@
 //! The client implementation for the reqwest HTTP client, which is async
 //! @borrows https://github.com/ramsayleung/rspotify/blob/master/rspotify-http/src/reqwest.rs
 
+use async_trait::async_trait;
 use reqwest::{Method, RequestBuilder, StatusCode};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -120,7 +121,8 @@ impl BaseHttpClient for AlertsInUaClient {
 }
 
 /// The API for the AlertsInUaClient
-pub trait AlertsInUaApi: Send + Clone + fmt::Debug {
+#[async_trait]
+pub trait AlertsInUaApi: Sync + Send + core::fmt::Debug {
     #[allow(async_fn_in_trait)]
     async fn get_active_alerts(&self) -> Result<Alerts>;
 
@@ -136,6 +138,7 @@ pub trait AlertsInUaApi: Send + Clone + fmt::Debug {
     ) -> Result<AirRaidAlertOblastStatuses>;
 }
 
+#[async_trait]
 impl AlertsInUaApi for AlertsInUaClient {
     #[inline]
     async fn get_active_alerts(&self) -> Result<Alerts> {

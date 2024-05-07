@@ -1,23 +1,10 @@
-use serde::*;
-
-#[derive(Default, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct Region {
-    pub id: i32,
-    pub a_id: i32,
-    pub osm_id: i32,
-    pub name: String,
-    pub name_en: String,
-    #[serde(default)]
-    pub geom: String,
-}
-
 /// This was `SQL INSERT INTO regions VALUES` statement
 /// We just use it directly in Rust
 #[rustfmt::skip]
 pub const REGIONS_DATA: [(i32, i32, &str, &str); 27] = [
     (145279, 29, "Автономна Республіка Крим", "Autonomous Republic of Crimea"),
-    (142129, 4, "Волинська область", "Volyn Oblast"),
     (181453, 8, "Вінницька область", "Vinnytsia Oblast"),
+    (142129, 4, "Волинська область", "Volyn Oblast"),
     (203493, 9, "Дніпропетровська область", "Dnipropetrovsk Oblast"),
     (143947, 28, "Донецька область", "Donetsk Oblast"),
     (142491, 10, "Житомирська область", "Zhytomyr Oblast"),

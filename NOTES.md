@@ -402,6 +402,12 @@ curl -X GET 'https://api.alerts.in.ua/v1/alerts/active.json' -H 'Authorization: 
 
 ### Country Boundaries
 
+- https://datahub.io/core/geo-ne-admin1
+- https://commons.wikimedia.org/wiki/Data:Ukraine/Mykolayiv.map
+- https://en.wikipedia.org/wiki/Administrative_divisions_of_Ukraine
+
+
+
 - https://www.openstreetmap.org/relation/60199#map=6/48.447/31.182
 - https://osm-boundaries.com/Download/Submit?apiKey=c37e46a9dae1267a7886c406081d01d6&db=osm20240205&osmIds=-60199&recursive&minAdminLevel=2&maxAdminLevel=2&format=EWKT&srid=4326&landOnly&simplify=100
 - https://gis.stackexchange.com/a/221456
