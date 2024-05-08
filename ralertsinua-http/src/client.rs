@@ -2,7 +2,10 @@
 //! @borrows https://github.com/ramsayleung/rspotify/blob/master/rspotify-http/src/reqwest.rs
 
 use async_trait::async_trait;
-use reqwest::{Method, RequestBuilder, StatusCode};
+use reqwest::{
+    header::{HeaderMap, HeaderValue},
+    Method, RequestBuilder, StatusCode,
+};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt;
@@ -18,6 +21,14 @@ type Result<T> = std::result::Result<T, ApiError>;
 
 pub const API_BASE_URL: &str = "https://api.alerts.in.ua";
 pub const API_VERSION: &str = "/v1";
+// Name your user agent after your app?
+const APP_USER_AGENT: &str = concat!(
+    env!("CARGO_PKG_NAME"),
+    "/",
+    env!("CARGO_PKG_VERSION"),
+    // "/",
+    // env!("VERGEN_CARGO_TARGET_TRIPLE"),
+);
 
 #[derive(Debug, Clone)]
 pub struct AlertsInUaClient {
@@ -32,6 +43,12 @@ impl AlertsInUaClient {
     {
         let client = reqwest::ClientBuilder::new()
             .timeout(Duration::from_secs(10))
+            .user_agent(APP_USER_AGENT)
+            .default_headers({
+                let mut headers = HeaderMap::new();
+                headers.insert("accept", HeaderValue::from_static("value"));
+                headers
+            })
             .build()
             // building with these options cannot fail
             .unwrap();
@@ -100,8 +117,7 @@ impl AlertsInUaClient {
 /// different ways (`Value::Null`, an empty `Value::Object`...), so this removes
 /// redundancy and edge cases (a `Some(Value::Null), for example, doesn't make
 /// much sense).
-// #[cfg_attr(target_arch = "wasm32", maybe_async(?Send))]
-// #[cfg_attr(not(target_arch = "wasm32"), maybe_async)]
+/// TODO: If-Modified-Since + Last-Modified for caching
 pub trait BaseHttpClient: Send + Clone + fmt::Debug {
     // This internal function should always be given an object value in JSON.
     #[allow(async_fn_in_trait)]
@@ -171,9 +187,24 @@ impl AlertsInUaApi for AlertsInUaClient {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use mockito::Server as MockServer;
     use serde_json::json;
+    use std::sync::Arc;
+
+    #[test]
+    fn test_trait() {
+        let api_client: Arc<dyn AlertsInUaApi> = Arc::new(AlertsInUaClient::new("", ""));
+        println!("{:?}", api_client);
+    }
+
+    #[test]
+    fn test_get_api_url() {
+        let client = AlertsInUaClient::new("https://api.alerts.in.ua", "token");
+        let url = client.get_api_url("/alerts/active.json");
+        assert_eq!(url, "https://api.alerts.in.ua/v1/alerts/active.json");
+    }
 
     #[tokio::test]
     async fn test_get_active_alerts() -> Result<()> {
@@ -184,11 +215,11 @@ mod tests {
                 "GET",
                 mockito::Matcher::Any, /* API_ALERTS_ACTIVE_BY_REGION_STRING */
             )
-            .with_body(r#"{"alerts":[]}"#)
+            .with_body(r#"{"alerts":[],"disclaimer":"","meta":{"last_updated_at":"2024/05/06 10:02:45 +0000"}}"#)
             .create_async()
             .await;
         let expected_response: Alerts =
-            serde_json::from_value(json!({ "alerts": [] })).unwrap();
+            serde_json::from_value(json!({"alerts":[],"disclaimer":"","meta":{"last_updated_at":"2024/05/06 10:02:45 +0000"}})).unwrap();
 
         let result = client.get_active_alerts().await?;
 
