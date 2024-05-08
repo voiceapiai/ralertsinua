@@ -23,7 +23,6 @@ pub struct FpsCounter {
     throbber_state: ThrobberState,
     #[allow(unused)]
     config: Arc<dyn ConfigService>,
-
 }
 
 impl FpsCounter {

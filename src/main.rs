@@ -41,8 +41,7 @@ async fn tokio_main() -> Result<()> {
 
     let api_client: Arc<dyn AlertsInUaApi> =
         Arc::new(AlertsInUaClient::new(config.base_url(), config.token()));
-    let geo_client: Arc<dyn AlertsInUaGeo> =
-        Arc::new(AlertsInUaGeoClient::default());
+    let geo_client: Arc<dyn AlertsInUaGeo> = Arc::new(AlertsInUaGeoClient::default());
 
     let mut app = App::new(config.clone(), api_client.clone(), geo_client.clone())?;
     app.run().await?;

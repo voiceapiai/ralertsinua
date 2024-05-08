@@ -79,6 +79,7 @@ impl Shape for Map {
         let borders = self.geo_client.borders();
         // If region was selected means we have last selected geo - then iterate region borders
         if selected_region.is_some() {
+            // let b = self.geo_client.get_region_by(predicate);
             let borders = selected_region.unwrap().borders().unwrap();
         };
         borders.exterior().coords().for_each(|coord| {
