@@ -12,10 +12,15 @@ use tracing_subscriber::{
 const VERSION_MESSAGE: &str = concat!(
     env!("CARGO_PKG_VERSION"),
     "-",
+    env!("VERGEN_CARGO_DEBUG"),
+    "-",
     env!("VERGEN_GIT_DESCRIBE"),
-    " (",
+    "-",
+    "(",
     env!("VERGEN_BUILD_DATE"),
-    ")"
+    ")",
+    "-",
+    env!("VERGEN_CARGO_TARGET_TRIPLE"),
 );
 
 lazy_static! {

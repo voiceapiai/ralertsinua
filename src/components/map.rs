@@ -1,5 +1,4 @@
 use color_eyre::eyre::Result;
-use geo::Geometry;
 use ralertsinua_geo::*;
 use ratatui::{
     prelude::*,
@@ -9,13 +8,12 @@ use ratatui::{
     },
 };
 use rust_i18n::t;
-#[allow(unused)]
-use std::{collections::HashMap, time::Duration};
+use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::info;
+use tracing::debug;
 
 use super::{Component, Frame};
-use crate::{action::Action, config::*, constants::*, data::*, layout::*};
+use crate::{action::Action, config::*, constants::*, layout::*};
 
 #[allow(unused)]
 const PADDING: f64 = 0.5;
@@ -25,36 +23,25 @@ pub struct Map {
     command_tx: Option<UnboundedSender<Action>>,
     #[allow(unused)]
     config: Arc<dyn ConfigService>,
-    facade: Arc<dyn AlertsInUaFacade>,
-    map: Arc<dyn AlertsInUaMap>,
-    last_selected: Option<usize>,
-    last_selected_geo: Option<String>,
+    // facade: Arc<dyn AlertsInUaFacade>,
+    geo_client: Arc<dyn AlertsInUaGeo>,
+    selected_region: Option<Region>,
 }
 
 impl Map {
-    pub fn new(config: Arc<dyn ConfigService>, facade: Arc<dyn AlertsInUaFacade>) -> Self {
-        let map: Arc<dyn AlertsInUaMap> = Arc::new(AlertsInUaMapBounds::default());
+    pub fn new(config: Arc<dyn ConfigService>, geo_client: Arc<dyn AlertsInUaGeo>) -> Self {
         Self {
             command_tx: Option::default(),
-            map,
-            facade,
+            // facade,
             config,
-            last_selected: None,
-            last_selected_geo: None,
-        }
-    }
-
-    fn get_last_selected_geo(&self) -> &str {
-        match self.last_selected_geo {
-            Some(ref lsg) => lsg.as_str(),
-            None => "",
+            geo_client,
+            selected_region: None,
         }
     }
 
     fn get_curr_area(&self, r: &Rect) -> Result<Rect> {
         let percent = 50;
-        let lsg = self.get_last_selected_geo();
-        let curr_area = match lsg.is_empty() {
+        let curr_area = match self.selected_region.is_none() {
             false => {
                 // INFO: https://ratatui.rs/how-to/layout/center-a-rect/
                 let popup_layout = Layout::default()
@@ -85,32 +72,13 @@ impl Map {
 impl Shape for Map {
     #[inline]
     fn draw(&self, painter: &mut Painter) {
-        let lsg = self.get_last_selected_geo();
-        let coords_iter = self.map.borders().exterior().coords();
+        let selected_region = self.selected_region.clone();
+        let borders = self.geo_client.borders();
         // If region was selected means we have last selected geo - then iterate region borders
-        if !lsg.is_empty() {
-            // use geo::SimplifyVw;
-            let geom: Geometry = from_wkt_into(lsg).unwrap();
-            match geom {
-                Geometry::Polygon(poly) => {
-                    // info!("Map->last_selected_geo: simplify_vw");
-                    // let poly = poly.simplify_vw(&2.0);
-                    let coords_iter = poly.exterior().coords();
-                }
-                Geometry::MultiPolygon(multi_poly) => {
-                    // Handle only the first polygon in a MultiPolygon
-                    if let Some(poly) = multi_poly.0.first() {
-                        // info!("Map->last_selected_geo: simplify_vw");
-                        // let poly = poly.simplify_vw(&2.0);
-                        let coords_iter = poly.exterior().coords();
-                    }
-                }
-                _ => {
-                    // Handle other geometry types if necessary
-                }
-            }
+        if selected_region.is_some() {
+            let borders = selected_region.unwrap().borders().unwrap();
         };
-        coords_iter.for_each(|coord| {
+        borders.exterior().coords().for_each(|coord| {
             if let Some((x, y)) = painter.get_point(coord.x, coord.y) {
                 painter.paint(x, y, *MARKER_COLOR);
             }
@@ -120,6 +88,8 @@ impl Shape for Map {
 
 impl Component for Map {
     fn display(&self) -> Result<String> {
+        let regions = self.geo_client.regions();
+        debug!("Map->regions: len: {}", regions.len());
         Ok("Map".to_string())
     }
 
@@ -135,37 +105,30 @@ impl Component for Map {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::Tick => {}
-            Action::Selected(selected) => {
-                if selected.is_some() {
-                    self.last_selected = selected;
-                    let selected_i = selected.unwrap();
-                    let selected_region = self.facade.regions().get(selected_i).unwrap();
-                    info!("Map->update Action::Selected: {:?}", selected_region);
-                } else {
-                    self.last_selected = None;
-                    self.last_selected_geo = None;
+            Action::Selected(a) => match a {
+                Some(a) => {
+                    self.selected_region =
+                        self.geo_client.get_region_by_uid(a.location_uid).cloned()
                 }
-            }
-            Action::SetRegionGeo(geo) => {
-                self.last_selected_geo = Some(geo);
-            }
+                None => {
+                    self.selected_region = None;
+                }
+            },
             _ => {}
         }
         Ok(None)
     }
 
     fn draw(&mut self, f: &mut Frame<'_>, area: &Rect) -> Result<()> {
-        /*
-           FIXME:
-           The application panicked (crashed).
-           called `Result::unwrap()` on an `Err` value: MismatchedGeometry { expected: "geo_types::geometry::polygon::Polygon", found: "geo_types::geometry::multi_polygon::MultiPolygon" } in src/components/map.rs:158
-        */
-        let (x_bounds, y_bounds) = self
-            .map
-            .get_x_y_bounds(self.last_selected_geo.clone())
-            .unwrap();
-        let area = self.get_curr_area(area)?;
+        let (x_bounds, y_bounds) = if self.selected_region.is_some() {
+            self.selected_region.clone().unwrap().get_x_y_bounds()
+        } else {
+            self.geo_client.get_x_y_bounds()
+        };
 
+        // let (x_bounds, y_bounds) = self.geo_client.get_x_y_bounds();
+
+        let area = self.get_curr_area(area)?;
         let widget = Canvas::default()
             .block(
                 Block::default()

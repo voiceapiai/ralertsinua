@@ -5,7 +5,6 @@ pub mod cli;
 pub mod components;
 pub mod config;
 pub mod constants;
-pub mod data;
 pub mod fs;
 pub mod layout;
 pub mod mode;
@@ -17,15 +16,14 @@ rust_i18n::i18n!();
 use clap::Parser;
 use cli::Cli;
 use color_eyre::eyre::Result;
-use ralertsinua_geo::AlertsInUaGeo;
-use ralertsinua_http::AlertsInUaClient;
+use ralertsinua_geo::*;
+use ralertsinua_http::*;
 use std::sync::Arc;
 use tracing::info;
 
 use crate::{
     app::App,
     config::{Config, ConfigService},
-    data::*,
     utils::{initialize_logging, initialize_panic_handler},
 };
 
@@ -41,14 +39,11 @@ async fn tokio_main() -> Result<()> {
     let config: Arc<dyn ConfigService> = Arc::new(config);
     info!("\n{:?} \n\n-----------", config.settings());
 
-    // let pool = db_pool().await?;
-    let api_client = AlertsInUaClient::new(config.base_url(), config.token());
-    let geo_client = AlertsInUaGeo::new();
+    let api_client: Arc<dyn AlertsInUaApi> =
+        Arc::new(AlertsInUaClient::new(config.base_url(), config.token()));
+    let geo_client: Arc<dyn AlertsInUaGeo> = Arc::new(AlertsInUaGeoClient::default());
 
-    let facade: Arc<dyn AlertsInUaFacade> =
-        Arc::new(AlertsInUaContainer::new(api_client, geo_client));
-
-    let mut app = App::new(config.clone(), facade.clone())?;
+    let mut app = App::new(config.clone(), api_client.clone(), geo_client.clone())?;
     app.run().await?;
 
     Ok(())

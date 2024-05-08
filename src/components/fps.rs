@@ -1,13 +1,13 @@
 use async_trait::async_trait;
 use color_eyre::eyre::Result;
 use ratatui::{layout::Offset, prelude::*, widgets::*};
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 use throbber_widgets_tui::{Throbber, ThrobberState, WhichUse, BRAILLE_SIX_DOUBLE};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
 
 use super::Component;
-use crate::{action::Action, config::*, data::*, layout::*, tui::Frame};
+use crate::{action::Action, config::*, layout::*, tui::Frame};
 
 #[derive(Debug, Clone)]
 pub struct FpsCounter {
@@ -23,12 +23,10 @@ pub struct FpsCounter {
     throbber_state: ThrobberState,
     #[allow(unused)]
     config: Arc<dyn ConfigService>,
-    #[allow(unused)]
-    facade: Arc<dyn AlertsInUaFacade>,
 }
 
 impl FpsCounter {
-    pub fn new(config: Arc<dyn ConfigService>, facade: Arc<dyn AlertsInUaFacade>) -> Self {
+    pub fn new(config: Arc<dyn ConfigService>) -> Self {
         Self {
             app_start_time: Instant::now(),
             app_frames: 0,
@@ -40,7 +38,6 @@ impl FpsCounter {
             command_tx: Option::default(),
             throbber_state: ThrobberState::default(),
             config,
-            facade,
         }
     }
 
