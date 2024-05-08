@@ -51,9 +51,10 @@ impl AirRaidAlertOblastStatuses {
         let oblast_statuses: Vec<AirRaidAlertOblastStatus> = REGIONS_DATA
             .iter()
             .enumerate()
-            .map(|(i, (_, _, name, name_en))| {
+            .map(|(i, (_, location_uid, name, name_en))| {
                 let status = data_string.chars().nth(i).unwrap();
                 AirRaidAlertOblastStatus::new(
+                    *location_uid,
                     name.to_string(),
                     name_en.to_string(),
                     status,
@@ -73,6 +74,20 @@ impl AirRaidAlertOblastStatuses {
 
     pub fn get_all(&self) -> &[AirRaidAlertOblastStatus] {
         self.oblast_statuses.as_slice()
+    }
+
+    pub fn get(&self, idx: usize) -> Option<AirRaidAlertOblastStatus> {
+        self.oblast_statuses.get(idx).cloned()
+    }
+
+    pub fn get_by_location_uid(
+        &self,
+        location_uid: i32,
+    ) -> Option<AirRaidAlertOblastStatus> {
+        self.oblast_statuses
+            .iter()
+            .find(|&os| os.location_uid == location_uid)
+            .cloned()
     }
 
     pub fn filter_by_status(&self, status: AlertStatus) -> Vec<AirRaidAlertOblastStatus> {

@@ -1,5 +1,3 @@
-/// Ukraine borders represented as Polygon in WKT file
-pub const UKRAINE_BORDERS_POYGON_WKT: &str = include_str!("../../assets/ukraine.wkt");
 /// Ukraine bounding box coords tuple - (min_x, min_y), (max_x, max_y)
 ///
 /// <em>Територія України розташована між 44°23' і 52°25' північної широти та між 22°08' і 40°13' східної довготи</em>

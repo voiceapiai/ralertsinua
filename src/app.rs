@@ -26,7 +26,6 @@ use crate::{
 
 pub struct App {
     pub config: Arc<dyn ConfigService>,
-    // pub facade: Arc<dyn AlertsInUaFacade>,
     pub api_client: Arc<dyn AlertsInUaApi>,
     pub geo_client: Arc<dyn AlertsInUaGeo>,
     pub components: Vec<Box<dyn Component>>,
@@ -42,7 +41,6 @@ pub struct App {
 impl App {
     pub fn new(
         config: Arc<dyn ConfigService>,
-        // facade: Arc<dyn AlertsInUaFacade>,
         api_client: Arc<dyn AlertsInUaApi>,
         geo_client: Arc<dyn AlertsInUaGeo>,
     ) -> Result<Self> {
@@ -62,7 +60,6 @@ impl App {
         // let tick_rate = std::time::Duration::from_secs(10);
         Ok(Self {
             config,
-            // facade,
             api_client,
             geo_client,
             components,
@@ -247,12 +244,6 @@ impl App {
                         // // info!("App->on:FetchAlerts->action_tx.send: {}", tx_action);
                         // action_tx.send(tx_action)?;
                         // action_tx.send(Action::Refresh)?;
-                    }
-                    Action::Selected(Some(s)) => {
-                        // let region_geo = ""; // self.geo_service.fetch_region_geo(region.osm_id).await?;
-                        // let tx_action = Action::SetRegionGeo(region_geo.to_string());
-
-                        // action_tx.send(tx_action)?;
                     }
                     _ => {}
                 }

@@ -19,7 +19,6 @@ pub struct Alert {
     pub location_oblast: String,
     #[serde(with = "into_int")]
     pub location_uid: i32,
-    // #[serde(with = "into_int")]
     pub location_oblast_uid: i32,
     pub notes: Option<String>,
     #[serde(default)]
@@ -55,7 +54,7 @@ mod tests {
             "finished_at": null,
             "id": 8757,
             "location_oblast": "Луганська область",
-            "location_oblast_uid": "16",
+            "location_oblast_uid": 16,
             "location_title": "Луганська область",
             "location_type": "oblast",
             "location_uid": "16",

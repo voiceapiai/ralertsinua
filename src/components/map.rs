@@ -25,7 +25,6 @@ pub struct Map {
     config: Arc<dyn ConfigService>,
     // facade: Arc<dyn AlertsInUaFacade>,
     geo_client: Arc<dyn AlertsInUaGeo>,
-    selected_region_idx: Option<usize>,
     selected_region: Option<Region>,
 }
 
@@ -36,15 +35,13 @@ impl Map {
             // facade,
             config,
             geo_client,
-            selected_region_idx: None,
             selected_region: None,
         }
     }
 
     fn get_curr_area(&self, r: &Rect) -> Result<Rect> {
         let percent = 50;
-        let idx = self.selected_region_idx;
-        let curr_area = match idx.is_none() {
+        let curr_area = match self.selected_region.is_none() {
             false => {
                 // INFO: https://ratatui.rs/how-to/layout/center-a-rect/
                 let popup_layout = Layout::default()
@@ -79,7 +76,6 @@ impl Shape for Map {
         let borders = self.geo_client.borders();
         // If region was selected means we have last selected geo - then iterate region borders
         if selected_region.is_some() {
-            // let b = self.geo_client.get_region_by(predicate);
             let borders = selected_region.unwrap().borders().unwrap();
         };
         borders.exterior().coords().for_each(|coord| {
@@ -109,24 +105,22 @@ impl Component for Map {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::Tick => {}
-            Action::Selected(idx) => {
-                if idx.is_some() {
-                    self.selected_region_idx = idx;
-                    let selected_i = idx.unwrap();
+            Action::Selected(a) => match a {
+                Some(a) => {
                     self.selected_region =
-                        self.geo_client.regions().get(selected_i).cloned();
-                } else {
-                    self.selected_region_idx = None;
+                        self.geo_client.get_region_by_uid(a.location_uid).cloned()
+                }
+                None => {
                     self.selected_region = None;
                 }
-            }
+            },
             _ => {}
         }
         Ok(None)
     }
 
     fn draw(&mut self, f: &mut Frame<'_>, area: &Rect) -> Result<()> {
-        let (x_bounds, y_bounds) = if self.selected_region_idx.is_some() {
+        let (x_bounds, y_bounds) = if self.selected_region.is_some() {
             self.selected_region.clone().unwrap().get_x_y_bounds()
         } else {
             self.geo_client.get_x_y_bounds()

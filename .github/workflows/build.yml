@@ -61,17 +61,14 @@ jobs:
                   args: >
                       -Dsonar.externalIssuesReportPaths=sonar-issues.json
                       -Dcommunity.rust.lcov.reportPaths=lcov.info
-            - name: Generate code coverage
-              run: |
-                  cargo install tarpaulin
-                  cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out xml
-            # Save coverage report in Coveralls
-            - name:
-                  Coveralls
-              if: ${{ success() }}
-              uses: coverallsapp/github-action@master
-              with:
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
-                  # env:
-                  # COVERALLS_SERVICE_NAME: '@ngx-odm'
-                  # COVERALLS_PARALLEL: true
+            # - name: Generate code coverage
+            #   run: |
+            #       cargo install tarpaulin
+            #       cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out xml
+            # # Save coverage report in Coveralls
+            # - name:
+            #       Coveralls
+            #   if: ${{ success() }}
+            #   uses: coverallsapp/github-action@master
+            #   with:
+            #       github-token: ${{ secrets.GITHUB_TOKEN }}

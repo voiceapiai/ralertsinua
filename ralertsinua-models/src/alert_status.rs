@@ -1,9 +1,10 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(
     Debug,
     Default,
     Deserialize,
+    Serialize,
     Clone,
     PartialEq,
     strum_macros::EnumProperty,

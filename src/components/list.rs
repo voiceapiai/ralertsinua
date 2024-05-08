@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent};
-use delegate::delegate;
 use getset::*;
 use ralertsinua_http::*;
 use ralertsinua_models::*;
@@ -32,7 +31,6 @@ pub struct RegionsList {
     state: ListState,
     #[getset(get = "pub", get_mut)]
     last_selected: Option<usize>,
-    last_alert_response: Option<String>,
 }
 
 impl RegionsList {
@@ -50,22 +48,6 @@ impl RegionsList {
             list: List::default(),
             state: ListState::default(),
             last_selected: None,
-            last_alert_response: None,
-        }
-    }
-
-    delegate! {
-
-        to self.state {
-            pub fn selected(&self) -> Option<usize>;
-        }
-    }
-
-    #[allow(unused)]
-    fn get_last_alert_response(&self) -> &str {
-        match self.last_alert_response {
-            Some(ref response) => response.as_str(),
-            None => "",
         }
     }
 
@@ -150,6 +132,13 @@ impl RegionsList {
         self.state.select(Some(self.oblast_statuses().len() - 1));
         // drop(lock);
     }
+
+    pub fn selected(&self) -> Option<AirRaidAlertOblastStatus> {
+        match self.state.selected() {
+            Some(i) => self.oblast_statuses().get(i),
+            None => None,
+        }
+    }
 }
 
 #[async_trait]
@@ -186,11 +175,6 @@ impl Component for RegionsList {
                 self.list = self.list(false);
                 info!("List->update->Action::Refresh: {}", action);
             }
-            Action::SetAlertsByRegion(alerts_as) => {
-                self.last_alert_response = Some(alerts_as);
-                self.list = self.list(true);
-                // info!("List->update->Action::Fetch: {}", action);
-            }
             _ => {}
         }
         Ok(None)
@@ -226,15 +210,12 @@ impl Component for RegionsList {
             }
             KeyCode::Down => {
                 self.next();
-                let selected_idx = self.state().selected();
-                let seleced_region =
-                    self.oblast_statuses().get_all()[selected_idx.unwrap()].clone();
-                let action = Action::Selected(selected_idx);
+                let action = Action::Selected(self.selected());
                 Ok(Some(action))
             }
             KeyCode::Up => {
                 self.previous();
-                let action = Action::Selected(self.state().selected());
+                let action = Action::Selected(self.selected());
                 Ok(Some(action))
             }
             KeyCode::Esc => {

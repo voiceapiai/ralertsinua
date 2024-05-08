@@ -1,3 +1,4 @@
+use ralertsinua_models::*;
 use serde::{
     // de::{self, Deserializer, Visitor},
     Deserialize,
@@ -5,7 +6,7 @@ use serde::{
 };
 use strum::Display;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Display, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Display, Deserialize)]
 pub enum Action {
     Tick,
     Render,
@@ -17,10 +18,8 @@ pub enum Action {
     Error(String),
     Help,
     Locale,
-    Selected(Option<usize>),
-    Fetch,
     SelectTab(usize),
-    SelectRegion(i8),
-    SetAlertsByRegion(String),
-    SetRegionGeo(String),
+    SelectRegion(i32),
+    Selected(Option<AirRaidAlertOblastStatus>),
+    Fetch,
 }

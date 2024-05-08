@@ -1,12 +1,14 @@
 use crate::AlertStatus;
 use getset::Getters;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 // #[cfg(feature = "tui")] // TODO:
 // use ratatui::{ style::{Color, Modifier, Stylize}, widgets::ListItem, };
 
-#[derive(Debug, Clone, Getters, PartialEq)]
+#[derive(Debug, Clone, Getters, PartialEq, Serialize, Deserialize)]
 pub struct AirRaidAlertOblastStatus {
+    pub location_uid: i32,
     #[get = "pub"]
     location_title: String,
     #[get = "pub"]
@@ -16,15 +18,6 @@ pub struct AirRaidAlertOblastStatus {
 }
 
 impl fmt::Display for AirRaidAlertOblastStatus {
-    #[cfg(not(feature = "tui"))]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use strum::EnumProperty;
-        let icon: &str = self.status.get_str("icon").unwrap();
-        let text = self.location_title.as_str();
-        write!(f, "{} {}", icon, text)
-    }
-
-    #[cfg(feature = "tui")]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use strum::EnumProperty;
         let icon: &str = self.status.get_str("icon").unwrap();
@@ -35,6 +28,7 @@ impl fmt::Display for AirRaidAlertOblastStatus {
 
 impl AirRaidAlertOblastStatus {
     pub fn new(
+        location_uid: i32,
         location_title: String,
         location_title_en: String,
         status: char,
@@ -47,6 +41,7 @@ impl AirRaidAlertOblastStatus {
         };
 
         Self {
+            location_uid,
             location_title,
             location_title_en,
             status,
