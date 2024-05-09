@@ -3,8 +3,11 @@
         "./Cargo.toml",
     ],
     "rust-analyzer.showUnlinkedFileNotification": false,
+    "rust-analyzer.cargo.autoreload": false,
+    "rust-analyzer.numThreads": 2,
+    "rust-analyzer.debug.engine": "vadimcn.vscode-lldb",
     "lldb.displayFormat": "auto",
     "lldb.showDisassembly": "auto",
     "lldb.dereferencePointers": true,
-    "lldb.consoleMode": "evaluate"
+    "lldb.consoleMode": "evaluate",
 }

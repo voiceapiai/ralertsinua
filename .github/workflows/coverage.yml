@@ -36,7 +36,6 @@ jobs:
               uses: coverallsapp/github-action@master
               with:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
-                  debug: true
                   path-to-lcov: .coverage/lcov.info
 
             - name: SonarCloud Scan
@@ -48,3 +47,12 @@ jobs:
                   args: >
                       -Dsonar.externalIssuesReportPaths=sonar-issues.json
                       -Dcommunity.rust.lcov.reportPaths=.coverage/lcov.info
+
+            - name: Build the benchmark target(s)
+              run: cargo codspeed build
+
+            - name: Run the benchmarks
+              uses: CodSpeedHQ/action@v2
+              with:
+                  run: cargo codspeed run
+                  token: ${{ secrets.CODSPEED_TOKEN }}

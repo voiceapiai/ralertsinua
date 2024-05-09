@@ -1,6 +1,5 @@
 use geo::{Coord, LineString, Polygon};
 use geojson::de::deserialize_feature_collection_str_to_vec;
-use icu::locid::Locale;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -51,12 +50,14 @@ pub trait SortByKeyIcu<T> {
 }
 
 impl<T> SortByKeyIcu<T> for Vec<T> {
+    #[inline]
     fn sort_by_key_icu<F, K>(&mut self, mut f: F, l: &str)
     where
         F: FnMut(&T) -> K,
         K: Into<String> + Sized,
     {
-        use icu::collator::*;
+        use icu_collator::*;
+        use icu_locid::Locale;
         // https://github.com/unicode-org/icu4x/tree/main/components/collator#examples
         let mut options = CollatorOptions::new();
         options.strength = Some(Strength::Secondary);
