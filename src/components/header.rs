@@ -1,45 +1,46 @@
 use color_eyre::eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::{
-    layout::Rect,
-    // prelude::*,
     style::{Modifier, Style},
+    text::Line,
     widgets::Tabs,
 };
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::Component;
+use super::{Component, WithPlacement};
 use crate::{action::Action, config::ConfigService, constants::*, layout::*, tui::Frame};
 
 #[derive(Debug)]
-pub struct Header {
+pub struct Header<'a> {
     command_tx: Option<UnboundedSender<Action>>,
     #[allow(unused)]
     config: Arc<dyn ConfigService>,
-
+    placement: LayoutPoint,
+    #[allow(unused)]
+    tabs: Vec<Line<'a>>,
     selected_tab: LayoutTab,
 }
 
-impl Header {
+impl<'a> Header<'a> {
     pub fn new(config: Arc<dyn ConfigService>) -> Self {
         Self {
             command_tx: Option::default(),
             config,
+            placement: LayoutPoint(LayoutArea::Header, None),
+            tabs: Vec::new(),
             selected_tab: LayoutTab::default(),
         }
     }
 }
 
-impl Component for Header {
-    fn display(&self) -> Result<String> {
-        Ok("Header".to_string())
+impl WithPlacement for Header<'_> {
+    fn placement(&self) -> &LayoutPoint {
+        &self.placement
     }
+}
 
-    fn placement(&self) -> LayoutPoint {
-        LayoutPoint(LayoutArea::Tabs, None)
-    }
-
+impl<'a> Component<'a> for Header<'a> {
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.command_tx = Some(tx);
         Ok(())
@@ -62,7 +63,8 @@ impl Component for Header {
         Ok(None)
     }
 
-    fn draw(&mut self, f: &mut Frame<'_>, area: &Rect) -> Result<()> {
+    fn draw(&mut self, f: &mut Frame) -> Result<()> {
+        let area = self.get_area(f.size())?;
         let titles = LayoutTab::into_iter().map(LayoutTab::title);
         let selected_tab_index = self.selected_tab as usize;
         let widget = Tabs::new(titles)
@@ -77,7 +79,7 @@ impl Component for Header {
             .padding("", "")
             .divider(" ");
 
-        f.render_widget(widget, *area);
+        f.render_widget(widget, area);
         Ok(())
     }
 }

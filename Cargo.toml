@@ -80,6 +80,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "serde"] }
 tui-logger = { version = "0.11", features = ["tracing-support"] }
 ratatui-macros = "0.2.4"
 tui-prompts = "0.3.11"
+memoize = "0.4.2"
 
 [build-dependencies]
 mockito = "1.4.0"

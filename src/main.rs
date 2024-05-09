@@ -20,7 +20,7 @@ use ralertsinua_geo::*;
 use ralertsinua_http::*;
 use std::io::{stdin, stdout, Write};
 use std::sync::Arc;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, warn};
 use tui_logger::set_level_for_target;
 
 use crate::{
@@ -33,7 +33,7 @@ async fn tokio_main() -> Result<()> {
     dotenvy::dotenv().ok();
     initialize_logging()?;
     set_level_for_target("app", log::LevelFilter::Debug);
-    info!(target:"app", "initialized logging");
+    debug!(target:"app", "initialized logging");
     initialize_panic_handler()?;
 
     let mut config = Config::init().map_err(|e| eyre!(e))?;
@@ -52,7 +52,7 @@ async fn tokio_main() -> Result<()> {
             error!(target: "app", "token cannot be empty, exiting");
             return Err(eyre!("token cannot be empty"));
         } else {
-            info!(target: "app", "token from user input accepted");
+            debug!(target: "app", "token from user input accepted");
             std::env::set_var("ALERTSINUA_TOKEN", &token);
             config.set_token(token);
         }

@@ -1,13 +1,15 @@
 use async_trait::async_trait;
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyEvent, MouseEvent};
-use ratatui::layout::Rect;
+use ratatui::layout::{Constraint::*, Layout, Rect};
 use tokio::sync::mpsc::UnboundedSender;
+use tracing::debug;
 
 use crate::{
     action::Action,
     layout::*,
     tui::{Event, Frame},
+    utils::type_of,
 };
 
 pub mod fps;
@@ -16,11 +18,77 @@ pub mod list;
 pub mod logger;
 pub mod map;
 
+pub use fps::*;
+pub use header::*;
+pub use list::*;
+pub use logger::*;
+pub use map::*;
+
+#[derive(thiserror::Error, Debug, Clone)]
+pub enum ComponentError {
+    #[error("Unknown component error")]
+    Unknown,
+}
+
+#[memoize::memoize]
+pub fn get_component_area(
+    frame_size: Rect,
+    cmp_name: String,
+    cmp_area: LayoutArea,
+) -> Result<Rect, ComponentError> {
+    let vertical = Layout::vertical([Length(1), Min(0), Length(1)]);
+    let [header_area, inner_area, footer_area] = vertical.areas(frame_size);
+
+    let horizontal = Layout::horizontal([Min(0), Length(20)]);
+    let [tabs_area, title_area] = horizontal.areas(header_area);
+
+    let main = Layout::horizontal([Percentage(75), Percentage(25)]);
+    let [left_area, right_area] = main.areas(inner_area);
+
+    let area = match cmp_area {
+        LayoutArea::Header => header_area,
+        LayoutArea::Tabs => tabs_area,
+        LayoutArea::Title => title_area,
+        LayoutArea::Inner => inner_area,
+        LayoutArea::Left => left_area,
+        LayoutArea::Right => right_area,
+        LayoutArea::Footer => footer_area,
+        LayoutArea::Hidden => Rect::default(),
+    };
+
+    debug!(target:"app", "calculated area for component '{}' - {:?}", cmp_name, area);
+
+    Ok(area)
+}
+
+pub trait WithPlacement {
+    /// Get the placement of the component.
+    fn placement(&self) -> &LayoutPoint;
+    /// Get rectangle in current frame for the component based on its placement
+    fn get_area(&self, frame_size: Rect) -> Result<Rect, ComponentError> {
+        let cmp_name = type_of(self).to_string();
+        let LayoutPoint(area, _) = self.placement().clone();
+        get_component_area(frame_size, cmp_name, area)
+    }
+    /// Check if the component is visible based on current selected tab
+    fn is_visible(&self, selected_tab: &LayoutTab) -> bool {
+        let LayoutPoint(_, cmp_tab) = self.placement();
+        match cmp_tab {
+            Some(tab) => tab == selected_tab,
+            None => true,
+        }
+    }
+    /// Debug self message
+    fn debug(&self) {
+        debug!(target:"app", "initializing component {}", type_of(self));
+    }
+}
+
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 /// Implementors of this trait can be registered with the main application loop and will be able to receive events,
 /// update state, and be rendered on the screen.
 #[async_trait]
-pub trait Component: Send + Sync {
+pub trait Component<'a>: WithPlacement + Send + Sync {
     /// Register an action handler that can send actions for processing if necessary.
     ///
     /// # Arguments
@@ -56,7 +124,8 @@ pub trait Component: Send + Sync {
     /// # Returns
     ///
     /// * `Result<()>` - An Ok result or an error.
-    async fn init(&mut self, area: Rect) -> Result<()> {
+    async fn init(&mut self) -> Result<()> {
+        self.debug();
         Ok(())
     }
     /// Handle incoming events and produce actions if necessary.
@@ -125,9 +194,5 @@ pub trait Component: Send + Sync {
     /// # Returns
     ///
     /// * `Result<()>` - An Ok result or an error.
-    fn draw(&mut self, f: &mut Frame<'_>, area: &Rect) -> Result<()>;
-
-    fn display(&self) -> Result<String>;
-
-    fn placement(&self) -> LayoutPoint;
+    fn draw(&mut self, f: &mut Frame<'_>) -> Result<()>;
 }

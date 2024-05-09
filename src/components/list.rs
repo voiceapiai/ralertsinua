@@ -14,32 +14,37 @@ use std::{str::FromStr, sync::Arc};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
 
-use super::{Component, Frame};
+use super::{Component, Frame, WithPlacement};
 use crate::{action::Action, config::*, constants::*, layout::*};
 
 #[derive(Debug, Getters, MutGetters, Setters)]
-pub struct RegionsList {
+pub struct RegionsList<'a> {
     command_tx: Option<UnboundedSender<Action>>,
+    placement: LayoutPoint,
+    #[allow(unused)]
+    title: Line<'a>,
     config: Arc<dyn ConfigService>,
     api_client: Arc<dyn AlertsInUaApi>,
     #[getset(get = "pub")]
     oblast_statuses: AirRaidAlertOblastStatuses,
     #[getset(get = "pub with_prefix")]
-    list: List<'static>,
+    list: List<'a>,
     #[getset(get = "pub", get_mut)]
     state: ListState,
     #[getset(get = "pub", get_mut)]
     last_selected: Option<usize>,
 }
 
-impl RegionsList {
+impl<'a> RegionsList<'a> {
     pub fn new(
         config: Arc<dyn ConfigService>,
         api_client: Arc<dyn AlertsInUaApi>,
-    ) -> RegionsList {
+    ) -> RegionsList<'a> {
         Self {
-            config,
             command_tx: None,
+            placement: LayoutPoint(LayoutArea::Right, Some(LayoutTab::Tab1)),
+            title: Line::default(),
+            config,
             api_client,
             oblast_statuses: AirRaidAlertOblastStatuses::default(),
             list: List::default(),
@@ -48,8 +53,8 @@ impl RegionsList {
         }
     }
 
-    /// Get List Widget with ListItems of locations
-    fn list(&mut self, is_loading: bool) -> List<'static> {
+    /// Generate List Widget with ListItems of locations
+    fn generate_list(&mut self, is_loading: bool) -> List<'a> {
         let locale = Locale::from_str(self.config.get_locale().as_str()).unwrap(); // TODO: improve
         let oblast_statuses = self.oblast_statuses();
         let items = oblast_statuses
@@ -60,10 +65,7 @@ impl RegionsList {
     }
 
     /// Builds new `ListItem` from `location`-like instance, based on references only
-    pub fn to_list_item(
-        item: &AirRaidAlertOblastStatus,
-        locale: &Locale,
-    ) -> ListItem<'static> {
+    pub fn to_list_item(item: &AirRaidAlertOblastStatus, locale: &Locale) -> ListItem<'a> {
         use strum::EnumProperty;
 
         let icon: &str = item.status().get_str("icon").unwrap();
@@ -138,23 +140,23 @@ impl RegionsList {
     }
 }
 
+impl WithPlacement for RegionsList<'_> {
+    fn placement(&self) -> &LayoutPoint {
+        &self.placement
+    }
+}
+
 #[async_trait]
-impl Component for RegionsList {
-    fn display(&self) -> Result<String> {
-        Ok("List".to_string())
-    }
-
-    fn placement(&self) -> LayoutPoint {
-        LayoutPoint(LayoutArea::Right, Some(LayoutTab::Tab1))
-    }
-
-    async fn init(&mut self, area: Rect) -> Result<()> {
+impl<'a> Component<'a> for RegionsList<'a> {
+    async fn init(&mut self) -> Result<()> {
         let result = self
             .api_client
             .get_air_raid_alert_statuses_by_location()
             .await?;
         self.oblast_statuses = result;
-        self.list = self.list(true);
+        self.list = self.generate_list(true);
+
+        self.debug();
 
         Ok(())
     }
@@ -169,7 +171,7 @@ impl Component for RegionsList {
         match action {
             Action::Tick => {}
             Action::Refresh => {
-                self.list = self.list(false);
+                self.list = self.generate_list(false);
                 info!("List->update->Action::Refresh: {}", action);
             }
             _ => {}
@@ -177,8 +179,10 @@ impl Component for RegionsList {
         Ok(None)
     }
 
-    fn draw(&mut self, f: &mut Frame<'_>, area: &Rect) -> Result<()> {
-        let widget = self
+    fn draw(&mut self, f: &mut Frame) -> Result<()> {
+        let area = self.get_area(f.size())?;
+        // let list: List<'a> = self.list.clone();
+        let widget: List<'a> = self
             .list
             .clone()
             .block(
@@ -195,7 +199,7 @@ impl Component for RegionsList {
             .highlight_symbol(">>")
             .repeat_highlight_symbol(true);
 
-        f.render_stateful_widget(widget, *area, self.state_mut());
+        f.render_stateful_widget(widget, area, self.state_mut());
         Ok(())
     }
 

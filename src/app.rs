@@ -1,36 +1,25 @@
-use std::sync::Arc;
-
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{Context, Result};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ralertsinua_geo::*;
 use ralertsinua_http::*;
 use ralertsinua_models::*;
 use ratatui::prelude::*;
+use std::sync::Arc;
 use tokio::{
     sync::mpsc,
     time::{sleep, Duration},
 };
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, trace};
 
-use crate::{
-    action::Action,
-    components::{
-        fps::FpsCounter, header::Header, list::RegionsList, logger::Logger, map::Map,
-        Component,
-    },
-    config::*,
-    layout::*,
-    mode::Mode,
-    tui,
-};
+use crate::{action::*, components::*, config::*, layout::*, mode::*, tui};
 
 pub struct App {
     pub config: Arc<dyn ConfigService>,
     pub api_client: Arc<dyn AlertsInUaApi>,
     pub geo_client: Arc<dyn AlertsInUaGeo>,
-    pub components: Vec<Box<dyn Component>>,
+    pub components: Vec<Box<dyn Component<'static>>>,
     /// View stack: The top (=front) of the stack is the view that is displayed
-    // pub view_stack: VecDeque<Box<dyn Component>>,
+    // pub view_stack: VecDeque<Box<dyn Component>>, // TODO
     pub should_quit: bool,
     pub should_suspend: bool,
     pub mode: Mode,
@@ -50,7 +39,7 @@ impl App {
         let fps = FpsCounter::new(config.clone());
         let logger = Logger::new(config.clone());
         let mode = Mode::Map;
-        let components: Vec<Box<dyn Component>> = vec![
+        let components: Vec<Box<dyn Component<'static>>> = vec![
             Box::new(header),
             Box::new(map),
             Box::new(list),
@@ -63,7 +52,6 @@ impl App {
             api_client,
             geo_client,
             components,
-            // view_stack: VecDeque::new(),
             should_quit: false,
             should_suspend: false,
             mode,
@@ -88,6 +76,10 @@ impl App {
 
     pub fn previous_tab(&mut self) {
         self.selected_tab = self.selected_tab.previous();
+    }
+
+    pub fn selected_tab(&self) -> &LayoutTab {
+        &self.selected_tab
     }
 
     pub async fn run(&mut self) -> Result<()> {
@@ -122,8 +114,7 @@ impl App {
         }
 
         for component in self.components.iter_mut() {
-            component.init(tui.size()?).await?;
-            info!(target:"app", "initialized component {}", component.display()?);
+            component.init().await?;
         }
 
         loop {
@@ -212,29 +203,24 @@ impl App {
                     }
 
                     Action::Render => {
-                        let layout = tui.layout().clone();
                         tui.draw(|f| {
+                            let selected_tab = *self.selected_tab();
                             self.components
                                 .iter_mut()
-                                .filter(|c| {
-                                    let LayoutPoint(_, cmp_tab) = c.placement();
-                                    cmp_tab.is_none()
-                                        || cmp_tab.unwrap() == self.selected_tab
-                                })
+                                .filter(|c| c.is_visible(&selected_tab))
                                 .for_each(|component| {
-                                    let LayoutPoint(cmp_area, _) = component.placement();
-                                    let area = layout.get_area(cmp_area);
-                                    let r = component.draw(f, &area);
+                                    let r = component.draw(f);
                                     if let Err(e) = r {
                                         action_tx
                                             .send(Action::Error(format!(
-                                                "Failed to draw: {:?}",
+                                                "component failed to draw: {:?}",
                                                 e
                                             )))
                                             .unwrap();
                                     }
                                 });
-                        })?;
+                        })
+                        .with_context(|| "tui failed to draw {:?}")?;
                     }
                     Action::Fetch => {
                         //

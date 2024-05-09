@@ -1,8 +1,8 @@
 use color_eyre::eyre::Result;
 use directories::ProjectDirs;
 use lazy_static::lazy_static;
-use std::env;
 use std::path::PathBuf;
+use std::{any::type_name, env};
 use tracing::error;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{
@@ -190,4 +190,8 @@ Authors: {author}
 Config directory: {config_dir_path}
 Data directory: {data_dir_path}"
     )
+}
+
+pub fn type_of<T>(_: T) -> &'static str {
+    type_name::<T>()
 }

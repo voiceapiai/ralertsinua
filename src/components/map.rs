@@ -4,7 +4,7 @@ use ralertsinua_geo::*;
 use ratatui::{
     prelude::*,
     widgets::{
-        canvas::{Canvas, Painter, Shape},
+        canvas::{Canvas, Context, Painter, Shape},
         // canvas::{Grid, Layer}, // FIXME: how to use directly?
         *,
     },
@@ -15,34 +15,49 @@ use tokio::sync::mpsc::UnboundedSender;
 #[allow(unused)]
 use tracing::debug;
 
-use super::{Component, Frame};
+use super::{Component, Frame, WithPlacement};
 use crate::{action::Action, config::*, constants::*, layout::*};
 
 #[allow(unused)]
 const PADDING: f64 = 0.5;
 
 #[derive(Debug)]
-pub struct Map {
+pub struct Map<'a> {
     command_tx: Option<UnboundedSender<Action>>,
+    placement: LayoutPoint,
+    #[allow(unused)]
+    title: Line<'a>,
     #[allow(unused)]
     config: Arc<dyn ConfigService>,
     geo_client: Arc<dyn AlertsInUaGeo>,
     selected_location: Option<Location>,
+    // context: Context<'a>,
 }
 
-impl Map {
+impl<'a> Map<'a> {
     pub fn new(config: Arc<dyn ConfigService>, geo_client: Arc<dyn AlertsInUaGeo>) -> Self {
+        let context = Context::new(0, 0, [0.0, 0.0], [0.0, 0.0], Marker::Braille);
+        // let grid = context.grid();
         Self {
             command_tx: Option::default(),
+            placement: LayoutPoint(LayoutArea::Left, Some(LayoutTab::Tab1)),
+            title: Line::default(),
             config,
             geo_client,
             selected_location: None,
+            // context,
         }
     }
 }
 
+impl WithPlacement for Map<'_> {
+    fn placement(&self) -> &LayoutPoint {
+        &self.placement
+    }
+}
+
 /// Implement the Shape trait to draw map boundary on canvas
-impl Shape for Map {
+impl<'a> Shape for Map<'a> {
     #[inline]
     fn draw(&self, painter: &mut Painter) {
         let boundary = self.geo_client.boundary();
@@ -70,15 +85,7 @@ impl Shape for Map {
     }
 }
 
-impl Component for Map {
-    fn display(&self) -> Result<String> {
-        Ok("Map".to_string())
-    }
-
-    fn placement(&self) -> LayoutPoint {
-        LayoutPoint(LayoutArea::Left, Some(LayoutTab::Tab1))
-    }
-
+impl<'a> Component<'a> for Map<'a> {
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.command_tx = Some(tx);
         Ok(())
@@ -101,7 +108,8 @@ impl Component for Map {
         Ok(None)
     }
 
-    fn draw(&mut self, f: &mut Frame<'_>, area: &Rect) -> Result<()> {
+    fn draw(&mut self, f: &mut Frame) -> Result<()> {
+        let area = self.get_area(f.size())?;
         let (x_bounds, y_bounds) = self.geo_client.get_x_y_bounds();
         let widget = Canvas::default()
             .block(
@@ -118,7 +126,7 @@ impl Component for Map {
                 ctx.draw(self);
             })
             .background_color(Color::Reset);
-        f.render_widget(widget, *area);
+        f.render_widget(widget, area);
         Ok(())
     }
 }
