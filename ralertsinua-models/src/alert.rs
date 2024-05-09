@@ -72,7 +72,7 @@ mod tests {
 
         assert_eq!(alert.id, 8757);
         assert_eq!(alert.location_title, "Луганська область");
-        assert_eq!(alert.location_type, LocationType::Region);
+        assert_eq!(alert.location_type, LocationType::Oblast);
         assert_eq!(alert.location_oblast, "Луганська область");
         assert_eq!(alert.location_uid, 16);
         assert_eq!(alert.location_oblast_uid, 16);

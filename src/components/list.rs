@@ -21,7 +21,6 @@ use crate::{action::Action, config::*, constants::*, layout::*};
 pub struct RegionsList {
     command_tx: Option<UnboundedSender<Action>>,
     config: Arc<dyn ConfigService>,
-    // facade: Arc<dyn AlertsInUaFacade>,
     api_client: Arc<dyn AlertsInUaApi>,
     #[getset(get = "pub")]
     oblast_statuses: AirRaidAlertOblastStatuses,
@@ -36,13 +35,11 @@ pub struct RegionsList {
 impl RegionsList {
     pub fn new(
         config: Arc<dyn ConfigService>,
-        // facade: Arc<dyn AlertsInUaFacade>,
         api_client: Arc<dyn AlertsInUaApi>,
     ) -> RegionsList {
         Self {
             config,
             command_tx: None,
-            // facade,
             api_client,
             oblast_statuses: AirRaidAlertOblastStatuses::default(),
             list: List::default(),
@@ -51,7 +48,7 @@ impl RegionsList {
         }
     }
 
-    /// Get List Widget with ListItems of regions
+    /// Get List Widget with ListItems of locations
     fn list(&mut self, is_loading: bool) -> List<'static> {
         let locale = Locale::from_str(self.config.get_locale().as_str()).unwrap(); // TODO: improve
         let oblast_statuses = self.oblast_statuses();
@@ -62,7 +59,7 @@ impl RegionsList {
         List::new(items)
     }
 
-    /// Builds new `ListItem` from `Region`-like instance, based on references only
+    /// Builds new `ListItem` from `location`-like instance, based on references only
     pub fn to_list_item(
         item: &AirRaidAlertOblastStatus,
         locale: &Locale,
@@ -154,7 +151,7 @@ impl Component for RegionsList {
     async fn init(&mut self, area: Rect) -> Result<()> {
         let result = self
             .api_client
-            .get_air_raid_alert_statuses_by_region()
+            .get_air_raid_alert_statuses_by_location()
             .await?;
         self.oblast_statuses = result;
         self.list = self.list(true);
@@ -238,6 +235,6 @@ mod tests {
         let list = RegionsList::new(Ukraine::new_arc(), );
         assert!(list.command_tx.is_none());
         assert_eq!(list.state, ListState::default());
-        assert!(list.ukraine.read().unwrap().regions().is_empty() == true);
+        assert!(list.ukraine.read().unwrap().locations().is_empty() == true);
     } */
 }

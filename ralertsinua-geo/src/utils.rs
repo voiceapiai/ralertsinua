@@ -74,7 +74,7 @@ impl<T> SortByKeyIcu<T> for Vec<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::region::Region;
+    use crate::location::Location;
 
     #[test]
     fn test_sort_by_key_uk() {
@@ -124,11 +124,11 @@ mod tests {
                     }
                 ]
             }"#;
-        let regions: [Region; 1] =
+        let locations: [Location; 1] =
             deserialize_feature_collection_to_fixed_array(&geojson_str, "uk").unwrap();
-        assert_eq!(regions.len(), 1);
+        assert_eq!(locations.len(), 1);
 
-        let region = &regions[0];
-        assert_eq!(region.location_uid, 31);
+        let location = &locations[0];
+        assert_eq!(location.location_uid, 31);
     }
 }

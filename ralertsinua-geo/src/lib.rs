@@ -1,6 +1,6 @@
 pub mod client;
 pub mod constants;
-pub mod region;
+pub mod location;
 pub mod utils;
 
 #[derive(thiserror::Error, Debug)]
@@ -11,6 +11,6 @@ pub enum GeoError {
 
 pub use client::*;
 pub use constants::*;
-pub use region::*;
+pub use location::*;
 pub use utils::*;
 pub use GeoError::*;

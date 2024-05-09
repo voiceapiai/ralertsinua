@@ -1,4 +1,4 @@
-/// This was `SQL INSERT INTO regions VALUES` statement
+/// This was `SQL INSERT INTO locations VALUES` statement
 /// We just use it directly in Rust
 #[rustfmt::skip]
 pub const REGIONS_DATA: [(i32, i32, &str, &str); 27] = [

@@ -10,7 +10,7 @@ use tokio::{
     sync::mpsc,
     time::{sleep, Duration},
 };
-use tracing::{error, info};
+use tracing::{debug, error, info, trace};
 
 use crate::{
     action::Action,
@@ -73,11 +73,11 @@ impl App {
     }
 
     pub async fn init(&mut self) -> Result<()> {
+        debug!(target:"app", "init fetch available alerts");
         let response: Alerts = self.api_client.get_active_alerts().await?;
-
-        info!("fetch_alerts: total {} alerts", response.len());
+        debug!(target:"app", "fetch_alerts: total {} alerts", response.len());
         response.iter().for_each(|alert| {
-            info!("fetch_alerts:alert {:?}", alert);
+            trace!(target:"data", "fetch_alerts:alert {:?}", alert);
         });
         Ok(())
     }
@@ -100,18 +100,20 @@ impl App {
         // tui.mouse(true);
         tui.enter()?;
 
+        // ---------------------------------------------------------------------
         self.init().await?;
 
         // ---------------------------------------------------------------------
         // EXAMPLE PERIODIC
         // ---------------------------------------------------------------------
         // dispatch fetch action after 2 seconds
+        debug!(target:"app", "init periodic fetch action");
         tokio::spawn(async move {
             sleep(Duration::from_secs(2)).await;
             if let Err(err) = periodic_action_tx.send(Action::Fetch) {
-                error!("App->run: Failed to send fetch action: {:?}", err);
+                error!(target:"app", "failed to send fetch action: {:?}", err);
             } else {
-                info!("App->run: Sent fetch action");
+                debug!(target:"app", "sent fetch action");
             }
         });
 
@@ -121,7 +123,7 @@ impl App {
 
         for component in self.components.iter_mut() {
             component.init(tui.size()?).await?;
-            info!("Initialized component {}", component.display()?);
+            info!(target:"app", "initialized component {}", component.display()?);
         }
 
         loop {
@@ -131,48 +133,45 @@ impl App {
                     tui::Event::Tick => action_tx.send(Action::Tick)?,
                     tui::Event::Render => action_tx.send(Action::Render)?,
                     tui::Event::Resize(x, y) => action_tx.send(Action::Resize(x, y))?,
-                    tui::Event::Key(key_event) => {
-                        info!("Got key event: {key_event:?}");
-                        match key_event.code {
-                            KeyCode::Char('q') => {
+                    tui::Event::Key(key_event) => match key_event.code {
+                        KeyCode::Char('q') => {
+                            action_tx.send(Action::Quit)?;
+                        }
+                        KeyCode::Char('c') | KeyCode::Char('C') => {
+                            if key_event.modifiers == KeyModifiers::CONTROL {
                                 action_tx.send(Action::Quit)?;
                             }
-                            KeyCode::Char('c') | KeyCode::Char('C') => {
-                                if key_event.modifiers == KeyModifiers::CONTROL {
-                                    action_tx.send(Action::Quit)?;
-                                }
-                            }
-                            KeyCode::Down => {
-                                action_tx.send(Action::SelectRegion(1))?;
-                            }
-                            KeyCode::Up => {
-                                action_tx.send(Action::SelectRegion(-1))?;
-                            }
-                            KeyCode::Right => {
-                                self.next_tab();
-                                action_tx
-                                    .send(Action::SelectTab(self.selected_tab as usize))?;
-                            }
-                            KeyCode::Left => {
-                                self.previous_tab();
-                                action_tx
-                                    .send(Action::SelectTab(self.selected_tab as usize))?;
-                            }
-                            KeyCode::Char('u') => {
-                                action_tx.send(Action::Fetch)?;
-                            }
-                            KeyCode::Char('l') => {
-                                action_tx.send(Action::Locale)?;
-                            }
-                            KeyCode::Char('r') => {
-                                action_tx.send(Action::Refresh)?;
-                            }
-                            KeyCode::Char('z') => {
-                                action_tx.send(Action::Suspend)?;
-                            }
-                            _ => {}
                         }
-                    }
+                        KeyCode::Down => {
+                            action_tx.send(Action::SelectRegion(1))?;
+                        }
+                        KeyCode::Up => {
+                            action_tx.send(Action::SelectRegion(-1))?;
+                        }
+                        KeyCode::Right => {
+                            self.next_tab();
+                            action_tx
+                                .send(Action::SelectTab(self.selected_tab as usize))?;
+                        }
+                        KeyCode::Left => {
+                            self.previous_tab();
+                            action_tx
+                                .send(Action::SelectTab(self.selected_tab as usize))?;
+                        }
+                        KeyCode::Char('u') => {
+                            action_tx.send(Action::Fetch)?;
+                        }
+                        KeyCode::Char('l') => {
+                            action_tx.send(Action::Locale)?;
+                        }
+                        KeyCode::Char('r') => {
+                            action_tx.send(Action::Refresh)?;
+                        }
+                        KeyCode::Char('z') => {
+                            action_tx.send(Action::Suspend)?;
+                        }
+                        _ => {}
+                    },
                     _ => {}
                 }
                 for component in self.components.iter_mut() {
@@ -184,7 +183,7 @@ impl App {
 
             while let Ok(action) = action_rx.try_recv() {
                 if action != Action::Tick && action != Action::Render {
-                    log::debug!("{action:?}");
+                    debug!(target:"app_events", "{action:?}");
                 }
                 match action {
                     Action::Tick => {
@@ -238,12 +237,7 @@ impl App {
                         })?;
                     }
                     Action::Fetch => {
-                        // let alerts_as = self.facade.get_air_raid_alert_statuses_by_region().await?;
-                        // let tx_action = Action::SetAlertsByRegion(alerts_as.to_string());
-
-                        // // info!("App->on:FetchAlerts->action_tx.send: {}", tx_action);
-                        // action_tx.send(tx_action)?;
-                        // action_tx.send(Action::Refresh)?;
+                        //
                     }
                     _ => {}
                 }

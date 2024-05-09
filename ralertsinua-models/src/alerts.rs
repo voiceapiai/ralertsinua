@@ -86,18 +86,10 @@ impl Alerts {
             .collect()
     }
 
-    pub fn get_alerts_by_region(&self, title: &str) -> Vec<Alert> {
+    pub fn get_alerts_by_location(&self, title: &str) -> Vec<Alert> {
         self.alerts
             .iter()
             .filter(|alert| alert.location_oblast == title)
-            .cloned()
-            .collect()
-    }
-
-    pub fn get_alerts_by_region_uid(&self, int_uid: i32) -> Vec<Alert> {
-        self.alerts
-            .iter()
-            .filter(|alert| alert.location_oblast_uid == int_uid)
             .cloned()
             .collect()
     }
@@ -212,7 +204,7 @@ mod tests {
         let expected_alert = alerts.get_alerts_by_alert_type(AlertType::UrbanFights);
         assert_eq!(expected_alert.len(), 0);
 
-        let expected_alert = alerts.get_alerts_by_region_uid(16);
+        let expected_alert = alerts.get_alerts_by_location_uid(16);
         assert_eq!(expected_alert.len(), 1);
         assert_eq!(expected_alert[0].id, alert1.id);
 
@@ -224,7 +216,7 @@ mod tests {
         assert_eq!(expected_alert.len(), 1);
         assert_eq!(expected_alert[0].id, alert1.id);
 
-        let expected_alert = alerts.get_alerts_by_region("Луганська область");
+        let expected_alert = alerts.get_alerts_by_location("Луганська область");
         assert_eq!(expected_alert.len(), 1);
         assert_eq!(expected_alert[0].id, alert1.id);
 

@@ -1,15 +1,18 @@
 use color_eyre::eyre::Result;
+use geo::{Centroid, Coord};
 use ralertsinua_geo::*;
 use ratatui::{
     prelude::*,
     widgets::{
         canvas::{Canvas, Painter, Shape},
+        // canvas::{Grid, Layer}, // FIXME: how to use directly?
         *,
     },
 };
 use rust_i18n::t;
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
+#[allow(unused)]
 use tracing::debug;
 
 use super::{Component, Frame};
@@ -23,73 +26,52 @@ pub struct Map {
     command_tx: Option<UnboundedSender<Action>>,
     #[allow(unused)]
     config: Arc<dyn ConfigService>,
-    // facade: Arc<dyn AlertsInUaFacade>,
     geo_client: Arc<dyn AlertsInUaGeo>,
-    selected_region: Option<Region>,
+    selected_location: Option<Location>,
 }
 
 impl Map {
     pub fn new(config: Arc<dyn ConfigService>, geo_client: Arc<dyn AlertsInUaGeo>) -> Self {
         Self {
             command_tx: Option::default(),
-            // facade,
             config,
             geo_client,
-            selected_region: None,
+            selected_location: None,
         }
-    }
-
-    fn get_curr_area(&self, r: &Rect) -> Result<Rect> {
-        let percent = 50;
-        let curr_area = match self.selected_region.is_none() {
-            false => {
-                // INFO: https://ratatui.rs/how-to/layout/center-a-rect/
-                let popup_layout = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints([
-                        Constraint::Percentage((100 - percent) / 2),
-                        Constraint::Percentage(percent),
-                        Constraint::Percentage((100 - percent) / 2),
-                    ])
-                    .split(*r);
-
-                Layout::default()
-                    .direction(Direction::Horizontal)
-                    .constraints([
-                        Constraint::Percentage((100 - percent) / 2),
-                        Constraint::Percentage(percent),
-                        Constraint::Percentage((100 - percent) / 2),
-                    ])
-                    .split(popup_layout[1])[1]
-            }
-            true => *r,
-        };
-        Ok(curr_area)
     }
 }
 
-/// Implement the Shape trait to draw map borders on canvas
+/// Implement the Shape trait to draw map boundary on canvas
 impl Shape for Map {
     #[inline]
     fn draw(&self, painter: &mut Painter) {
-        let selected_region = self.selected_region.clone();
-        let borders = self.geo_client.borders();
-        // If region was selected means we have last selected geo - then iterate region borders
-        if selected_region.is_some() {
-            let borders = selected_region.unwrap().borders().unwrap();
+        let boundary = self.geo_client.boundary();
+        // If location was selected means we have last selected geo - then iterate location boundary
+        let boundary = match &self.selected_location {
+            Some(location) => location.boundary(),
+            None => self.geo_client.boundary(),
         };
-        borders.exterior().coords().for_each(|coord| {
+        boundary.exterior().coords().for_each(|coord| {
             if let Some((x, y)) = painter.get_point(coord.x, coord.y) {
                 painter.paint(x, y, *MARKER_COLOR);
             }
         });
+        // Example mark center of the location
+        self.geo_client
+            .locations()
+            .iter()
+            .filter(|l| l.location_type == *"state")
+            .for_each(|location| {
+                let center: Coord = location.geometry.centroid().unwrap().into();
+                if let Some((x, y)) = painter.get_point(center.x, center.y) {
+                    painter.paint(x, y, *ALERT_ROW_COLOR);
+                }
+            });
     }
 }
 
 impl Component for Map {
     fn display(&self) -> Result<String> {
-        let regions = self.geo_client.regions();
-        debug!("Map->regions: len: {}", regions.len());
         Ok("Map".to_string())
     }
 
@@ -107,11 +89,11 @@ impl Component for Map {
             Action::Tick => {}
             Action::Selected(a) => match a {
                 Some(a) => {
-                    self.selected_region =
-                        self.geo_client.get_region_by_uid(a.location_uid).cloned()
+                    self.selected_location =
+                        self.geo_client.get_location_by_uid(a.location_uid).cloned()
                 }
                 None => {
-                    self.selected_region = None;
+                    self.selected_location = None;
                 }
             },
             _ => {}
@@ -120,15 +102,7 @@ impl Component for Map {
     }
 
     fn draw(&mut self, f: &mut Frame<'_>, area: &Rect) -> Result<()> {
-        let (x_bounds, y_bounds) = if self.selected_region.is_some() {
-            self.selected_region.clone().unwrap().get_x_y_bounds()
-        } else {
-            self.geo_client.get_x_y_bounds()
-        };
-
-        // let (x_bounds, y_bounds) = self.geo_client.get_x_y_bounds();
-
-        let area = self.get_curr_area(area)?;
+        let (x_bounds, y_bounds) = self.geo_client.get_x_y_bounds();
         let widget = Canvas::default()
             .block(
                 Block::default()
@@ -140,10 +114,11 @@ impl Component for Map {
             .x_bounds(x_bounds)
             .y_bounds(y_bounds)
             .paint(|ctx| {
+                ctx.layer();
                 ctx.draw(self);
             })
             .background_color(Color::Reset);
-        f.render_widget(widget, area);
+        f.render_widget(widget, *area);
         Ok(())
     }
 }
@@ -157,8 +132,8 @@ mod tests {
     fn test_map_new() {
         let map = Map::new(Ukraine::new_arc(), Arc::new(Config::init().unwrap()));
         assert!(map.command_tx.is_none());
-        assert!(!map.map.borders().is_empty());
-        assert!(map.ukraine.read().unwrap().regions().is_empty());
-        // match map.borders.try_from()
+        assert!(!map.map.boundary().is_empty());
+        assert!(map.ukraine.read().unwrap().locations().is_empty());
+        // match map.boundary.try_from()
     }
 } */

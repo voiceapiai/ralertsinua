@@ -18,13 +18,13 @@ pub struct Config {
     pub settings: Settings,
 }
 
-#[derive(Debug, Clone, EnvConfig, Getters, Setters)]
+#[derive(Debug, Deserialize, Clone, EnvConfig, Getters, Setters, Serialize)]
 pub struct Settings {
     #[env_config(name = "ALERTSINUA_BASE_URL", default = "https://api.alerts.in.ua")]
     #[getset(get = "pub", set = "pub")]
     pub base_url: String,
     #[env_config(name = "ALERTSINUA_TOKEN", default = "")]
-    #[getset(get = "pub")]
+    #[getset(get = "pub", set = "pub")]
     pub token: String,
     #[env_config(default = "en", help = "Available locales: en, uk", parse(false))]
     #[getset(get = "pub with_prefix", set = "pub")]
@@ -43,6 +43,7 @@ pub trait ConfigService: Sync + Send + core::fmt::Debug {
     fn base_url(&self) -> &str;
     fn set_base_url(&mut self, val: String) -> &mut Settings;
     fn token(&self) -> &str;
+    fn set_token(&mut self, val: String) -> &mut Settings;
     fn get_locale(&self) -> String;
     fn set_locale<L>(&self, val: L) -> String
     where
@@ -59,6 +60,7 @@ impl ConfigService for Config {
             fn base_url(&self) -> &str;
             fn set_base_url(&mut self, val: String) -> &mut Settings;
             fn token(&self) -> &str;
+            fn set_token(&mut self, val: String) -> &mut Settings;
             fn tick_rate(&self) -> &f64;
             fn frame_rate(&self) -> &f64;
         }

@@ -143,13 +143,13 @@ pub trait AlertsInUaApi: Sync + Send + core::fmt::Debug {
     async fn get_active_alerts(&self) -> Result<Alerts>;
 
     #[allow(async_fn_in_trait)] // 'week_ago'
-    async fn get_alerts_history(&self, region_aid: &i8, period: &str) -> Result<Alerts>;
+    async fn get_alerts_history(&self, location_aid: &i8, period: &str) -> Result<Alerts>;
 
     #[allow(async_fn_in_trait)] // 'week_ago'
-    async fn get_air_raid_alert_status(&self, region_aid: &i8) -> Result<String>;
+    async fn get_air_raid_alert_status(&self, location_aid: &i8) -> Result<String>;
 
     #[allow(async_fn_in_trait)]
-    async fn get_air_raid_alert_statuses_by_region(
+    async fn get_air_raid_alert_statuses_by_location(
         &self,
     ) -> Result<AirRaidAlertOblastStatuses>;
 }
@@ -163,19 +163,19 @@ impl AlertsInUaApi for AlertsInUaClient {
     }
 
     #[inline]
-    async fn get_alerts_history(&self, region_aid: &i8, period: &str) -> Result<Alerts> {
-        let url = format!("/regions/{}/alerts/{}.json", region_aid, period);
+    async fn get_alerts_history(&self, location_aid: &i8, period: &str) -> Result<Alerts> {
+        let url = format!("/locations/{}/alerts/{}.json", location_aid, period);
         self.get(&url, &Query::default()).await
     }
 
     #[inline]
-    async fn get_air_raid_alert_status(&self, region_aid: &i8) -> Result<String> {
-        let url = format!("/iot/active_air_raid_alerts/{}.json", region_aid);
+    async fn get_air_raid_alert_status(&self, location_aid: &i8) -> Result<String> {
+        let url = format!("/iot/active_air_raid_alerts/{}.json", location_aid);
         self.get(&url, &Query::default()).await
     }
 
     #[inline]
-    async fn get_air_raid_alert_statuses_by_region(
+    async fn get_air_raid_alert_statuses_by_location(
         &self,
     ) -> Result<AirRaidAlertOblastStatuses> {
         let url = "/iot/active_air_raid_alerts_by_oblast.json";
@@ -230,7 +230,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_air_raid_alert_statuses_by_region() -> Result<()> {
+    async fn test_get_air_raid_alert_statuses_by_location() -> Result<()> {
         let mut server = MockServer::new_async().await;
         let client = AlertsInUaClient::new(server.url(), "token");
         let mock = server
@@ -242,7 +242,7 @@ mod tests {
             .create_async()
             .await;
 
-        let _result = client.get_air_raid_alert_statuses_by_region().await?;
+        let _result = client.get_air_raid_alert_statuses_by_location().await?;
 
         mock.assert();
         // FIXME:

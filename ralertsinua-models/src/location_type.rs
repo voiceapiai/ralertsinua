@@ -12,7 +12,7 @@ use serde::Deserialize;
 pub enum LocationType {
     #[default]
     #[strum(to_string = "oblast")]
-    Region,
+    Oblast,
     #[strum(to_string = "hromada")]
     Hromada,
     #[strum(to_string = "city")]

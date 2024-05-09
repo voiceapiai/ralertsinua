@@ -4,7 +4,7 @@ use ratatui::{layout::Offset, prelude::*, widgets::*};
 use std::{sync::Arc, time::Instant};
 use throbber_widgets_tui::{Throbber, ThrobberState, WhichUse, BRAILLE_SIX_DOUBLE};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::info;
+use tracing::debug;
 
 use super::Component;
 use crate::{action::Action, config::*, layout::*, tui::Frame};
@@ -101,10 +101,10 @@ impl Component for FpsCounter {
                 self.render_tick()?;
             }
             Action::Refresh => {
-                info!("FpsCounter->update->Action::FetchAlerts: {:?}", action);
+                debug!(target:"app", "FpsCounter->update: {:?}", action);
             }
             Action::Fetch => {
-                info!("FpsCounter->update->Action::FetchAlerts: {:?}", action);
+                debug!(target:"app", "FpsCounter->update: {:?}", action);
             }
             _ => {}
         }
