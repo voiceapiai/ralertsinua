@@ -24,14 +24,15 @@ default-locale = "en"
 load-path = "locales"
 
 [dependencies]
-ralertsinua-http = { path = "ralertsinua-http", version = "0.3.3" }
-ralertsinua-geo = { path = "ralertsinua-geo", version = "0.3.3" }
-ralertsinua-models = { path = "ralertsinua-models", version = "0.3.3", features = [
+ralertsinua-geo = { path = "ralertsinua-geo", version = "0.3.3", features = [
     "tui",
 ] }
+ralertsinua-http = { path = "ralertsinua-http", version = "0.3.3" }
+ralertsinua-models = { path = "ralertsinua-models", version = "0.3.3" }
 
 async-trait = "0.1.80"
 better-panic = "0.3"
+cached = { version = "*", features = ["disk_store", "proc_macro"] }
 chrono = "0.4"
 clap = { version = "4.5", features = [
     "derive",
@@ -55,7 +56,7 @@ geozero = "0.12.0"
 getset = "0.1"
 human-panic = "2.0.0"
 icu_collator = "1.4.0"
-icu_locid = "1.4.0"
+icu_locid = { version = "1.4.0", features = ["serde"] }
 rust-i18n = "3"
 lazy_static = "1.4.0"
 libc = "0.2.15"
@@ -82,7 +83,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "serde"] }
 tui-logger = { version = "0.11", features = ["tracing-support"] }
 ratatui-macros = "0.2.4"
 tui-prompts = "0.3.11"
-memoize = "0.4.2"
 
 [build-dependencies]
 vergen = { version = "8.2.6", features = ["build", "git", "gitoxide", "cargo"] }

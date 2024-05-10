@@ -1,8 +1,6 @@
-use async_trait::async_trait;
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use getset::*;
-use ralertsinua_http::*;
 use ralertsinua_models::*;
 use ratatui::{
     prelude::*,
@@ -10,7 +8,7 @@ use ratatui::{
     widgets::{Block, List, ListItem, ListState},
 };
 use rust_i18n::t;
-use std::{str::FromStr, sync::Arc};
+use std::str::FromStr;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
 
@@ -18,13 +16,12 @@ use super::{Component, Frame, WithPlacement};
 use crate::{action::Action, config::*, constants::*, layout::*};
 
 #[derive(Debug, Getters, MutGetters, Setters)]
-pub struct RegionsList<'a> {
+pub struct LocationsList<'a> {
     command_tx: Option<UnboundedSender<Action>>,
     placement: LayoutPoint,
     #[allow(unused)]
     title: Line<'a>,
-    config: Arc<dyn ConfigService>,
-    api_client: Arc<dyn AlertsInUaApi>,
+    config: Config,
     #[getset(get = "pub")]
     oblast_statuses: AirRaidAlertOblastStatuses,
     #[getset(get = "pub with_prefix")]
@@ -35,17 +32,13 @@ pub struct RegionsList<'a> {
     last_selected: Option<usize>,
 }
 
-impl<'a> RegionsList<'a> {
-    pub fn new(
-        config: Arc<dyn ConfigService>,
-        api_client: Arc<dyn AlertsInUaApi>,
-    ) -> RegionsList<'a> {
+impl<'a> LocationsList<'a> {
+    pub fn new() -> LocationsList<'a> {
         Self {
             command_tx: None,
             placement: LayoutPoint(LayoutArea::Right, Some(LayoutTab::Tab1)),
             title: Line::default(),
-            config,
-            api_client,
+            config: Config::default(),
             oblast_statuses: AirRaidAlertOblastStatuses::default(),
             list: List::default(),
             state: ListState::default(),
@@ -55,23 +48,23 @@ impl<'a> RegionsList<'a> {
 
     /// Generate List Widget with ListItems of locations
     fn generate_list(&mut self, is_loading: bool) -> List<'a> {
-        let locale = Locale::from_str(self.config.get_locale().as_str()).unwrap(); // TODO: improve
+        let locale = self.config.get_locale();
         let oblast_statuses = self.oblast_statuses();
         let items = oblast_statuses
             .iter()
-            .map(|item| Self::to_list_item(item, &locale));
+            .map(|item| Self::to_list_item(item, locale.as_str()));
 
         List::new(items)
     }
 
     /// Builds new `ListItem` from `location`-like instance, based on references only
-    pub fn to_list_item(item: &AirRaidAlertOblastStatus, locale: &Locale) -> ListItem<'a> {
+    pub fn to_list_item(item: &AirRaidAlertOblastStatus, locale: &str) -> ListItem<'a> {
         use strum::EnumProperty;
 
         let icon: &str = item.status().get_str("icon").unwrap();
         let color_str: &str = item.status().get_str("color").unwrap();
         let color: Color = Color::from_str(color_str).unwrap();
-        let text: &str = if *locale == Locale::uk {
+        let text: &str = if locale == "uk" {
             item.location_title()
         } else {
             item.location_title_en()
@@ -140,24 +133,15 @@ impl<'a> RegionsList<'a> {
     }
 }
 
-impl WithPlacement for RegionsList<'_> {
+impl WithPlacement for LocationsList<'_> {
     fn placement(&self) -> &LayoutPoint {
         &self.placement
     }
 }
 
-#[async_trait]
-impl<'a> Component<'a> for RegionsList<'a> {
-    async fn init(&mut self) -> Result<()> {
-        let result = self
-            .api_client
-            .get_air_raid_alert_statuses_by_location()
-            .await?;
-        self.oblast_statuses = result;
-        self.list = self.generate_list(true);
-
+impl<'a> Component<'a> for LocationsList<'a> {
+    fn init(&mut self, size: Rect) -> Result<()> {
         self.debug();
-
         Ok(())
     }
 
@@ -170,6 +154,10 @@ impl<'a> Component<'a> for RegionsList<'a> {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::Tick => {}
+            Action::GetAirRaidAlertOblastStatuses(data) => {
+                self.oblast_statuses = data;
+                self.list = self.generate_list(true);
+            }
             Action::Refresh => {
                 self.list = self.generate_list(false);
                 info!("List->update->Action::Refresh: {}", action);
@@ -205,23 +193,21 @@ impl<'a> Component<'a> for RegionsList<'a> {
 
     fn handle_key_events(&mut self, key_event: KeyEvent) -> Result<Option<Action>> {
         match key_event.code {
-            KeyCode::Char('u') => {
-                let action = Action::Fetch;
-                Ok(Some(action))
-            }
             KeyCode::Down => {
                 self.next();
-                let action = Action::Selected(self.selected());
+                let location_uid = self.selected().unwrap().location_uid as usize;
+                let action = Action::SelectLocation(Some(location_uid));
                 Ok(Some(action))
             }
             KeyCode::Up => {
                 self.previous();
-                let action = Action::Selected(self.selected());
+                let location_uid = self.selected().unwrap().location_uid as usize;
+                let action = Action::SelectLocation(Some(location_uid));
                 Ok(Some(action))
             }
             KeyCode::Esc => {
                 self.unselect();
-                let action = Action::Selected(None);
+                let action = Action::SelectLocation(None);
                 Ok(Some(action))
             }
             // Other handlers you could add here.
@@ -236,7 +222,7 @@ mod tests {
 
     /* #[test]
     fn test_map_new() {
-        let list = RegionsList::new(Ukraine::new_arc(), );
+        let list = LocationsList::new(Ukraine::new_arc(), );
         assert!(list.command_tx.is_none());
         assert_eq!(list.state, ListState::default());
         assert!(list.ukraine.read().unwrap().locations().is_empty() == true);

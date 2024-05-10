@@ -1,10 +1,12 @@
 use delegate::delegate;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{AirRaidAlertOblastStatus, AlertStatus, ModelError, REGIONS_DATA};
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq, Serialize)]
 pub struct AirRaidAlertOblastStatuses {
+    #[serde(skip)]
+    raw_data: String,
     #[serde(with = "deserialize_oblast_statuses")]
     oblast_statuses: Vec<AirRaidAlertOblastStatus>,
 }
@@ -12,7 +14,22 @@ pub struct AirRaidAlertOblastStatuses {
 /// Custom deserializer from char string to AirRaidAlertOblastStatuses
 pub mod deserialize_oblast_statuses {
     use super::*;
-    use serde::de::*;
+    use serde::{de::*, Serializer};
+
+    pub fn serialize<S>(
+        #[allow(clippy::ptr_arg)] statuses: &Vec<AirRaidAlertOblastStatus>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut _s = String::new();
+        statuses.iter().for_each(|s| {
+            let c: char = s.status().to_string().chars().next().unwrap();
+            _s.push(c);
+        });
+        serializer.serialize_str(&_s)
+    }
 
     pub fn deserialize<'de, D>(
         deserializer: D,
@@ -68,6 +85,7 @@ impl AirRaidAlertOblastStatuses {
 
     pub fn new(data: String, oblast_level_only: Option<bool>) -> Self {
         Self {
+            raw_data: data.clone(),
             oblast_statuses: Self::from_string(data, oblast_level_only).unwrap(),
         }
     }

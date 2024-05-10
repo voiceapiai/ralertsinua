@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
     Serialize,
     Clone,
     PartialEq,
+    strum_macros::EnumString,
     strum_macros::EnumProperty,
     strum_macros::AsRefStr,
     strum_macros::Display,

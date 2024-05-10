@@ -1,4 +1,4 @@
-use async_trait::async_trait;
+use cached::proc_macro::cached;
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::layout::{Constraint::*, Layout, Rect};
@@ -7,6 +7,7 @@ use tracing::debug;
 
 use crate::{
     action::Action,
+    config::Config,
     layout::*,
     tui::{Event, Frame},
     utils::type_of,
@@ -30,7 +31,7 @@ pub enum ComponentError {
     Unknown,
 }
 
-#[memoize::memoize]
+#[cached]
 pub fn get_component_area(
     frame_size: Rect,
     cmp_name: String,
@@ -87,8 +88,7 @@ pub trait WithPlacement {
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 /// Implementors of this trait can be registered with the main application loop and will be able to receive events,
 /// update state, and be rendered on the screen.
-#[async_trait]
-pub trait Component<'a>: WithPlacement + Send + Sync {
+pub trait Component<'a>: WithPlacement {
     /// Register an action handler that can send actions for processing if necessary.
     ///
     /// # Arguments
@@ -111,10 +111,10 @@ pub trait Component<'a>: WithPlacement + Send + Sync {
     /// # Returns
     ///
     /// * `Result<()>` - An Ok result or an error.
-    /* #[allow(unused_variables)]
+    #[allow(unused_variables)]
     fn register_config_handler(&mut self, config: Config) -> Result<()> {
         Ok(())
-    } */
+    }
     /// Initialize the component with a specified area if necessary.
     ///
     /// # Arguments
@@ -124,8 +124,7 @@ pub trait Component<'a>: WithPlacement + Send + Sync {
     /// # Returns
     ///
     /// * `Result<()>` - An Ok result or an error.
-    async fn init(&mut self) -> Result<()> {
-        self.debug();
+    fn init(&mut self, area: Rect) -> Result<()> {
         Ok(())
     }
     /// Handle incoming events and produce actions if necessary.

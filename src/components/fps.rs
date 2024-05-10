@@ -1,11 +1,10 @@
-use async_trait::async_trait;
 use color_eyre::eyre::Result;
 use getset::Getters;
 use ratatui::{layout::Offset, prelude::*, widgets::*};
-use std::{sync::Arc, time::Instant};
+use std::time::Instant;
 use throbber_widgets_tui::{Throbber, ThrobberState, WhichUse, BRAILLE_SIX_DOUBLE};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::debug;
+// use tracing::debug;
 
 use super::{Component, WithPlacement};
 use crate::{action::Action, config::*, layout::*, tui::Frame};
@@ -27,11 +26,11 @@ pub struct FpsCounter<'a> {
     title: Line<'a>,
     throbber_state: ThrobberState,
     #[allow(unused)]
-    config: Arc<dyn ConfigService>,
+    config: Config,
 }
 
 impl<'a> FpsCounter<'a> {
-    pub fn new(config: Arc<dyn ConfigService>) -> Self {
+    pub fn new() -> Self {
         Self {
             app_start_time: Instant::now(),
             app_frames: 0,
@@ -44,7 +43,7 @@ impl<'a> FpsCounter<'a> {
             placement: LayoutPoint(LayoutArea::Footer, None),
             title: Line::default(),
             throbber_state: ThrobberState::default(),
-            config,
+            config: Config::default(),
         }
     }
 
@@ -85,9 +84,8 @@ impl WithPlacement for FpsCounter<'_> {
     }
 }
 
-#[async_trait]
 impl<'a> Component<'a> for FpsCounter<'a> {
-    async fn init(&mut self) -> Result<()> {
+    fn init(&mut self, size: Rect) -> Result<()> {
         self.debug();
         Ok(())
     }
@@ -106,11 +104,9 @@ impl<'a> Component<'a> for FpsCounter<'a> {
             Action::Render => {
                 self.render_tick()?;
             }
-            Action::Refresh => {
-                debug!(target:"app", "FpsCounter->update: {:?}", action);
-            }
-            Action::Fetch => {
-                debug!(target:"app", "FpsCounter->update: {:?}", action);
+            Action::Refresh => {}
+            Action::GetAirRaidAlertOblastStatuses(data) => {
+                // debug!(target:"app", "FpsCounter->update: {:?}", action);
             }
             _ => {}
         }

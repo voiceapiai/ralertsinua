@@ -40,40 +40,40 @@ impl AlertsInUaGeoClient {
         Self::default()
     }
 
-    fn get_location_by<P>(&self, mut predicate: P) -> Option<&Location>
+    fn get_location_by<P>(&self, mut predicate: P) -> Option<Location>
     where
         P: FnMut(&Location) -> bool,
     {
-        self.locations.iter().find(|r| predicate(r))
+        self.locations.iter().find(|r| predicate(r)).cloned()
     }
 }
 
 /// The API for the AlertsInUaClient
 pub trait AlertsInUaGeo: WithBoundingRect + Sync + Send + core::fmt::Debug {
-    fn boundary(&self) -> &Polygon;
-    fn locations(&self) -> &[Location];
-    fn get_location_by_uid(&self, uid: i32) -> Option<&Location>;
-    fn get_location_by_name(&self, name: &str) -> Option<&Location>;
+    fn boundary(&self) -> Polygon;
+    fn locations(&self) -> [Location; 27];
+    fn get_location_by_uid(&self, uid: i32) -> Option<Location>;
+    fn get_location_by_name(&self, name: &str) -> Option<Location>;
 }
 
 impl AlertsInUaGeo for AlertsInUaGeoClient {
     #[inline]
-    fn boundary(&self) -> &Polygon {
-        &self.boundary
+    fn boundary(&self) -> Polygon {
+        self.boundary.clone()
     }
 
     #[inline]
-    fn locations(&self) -> &[Location] {
-        self.locations.as_slice()
+    fn locations(&self) -> [Location; 27] {
+        self.locations.clone()
     }
 
     #[inline]
-    fn get_location_by_uid(&self, location_uid: i32) -> Option<&Location> {
+    fn get_location_by_uid(&self, location_uid: i32) -> Option<Location> {
         self.get_location_by(|r| r.location_uid == location_uid)
     }
 
     #[inline]
-    fn get_location_by_name(&self, name: &str) -> Option<&Location> {
+    fn get_location_by_name(&self, name: &str) -> Option<Location> {
         self.get_location_by(|r| r.name == name)
     }
 }

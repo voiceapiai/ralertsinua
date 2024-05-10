@@ -3,13 +3,12 @@ use crossterm::event::KeyEvent;
 use log::LevelFilter;
 use ratatui::{prelude::*, widgets::Block};
 use rust_i18n::t;
-use std::sync::Arc;
 
 use tokio::sync::mpsc::UnboundedSender;
 use tui_logger::{TuiLoggerLevelOutput, TuiLoggerWidget, TuiWidgetState};
 
 use super::{Component, WithPlacement};
-use crate::{action::Action, config::ConfigService, layout::*, tui::Frame};
+use crate::{action::Action, config::*, layout::*, tui::Frame};
 
 // #[derive(Debug, Default, Clone, Copy, Display, FromRepr, EnumIter)]
 
@@ -18,18 +17,18 @@ pub struct Logger<'a> {
     command_tx: Option<UnboundedSender<Action>>,
     placement: LayoutPoint,
     #[allow(unused)]
-    config: Arc<dyn ConfigService>,
+    config: Config,
     #[allow(unused)]
     title: Line<'a>,
     state: TuiWidgetState,
 }
 
 impl<'a> Logger<'a> {
-    pub fn new(config: Arc<dyn ConfigService>) -> Self {
+    pub fn new() -> Self {
         Self {
             command_tx: Option::default(),
             placement: LayoutPoint(LayoutArea::Inner, Some(LayoutTab::Tab2)),
-            config,
+            config: Config::default(),
             title: Line::default(),
             state: TuiWidgetState::new().set_default_display_level(LevelFilter::Trace),
         }

@@ -1,6 +1,13 @@
 use geo::{BoundingRect, Geometry, Polygon, Rect};
+#[cfg(feature = "tui")]
+use geo::{Centroid, Coord};
 use geojson::de::deserialize_geometry;
-use serde::Deserialize;
+#[cfg(feature = "tui")]
+use ratatui::{
+    prelude::*,
+    widgets::canvas::{Painter, Shape},
+};
+use serde::{Deserialize, Serialize};
 
 use crate::utils::*;
 
@@ -27,7 +34,7 @@ pub trait WithBoundingRect {
 }
 
 /// Ukraine's administrative unit lv4  - *oblast*
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, PartialEq, Serialize)]
 pub struct Location {
     /// OSM Relation Id
     #[serde(rename = "@id")]
@@ -70,6 +77,19 @@ impl Location {
     }
 }
 
+impl Default for Location {
+    fn default() -> Self {
+        Self {
+            relation_id: String::default(),
+            location_uid: 0,
+            location_type: String::default(),
+            geometry: default_polygon().into(),
+            name: String::default(),
+            name_en: String::default(),
+        }
+    }
+}
+
 impl Location {
     pub fn boundary(&self) -> &Polygon {
         // If you're sure that the underlying geometry is always a Polygon, you can use the if let construct to try to downcast it. This will allow you to avoid having to provide match arms for all the other possible variants. However, please note that if the underlying geometry is not a Polygon, this will panic at runtime.
@@ -84,6 +104,17 @@ impl Location {
         let rect = self.bounding_rect();
         let center = rect.center();
         (center.x, center.y)
+    }
+}
+
+#[cfg(feature = "tui")]
+impl Shape for Location {
+    #[inline]
+    fn draw(&self, painter: &mut Painter) {
+        let center: Coord = self.geometry.centroid().unwrap().into();
+        if let Some((x, y)) = painter.get_point(center.x, center.y) {
+            painter.paint(x, y, Color::LightBlue);
+        }
     }
 }
 

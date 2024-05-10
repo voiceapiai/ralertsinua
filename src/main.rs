@@ -1,4 +1,5 @@
 #![allow(unused_variables)]
+#![allow(clippy::new_without_default)]
 pub mod action;
 pub mod app;
 pub mod cli;
@@ -25,7 +26,7 @@ use tui_logger::set_level_for_target;
 
 use crate::{
     app::App,
-    config::{Config, ConfigService},
+    config::Config,
     utils::{initialize_logging, initialize_panic_handler},
 };
 
@@ -59,12 +60,11 @@ async fn tokio_main() -> Result<()> {
     }
     debug!(target: "app", "\n{:?} \n\n-----------", config.settings());
 
-    let config: Arc<dyn ConfigService> = Arc::new(config);
     let api_client: Arc<dyn AlertsInUaApi> =
         Arc::new(AlertsInUaClient::new(config.base_url(), config.token()));
     let geo_client: Arc<dyn AlertsInUaGeo> = Arc::new(AlertsInUaGeoClient::default());
 
-    let mut app = App::new(config.clone(), api_client.clone(), geo_client.clone())?;
+    let mut app = App::new(config, api_client.clone(), geo_client.clone())?;
     app.run().await?;
 
     Ok(())

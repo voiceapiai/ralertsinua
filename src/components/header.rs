@@ -5,17 +5,16 @@ use ratatui::{
     text::Line,
     widgets::Tabs,
 };
-use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 
 use super::{Component, WithPlacement};
-use crate::{action::Action, config::ConfigService, constants::*, layout::*, tui::Frame};
+use crate::{action::Action, config::*, constants::*, layout::*, tui::Frame};
 
 #[derive(Debug)]
 pub struct Header<'a> {
     command_tx: Option<UnboundedSender<Action>>,
     #[allow(unused)]
-    config: Arc<dyn ConfigService>,
+    config: Config,
     placement: LayoutPoint,
     #[allow(unused)]
     tabs: Vec<Line<'a>>,
@@ -23,10 +22,10 @@ pub struct Header<'a> {
 }
 
 impl<'a> Header<'a> {
-    pub fn new(config: Arc<dyn ConfigService>) -> Self {
+    pub fn new() -> Self {
         Self {
             command_tx: Option::default(),
-            config,
+            config: Config::default(),
             placement: LayoutPoint(LayoutArea::Header, None),
             tabs: Vec::new(),
             selected_tab: LayoutTab::default(),
