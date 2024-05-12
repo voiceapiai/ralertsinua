@@ -1,18 +1,15 @@
-use color_eyre::eyre::Result;
+use std::fmt;
+
 use crossterm::event::KeyEvent;
 use log::LevelFilter;
 use ratatui::{prelude::*, widgets::Block};
 use rust_i18n::t;
-
 use tokio::sync::mpsc::UnboundedSender;
 use tui_logger::{TuiLoggerLevelOutput, TuiLoggerWidget, TuiWidgetState};
 
-use super::{Component, WithPlacement};
+use super::{Component, Result, WithPlacement};
 use crate::{action::Action, config::*, layout::*, tui::Frame};
 
-// #[derive(Debug, Default, Clone, Copy, Display, FromRepr, EnumIter)]
-
-// #[derive(Debug)]
 pub struct Logger<'a> {
     command_tx: Option<UnboundedSender<Action>>,
     placement: LayoutPoint,
@@ -21,6 +18,19 @@ pub struct Logger<'a> {
     #[allow(unused)]
     title: Line<'a>,
     state: TuiWidgetState,
+}
+
+impl<'a> fmt::Debug for Logger<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Logger")
+            .field("command_tx", &self.command_tx)
+            .field("placement", &self.placement)
+            .field("config", &self.config)
+            .field("title", &self.title)
+            // Format the `state` field as a string
+            .field("state", &"TuiWidgetState")
+            .finish()
+    }
 }
 
 impl<'a> Logger<'a> {

@@ -2,10 +2,12 @@
 //! @borrows https://github.com/ramsayleung/rspotify/blob/master/rspotify-http/src/reqwest.rs
 
 use async_trait::async_trait;
+use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
 use reqwest::{
     header::{HeaderMap, HeaderValue},
-    Method, RequestBuilder, StatusCode,
+    Method, Response, StatusCode,
 };
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, RequestBuilder};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt;
@@ -17,7 +19,8 @@ use ralertsinua_models::*;
 
 pub type Headers = HashMap<String, String>;
 pub type Query<'a> = HashMap<&'a str, &'a str>;
-type Result<T> = std::result::Result<T, ApiError>;
+
+type Result<T> = miette::Result<T, ApiError>;
 
 pub const API_BASE_URL: &str = "https://api.alerts.in.ua";
 pub const API_VERSION: &str = "/v1";
@@ -34,14 +37,19 @@ const APP_USER_AGENT: &str = concat!(
 pub struct AlertsInUaClient {
     base_url: String,
     token: String,
-    client: reqwest::Client,
+    // cache_path: Option<&'static str>,
+    client: ClientWithMiddleware,
 }
 
 impl AlertsInUaClient {
-    #[rustfmt::skip]
-    pub fn new<U, T>(base_url: U, token: T) -> Self where U: Into<String>, T: Into<String>,
+    pub fn new<U, T>(base_url: U, token: T, cache_path: Option<&str>) -> Self
+    where
+        U: Into<String>,
+        T: Into<String>,
     {
-        let client = reqwest::ClientBuilder::new()
+        let base_url = base_url.into();
+        let token = token.into();
+        let reqwest_client = reqwest::ClientBuilder::new()
             .timeout(Duration::from_secs(10))
             .user_agent(APP_USER_AGENT)
             .default_headers({
@@ -50,11 +58,28 @@ impl AlertsInUaClient {
                 headers
             })
             .build()
-            // building with these options cannot fail
-            .unwrap();
+            .expect("Failed to build reqwest client");
+        let manager = match cache_path {
+            Some(cache_path) => CACacheManager {
+                path: cache_path.into(),
+            },
+            None => CACacheManager::default(),
+        };
+        let mode = CacheMode::ForceCache;
+        let options = HttpCacheOptions::default();
+        log::trace!("Creating reqwest_middleware client with cache: mode {:?}, manager {:?}, options {:?}", mode, manager, options);
+        let client = ClientBuilder::new(reqwest_client)
+            .with(Cache(HttpCache {
+                mode,
+                manager,
+                options,
+            }))
+            .build();
+        // building with these options cannot fail
         Self {
-            base_url: base_url.into(),
-            token: token.into(),
+            base_url,
+            token,
+            // cache_path,
             client,
         }
     }
@@ -83,8 +108,12 @@ impl AlertsInUaClient {
         request = add_data(request);
 
         // Finally performing the request and handling the response
-        // log::info!("Making request {:?}", request);
-        let response = request.send().await?;
+        log::trace!("Making request {:?}", request); // Debugging
+        let response: Response = request.send().await.map_err(|e| {
+            log::error!("Error making request: {:?}", e);
+            #[allow(clippy::useless_conversion)]
+            reqwest_middleware::Error::from(e)
+        })?;
 
         // Making sure that the status code is OK
 
@@ -138,17 +167,13 @@ impl BaseHttpClient for AlertsInUaClient {
 
 /// The API for the AlertsInUaClient
 #[async_trait]
-pub trait AlertsInUaApi: Sync + Send + core::fmt::Debug {
-    #[allow(async_fn_in_trait)]
+pub trait AlertsInUaApi: core::fmt::Debug {
     async fn get_active_alerts(&self) -> Result<Alerts>;
 
-    #[allow(async_fn_in_trait)] // 'week_ago'
     async fn get_alerts_history(&self, location_aid: &i8, period: &str) -> Result<Alerts>;
 
-    #[allow(async_fn_in_trait)] // 'week_ago'
     async fn get_air_raid_alert_status(&self, location_aid: &i8) -> Result<String>;
 
-    #[allow(async_fn_in_trait)]
     async fn get_air_raid_alert_statuses_by_location(
         &self,
     ) -> Result<AirRaidAlertOblastStatuses>;
@@ -156,25 +181,21 @@ pub trait AlertsInUaApi: Sync + Send + core::fmt::Debug {
 
 #[async_trait]
 impl AlertsInUaApi for AlertsInUaClient {
-    #[inline]
     async fn get_active_alerts(&self) -> Result<Alerts> {
         let url = "/alerts/active.json";
         self.get(url, &Query::default()).await
     }
 
-    #[inline]
     async fn get_alerts_history(&self, location_aid: &i8, period: &str) -> Result<Alerts> {
         let url = format!("/locations/{}/alerts/{}.json", location_aid, period);
         self.get(&url, &Query::default()).await
     }
 
-    #[inline]
     async fn get_air_raid_alert_status(&self, location_aid: &i8) -> Result<String> {
         let url = format!("/iot/active_air_raid_alerts/{}.json", location_aid);
         self.get(&url, &Query::default()).await
     }
 
-    #[inline]
     async fn get_air_raid_alert_statuses_by_location(
         &self,
     ) -> Result<AirRaidAlertOblastStatuses> {
@@ -195,13 +216,14 @@ mod tests {
 
     #[test]
     fn test_trait() {
-        let api_client: Arc<dyn AlertsInUaApi> = Arc::new(AlertsInUaClient::new("", ""));
+        let api_client: Arc<dyn AlertsInUaApi> =
+            Arc::new(AlertsInUaClient::new("", "", None));
         println!("{:?}", api_client);
     }
 
     #[test]
     fn test_get_api_url() {
-        let client = AlertsInUaClient::new("https://api.alerts.in.ua", "token");
+        let client = AlertsInUaClient::new("https://api.alerts.in.ua", "token", None);
         let url = client.get_api_url("/alerts/active.json");
         assert_eq!(url, "https://api.alerts.in.ua/v1/alerts/active.json");
     }
@@ -209,7 +231,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_active_alerts() -> Result<()> {
         let mut server = MockServer::new_async().await;
-        let client = AlertsInUaClient::new(server.url(), "token");
+        let client = AlertsInUaClient::new(server.url(), "token", None);
         let mock = server
             .mock(
                 "GET",
@@ -232,7 +254,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_air_raid_alert_statuses_by_location() -> Result<()> {
         let mut server = MockServer::new_async().await;
-        let client = AlertsInUaClient::new(server.url(), "token");
+        let client = AlertsInUaClient::new(server.url(), "token", None);
         let mock = server
             .mock(
                 "GET",

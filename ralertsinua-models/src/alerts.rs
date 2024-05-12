@@ -1,6 +1,5 @@
-use color_eyre::eyre::Result;
-use delegate::delegate;
 use getset::Getters;
+use miette::Result;
 use serde::{Deserialize, Serialize};
 use time::{format_description::BorrowedFormatItem, OffsetDateTime};
 use time_macros::format_description;
@@ -50,29 +49,30 @@ struct Meta {
 /// Alerts struct is a collection of alerts and various methods to filter and access these alerts.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Getters)]
 pub struct Alerts {
-    // #[get_copy = "pub with_prefix"]
     alerts: Vec<Alert>,
-    #[get = "pub with_prefix"]
     disclaimer: String,
-    //  #[serde(flatten)]
     meta: Meta,
 }
 
 impl Alerts {
-    delegate! {
-        to self.alerts {
-            pub fn iter(&self) -> std::slice::Iter<Alert>;
-            pub fn len(&self) -> usize;
-            pub fn is_empty(&self) -> bool;
-        }
-
-        to self.meta {
-            pub fn get_last_updated_at(&self) -> &OffsetDateTime;
-        }
-    }
-
     pub fn get_alerts(&self) -> Vec<Alert> {
         self.alerts.clone()
+    }
+
+    pub fn iter(&self) -> std::slice::Iter<Alert> {
+        self.alerts.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.alerts.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.alerts.is_empty()
+    }
+
+    pub fn get_last_updated_at(&self) -> &OffsetDateTime {
+        &self.meta.last_updated_at
     }
 
     pub fn get_alerts_by_alert_type(&self, alert_type: AlertType) -> Vec<Alert> {

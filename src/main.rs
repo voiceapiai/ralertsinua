@@ -7,6 +7,7 @@ pub mod components;
 pub mod config;
 pub mod constants;
 pub mod draw;
+pub mod error;
 pub mod fs;
 pub mod layout;
 pub mod mode;
@@ -17,7 +18,7 @@ rust_i18n::i18n!();
 
 use clap::Parser;
 use cli::Cli;
-use color_eyre::eyre::{eyre, Result};
+use miette::{miette, IntoDiagnostic, Result};
 use ralertsinua_geo::*;
 use ralertsinua_http::*;
 use std::io::{stdin, stdout, Write};
@@ -38,21 +39,21 @@ async fn tokio_main() -> Result<()> {
     debug!(target:"app", "initialized logging");
     initialize_panic_handler()?;
 
-    let mut config = Config::init().map_err(|e| eyre!(e))?;
+    let mut config = Config::default();
     let args = Cli::parse();
 
     if config.token().is_empty() {
         warn!(target: "app", "token is empty, asking user for token");
         print!("enter your 'alerts.in.ua' token: ");
-        stdout().flush()?;
+        stdout().flush().into_diagnostic()?;
 
         let mut token = String::new();
-        stdin().read_line(&mut token)?;
+        stdin().read_line(&mut token).into_diagnostic()?;
         let token = token.trim().to_string();
 
         if token.is_empty() {
             error!(target: "app", "token cannot be empty, exiting");
-            return Err(eyre!("token cannot be empty"));
+            return Err(miette!("token cannot be empty"));
         } else {
             debug!(target: "app", "token from user input accepted");
             std::env::set_var("ALERTSINUA_TOKEN", &token);
@@ -61,8 +62,11 @@ async fn tokio_main() -> Result<()> {
     }
     debug!(target: "app", "\n{:?} \n\n-----------", config.settings());
 
-    let api_client: Arc<dyn AlertsInUaApi> =
-        Arc::new(AlertsInUaClient::new(config.base_url(), config.token()));
+    let api_client: Arc<dyn AlertsInUaApi> = Arc::new(AlertsInUaClient::new(
+        config.base_url(),
+        config.token(),
+        Some("./tmp/http-cache"),
+    ));
     let geo_client: Arc<dyn AlertsInUaGeo> = Arc::new(AlertsInUaGeoClient::default());
 
     let mut app = App::new(config, api_client.clone(), geo_client.clone())?;
@@ -74,7 +78,7 @@ async fn tokio_main() -> Result<()> {
 #[tokio::main]
 async fn main() -> Result<()> {
     if let Err(e) = tokio_main().await {
-        eprintln!("{} error: Something went wrong", env!("CARGO_PKG_NAME"));
+        eprintln!("{} panicked: Something went wrong", env!("CARGO_PKG_NAME"));
         Err(e)
     } else {
         Ok(())

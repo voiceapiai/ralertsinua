@@ -1,3 +1,5 @@
+#[allow(unused_imports)]
+use miette::{IntoDiagnostic, Result};
 use std::str::FromStr;
 
 #[derive(

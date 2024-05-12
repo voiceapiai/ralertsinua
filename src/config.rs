@@ -1,9 +1,10 @@
 #![allow(non_camel_case_types)]
-use color_eyre::eyre::Result;
 use delegate::delegate;
 use dotenv_config::EnvConfig;
 use getset::{Getters, Setters};
 use icu_locid::subtags::{language, Language};
+#[allow(unused_imports)]
+use miette::{miette, Error, IntoDiagnostic, Result};
 use serde::{Deserialize, Serialize};
 use std::{str::FromStr, string::ToString};
 use tracing::warn;
@@ -38,7 +39,7 @@ pub struct Settings {
 
 impl Default for Config {
     fn default() -> Self {
-        Config::init().unwrap()
+        Config::init().map_err(|e| miette!(e)).unwrap()
     }
 }
 

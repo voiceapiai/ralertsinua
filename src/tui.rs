@@ -1,5 +1,4 @@
 #![allow(non_camel_case_types)]
-use color_eyre::eyre::Result;
 use crossterm::{
     cursor,
     event::{
@@ -23,11 +22,15 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
+use crate::error::*;
+
 pub type IO = std::io::Stdout;
 pub fn io() -> IO {
     std::io::stdout()
 }
 pub type Frame<'a> = ratatui::Frame<'a>;
+
+type Result<T> = miette::Result<T, AppError>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Event {

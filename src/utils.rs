@@ -1,13 +1,19 @@
-use color_eyre::eyre::Result;
 use directories::ProjectDirs;
 use lazy_static::lazy_static;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::{any::type_name, env};
-use tracing::error;
+// use tracing::error;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{
     self, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt,
 };
+
+use crate::error::*;
+
+type Result<T> = miette::Result<T, AppError>;
 
 const VERSION_MESSAGE: &str = concat!(
     env!("CARGO_PKG_VERSION"),
@@ -43,55 +49,22 @@ fn project_directory() -> Option<ProjectDirs> {
 }
 
 pub fn initialize_panic_handler() -> Result<()> {
-    let (panic_hook, eyre_hook) = color_eyre::config::HookBuilder::default()
-        .panic_section(format!(
-            "This is a bug. Consider reporting it at {}",
-            env!("CARGO_PKG_REPOSITORY")
-        ))
-        .capture_span_trace_by_default(false)
-        .display_location_section(false)
-        .display_env_section(false)
-        .into_hooks();
-    eyre_hook.install()?;
-    std::panic::set_hook(Box::new(move |panic_info| {
-        if let Ok(mut t) = crate::tui::Tui::new() {
-            if let Err(r) = t.exit() {
-                error!("Unable to exit Terminal: {:?}", r);
-            }
-        }
+    miette::set_hook(Box::new(|_| {
+        Box::new(
+            miette::MietteHandlerOpts::default()
+                .terminal_links(true)
+                .force_graphical(true)
+                .context_lines(4)
+                .tab_width(4)
+                .break_words(false)
+                .color(true)
+                .build(),
+        )
+    }))
+    .map_err(|e| AppError::Unknown)?;
 
-        /* #[cfg(not(debug_assertions))]
-        {
-            use human_panic::{handle_dump, print_msg, Metadata};
-            let meta = Metadata {
-                version: env!("CARGO_PKG_VERSION").into(),
-                name: env!("CARGO_PKG_NAME").into(),
-                authors: env!("CARGO_PKG_AUTHORS").replace(':', ", ").into(),
-                homepage: env!("CARGO_PKG_HOMEPAGE").into(),
-            };
+    miette::set_panic_hook();
 
-            let file_path = handle_dump(&meta, panic_info);
-            // prints human-panic message
-            print_msg(file_path, &meta)
-                .expect("human-panic: printing error message to console failed");
-            eprintln!("{}", panic_hook.panic_report(panic_info)); // prints color-eyre stack trace to stderr
-        } */
-
-        let msg = format!("{}", panic_hook.panic_report(panic_info));
-        log::error!("Error: {}", strip_ansi_escapes::strip_str(msg));
-
-        #[cfg(debug_assertions)]
-        {
-            // Better Panic stacktrace that is only enabled when debugging.
-            better_panic::Settings::auto()
-                .most_recent_first(false)
-                .lineno_suffix(true)
-                .verbosity(better_panic::Verbosity::Full)
-                .create_panic_handler()(panic_info);
-        }
-
-        std::process::exit(libc::EXIT_FAILURE);
-    }));
     Ok(())
 }
 
@@ -207,3 +180,31 @@ where
     let mut cache = HashMap::new();
     move |x| (*cache.entry(x.clone()).or_insert_with(|| f(x))).clone()
 } */
+
+pub struct SerdeCacache<D, K>
+where
+    D: Serialize + DeserializeOwned,
+    K: AsRef<str>,
+{
+    name: PathBuf,
+    _phantom_data: PhantomData<D>,
+    _phantom_key: PhantomData<K>,
+}
+
+impl<D, K> SerdeCacache<D, K>
+where
+    D: Serialize + DeserializeOwned,
+    K: AsRef<str>,
+{
+    // Set an item in the cache
+    pub async fn set(&self, key: K, data: &D) -> Result<cacache::Integrity> {
+        let serialized = rmp_serde::to_vec(data)?;
+        Ok(cacache::write(&self.name, key, serialized).await?)
+    }
+
+    // Get an item from the cache
+    pub async fn get(&self, key: K) -> Result<D> {
+        let read = cacache::read(&self.name, key).await?;
+        Ok(rmp_serde::from_slice(&read)?)
+    }
+}

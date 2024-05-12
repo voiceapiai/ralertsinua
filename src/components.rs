@@ -1,5 +1,4 @@
-use cached::proc_macro::cached;
-use color_eyre::eyre::Result;
+// use cached::proc_macro::cached;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::layout::{Constraint::*, Layout, Rect};
 use tokio::sync::mpsc::UnboundedSender;
@@ -8,6 +7,7 @@ use tracing::debug;
 use crate::{
     action::Action,
     config::Config,
+    error::AppError,
     layout::*,
     tui::{Event, Frame},
     utils::type_of,
@@ -25,18 +25,14 @@ pub use list::*;
 pub use logger::*;
 pub use map::*;
 
-#[derive(thiserror::Error, Debug, Clone)]
-pub enum ComponentError {
-    #[error("Unknown component error")]
-    Unknown,
-}
+pub type Result<T> = miette::Result<T, AppError>;
 
-#[cached]
+// #[cached]
 pub fn get_component_area(
     frame_size: Rect,
     cmp_name: String,
     cmp_area: LayoutArea,
-) -> Result<Rect, ComponentError> {
+) -> Result<Rect> {
     let vertical = Layout::vertical([Length(1), Min(0), Length(1)]);
     let [header_area, inner_area, footer_area] = vertical.areas(frame_size);
 
@@ -66,7 +62,7 @@ pub trait WithPlacement {
     /// Get the placement of the component.
     fn placement(&self) -> &LayoutPoint;
     /// Get rectangle in current frame for the component based on its placement
-    fn get_area(&self, frame_size: Rect) -> Result<Rect, ComponentError> {
+    fn get_area(&self, frame_size: Rect) -> Result<Rect> {
         let cmp_name = type_of(self).to_string();
         let LayoutPoint(area, _) = self.placement().clone();
         get_component_area(frame_size, cmp_name, area)

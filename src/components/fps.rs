@@ -1,4 +1,3 @@
-use color_eyre::eyre::Result;
 use getset::Getters;
 use ratatui::{layout::Offset, prelude::*, widgets::*};
 use std::time::Instant;
@@ -6,7 +5,7 @@ use throbber_widgets_tui::{Throbber, ThrobberState, WhichUse, BRAILLE_SIX_DOUBLE
 use tokio::sync::mpsc::UnboundedSender;
 // use tracing::debug;
 
-use super::{Component, WithPlacement};
+use super::{Component, Result, WithPlacement};
 use crate::{action::Action, config::*, layout::*, tui::Frame};
 
 #[derive(Debug, Clone, Getters)]

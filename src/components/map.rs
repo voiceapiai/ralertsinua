@@ -1,5 +1,3 @@
-// use cached::proc_macro::cached;
-use color_eyre::eyre::Result;
 use geo::Rect as GeoRect;
 use ralertsinua_geo::*;
 use ralertsinua_models::{AirRaidAlertOblastStatuses, AlertStatus};
@@ -15,7 +13,7 @@ use tokio::sync::mpsc::UnboundedSender;
 #[allow(unused)]
 use tracing::debug;
 
-use super::{Component, Frame, WithPlacement};
+use super::{Component, Frame, Result, WithPlacement};
 use crate::{action::*, config::*, draw::*, layout::*};
 
 #[derive(Debug)]

@@ -1,4 +1,3 @@
-use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use getset::*;
 use ralertsinua_models::*;
@@ -11,7 +10,7 @@ use rust_i18n::t;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
 
-use super::{Component, Frame, WithPlacement};
+use super::{Component, Frame, Result, WithPlacement};
 use crate::{action::Action, config::*, constants::*, draw::*, layout::*};
 
 #[derive(Debug, Getters, MutGetters, Setters)]

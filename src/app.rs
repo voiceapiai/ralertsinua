@@ -1,5 +1,6 @@
-use color_eyre::eyre::{Context, Result};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+#[allow(unused_imports)]
+use miette::{Context, WrapErr};
 use ralertsinua_geo::*;
 use ralertsinua_http::*;
 use ralertsinua_models::*;
@@ -12,7 +13,9 @@ use tokio::{
 #[allow(unused)]
 use tracing::{debug, trace};
 
-use crate::{action::*, components::*, config::*, layout::*, tui};
+use crate::{action::*, components::*, config::*, error::*, layout::*, tui};
+
+type Result<T> = miette::Result<T, AppError>;
 
 pub struct App {
     action_tx: UnboundedSender<Action>,
@@ -100,9 +103,7 @@ impl App {
         tokio::spawn(async move {
             loop {
                 sleep(Duration::from_secs(30)).await;
-                let _ = periodic_action_tx
-                    .send(Action::FetchAirRaidAlertOblastStatuses)
-                    .with_context(|| "periodic fetch action failed");
+                let _ = periodic_action_tx.send(Action::FetchAirRaidAlertOblastStatuses);
             }
         });
 
@@ -215,8 +216,7 @@ impl App {
                                             .unwrap();
                                     }
                                 });
-                        })
-                        .with_context(|| "tui failed to draw {:?}")?;
+                        })?;
                     }
                     Action::FetchGeo => {
                         let boundary = self.geo_client.boundary();
