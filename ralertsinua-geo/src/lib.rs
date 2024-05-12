@@ -1,6 +1,6 @@
 pub mod client;
 pub mod constants;
-pub mod grid;
+// pub mod grid;
 pub mod location;
 pub mod utils;
 

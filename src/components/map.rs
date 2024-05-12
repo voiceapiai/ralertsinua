@@ -1,11 +1,12 @@
 // use cached::proc_macro::cached;
 use color_eyre::eyre::Result;
-use geo::{Centroid, Coord, Polygon};
+use geo::Rect as GeoRect;
 use ralertsinua_geo::*;
+use ralertsinua_models::{AirRaidAlertOblastStatuses, AlertStatus};
 use ratatui::{
     prelude::*,
     widgets::{
-        canvas::{Canvas, Context, Painter, Shape},
+        canvas::{Canvas, Context},
         *,
     },
 };
@@ -15,13 +16,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::debug;
 
 use super::{Component, Frame, WithPlacement};
-use crate::{action::Action, config::*, constants::*, layout::*};
-
-fn get_rec_center(rec: &Rect) -> (f64, f64) {
-    let x = f64::from(rec.width) / 2.0;
-    let y = f64::from(rec.height) / 2.0;
-    (x, y)
-}
+use crate::{action::*, config::*, draw::*, layout::*};
 
 #[derive(Debug)]
 pub struct Map<'a> {
@@ -31,65 +26,47 @@ pub struct Map<'a> {
     title: Line<'a>,
     #[allow(unused)]
     config: Config,
-    #[allow(unused)]
-    boundary: Polygon,
+    bounding_rect: GeoRect,
+    boundary: CountryBoundary,
     locations: [Location; 27],
-    selected_location: Option<Location>,
+    selected_location_uid: i32,
+    oblast_statuses: AirRaidAlertOblastStatuses,
     //
     width: u16,
     height: u16,
-    x_bounds: [f64; 2],
-    y_bounds: [f64; 2],
     resolution: (f64, f64),
 }
 
 impl<'a> Map<'a> {
+    #[inline]
     pub fn new() -> Self {
         let context = Context::new(0, 0, [0.0, 0.0], [0.0, 0.0], Marker::Braille);
-        // let grid = context.grid();
         Self {
             command_tx: Option::default(),
             placement: LayoutPoint(LayoutArea::Left, Some(LayoutTab::Tab1)),
             title: Line::default(),
             config: Config::default(),
-            boundary: default_polygon(),
+            boundary: CountryBoundary::default(),
+            bounding_rect: *UKRAINE_BBOX,
             locations: core::array::from_fn(|_| Location::default()),
-            selected_location: None,
+            selected_location_uid: -1,
+            oblast_statuses: AirRaidAlertOblastStatuses::default(),
             //
             width: 0,
             height: 0,
-            x_bounds: [UKRAINE_BBOX[0].0, UKRAINE_BBOX[0].1],
-            y_bounds: [UKRAINE_BBOX[1].0, UKRAINE_BBOX[1].1],
             resolution: (0.0, 0.0),
         }
     }
 
+    #[inline]
     pub fn set_grid_size(&mut self, width: u16, height: u16) {
         self.width = width;
         self.height = height;
         self.resolution = (f64::from(width) * 2.0, f64::from(height) * 4.0);
-        debug!(target:"app", "Map grid size: width: {}, height: {}, x_bounds: {:?}, y_bounds: {:?}, resolution: {:?}", width, height, self.x_bounds, self.y_bounds, self.resolution);
+        debug!(target:"app", "Map grid size: width: {}, height: {}, x_Y_bounds: {:?}, resolution: {:?}", width, height, self.get_x_y_bounds(), self.resolution);
     }
 
-    /// Convert the `(x, y)` coordinates to location of a point on the grid
-    pub fn get_point(&self, x: f64, y: f64) -> Option<(usize, usize)> {
-        let left = self.x_bounds[0];
-        let right = self.x_bounds[1];
-        let top = self.y_bounds[1];
-        let bottom = self.y_bounds[0];
-        if x < left || x > right || y < bottom || y > top {
-            return None;
-        }
-        let width = (self.x_bounds[1] - self.x_bounds[0]).abs();
-        let height = (self.y_bounds[1] - self.y_bounds[0]).abs();
-        if width == 0.0 || height == 0.0 {
-            return None;
-        }
-        let x = ((x - left) * (self.resolution.0 - 1.0) / width) as usize;
-        let y = ((top - y) * (self.resolution.1 - 1.0) / height) as usize;
-        Some((x, y))
-    }
-
+    #[inline]
     pub fn get_location_by<P>(&self, mut predicate: P) -> Option<Location>
     where
         P: FnMut(&Location) -> bool,
@@ -99,38 +76,20 @@ impl<'a> Map<'a> {
 }
 
 impl WithPlacement for Map<'_> {
+    #[inline]
     fn placement(&self) -> &LayoutPoint {
         &self.placement
     }
 }
 
-/// Implement the Shape trait to draw map boundary on canvas
-impl<'a> Shape for Map<'a> {
+impl WithBoundingRect for Map<'_> {
     #[inline]
-    fn draw(&self, painter: &mut Painter) {
-        // If location was selected means we have last selected geo - then iterate location boundary
-        let boundary = match &self.selected_location {
-            Some(location) => location.boundary(),
-            None => &self.boundary,
-        };
-        self.boundary.exterior().coords().for_each(|coord| {
-            if let Some((x, y)) = painter.get_point(coord.x, coord.y) {
-                painter.paint(x, y, *MARKER_COLOR);
-            }
-        });
-
-        // Example mark center of the location
-        self.locations
-            .iter()
-            .filter(|l| l.location_type == *"state")
-            .for_each(|l| {
-                let center: Coord = l.geometry().centroid().unwrap().into();
-                if let Some((x, y)) = painter.get_point(center.x, center.y) {
-                    painter.paint(x, y, Color::LightBlue);
-                }
-            });
+    fn bounding_rect(&self) -> geo::Rect {
+        self.bounding_rect
     }
 }
+
+impl<'a> WithLineItems for Map<'a> {}
 
 impl<'a> Component<'a> for Map<'a> {
     fn init(&mut self, r: Rect) -> Result<()> {
@@ -153,14 +112,16 @@ impl<'a> Component<'a> for Map<'a> {
             Action::GetLocations(locations) => {
                 self.locations = locations;
             }
-            Action::SelectLocation(a) => match a {
+            Action::GetAirRaidAlertOblastStatuses(data) => {
+                self.oblast_statuses = data;
+            }
+            Action::SelectLocationByUid(a) => match a {
                 Some(location_uid) => {
-                    self.selected_location =
-                        self.get_location_by(|r| r.location_uid == location_uid as i32);
+                    self.selected_location_uid = location_uid as i32;
                     debug!(target:"app", "Map: selected_location_uid: {}", location_uid);
                 }
                 None => {
-                    self.selected_location = None;
+                    self.selected_location_uid = -1;
                 }
             },
             _ => {}
@@ -171,6 +132,8 @@ impl<'a> Component<'a> for Map<'a> {
     fn draw(&mut self, f: &mut Frame) -> Result<()> {
         let size: Rect = f.size();
         let area: Rect = self.get_area(size)?;
+        let (x_bounds, y_bounds) = self.get_x_y_bounds();
+
         let widget = Canvas::default()
             .block(
                 Block::default()
@@ -179,13 +142,33 @@ impl<'a> Component<'a> for Map<'a> {
                     .title_alignment(Alignment::Center),
             )
             .marker(Marker::Braille)
-            .x_bounds(self.x_bounds)
-            .y_bounds(self.y_bounds)
-            .paint(|ctx| {
-                ctx.draw(self);
-                // Example mark center of the location
-                let (x, y) = get_rec_center(&area);
-                ctx.print(x, y, "Ukraine")
+            .x_bounds(x_bounds)
+            .y_bounds(y_bounds)
+            .paint(move |ctx| {
+                //  Draw country borders with ctx
+                ctx.draw(&self.boundary);
+
+                // Draw & Print selected location with ctx
+                self.locations.iter().for_each(|l| {
+                    // Draw location
+                    ctx.draw(l);
+                    // Print location name
+                    let (x, y) = l.center();
+                    let text = l
+                        .get_name_by_locale(self.config.get_locale())
+                        .split(' ')
+                        .next()
+                        .unwrap_or("");
+                    let status: &AlertStatus = self
+                        .oblast_statuses
+                        .iter()
+                        .find(|&os| os.location_uid == l.location_uid)
+                        .unwrap()
+                        .status();
+                    let is_selected = (l.location_uid) == self.selected_location_uid;
+                    let line = Self::get_styled_line_icon_by_status(status, is_selected);
+                    ctx.print(x, y, line);
+                });
             })
             .background_color(Color::Reset);
         f.render_widget(widget, area);

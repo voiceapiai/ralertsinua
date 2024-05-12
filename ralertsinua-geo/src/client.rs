@@ -1,12 +1,12 @@
 #![allow(clippy::borrow_deref_ref)]
-use geo::{Coord, Polygon, Rect};
+use geo::Rect;
 
 use crate::{constants::*, location::*, utils::*};
 
 #[derive(Debug, Clone)]
 pub struct AlertsInUaGeoClient {
     pub bounding_rect: Rect,
-    pub boundary: Polygon,
+    pub boundary: CountryBoundary,
     pub locations: [Location; 27],
 }
 
@@ -17,11 +17,8 @@ impl Default for AlertsInUaGeoClient {
         let geojson_str = include_str!("../assets/ukraine.json");
 
         Self {
-            bounding_rect: Rect::new(
-                Coord::from((UKRAINE_BBOX[0].0, UKRAINE_BBOX[0].1)),
-                Coord::from((UKRAINE_BBOX[1].0, UKRAINE_BBOX[1].1)),
-            ),
-            boundary: from_wkt_into(wkt_str).unwrap(),
+            bounding_rect: *UKRAINE_BBOX,
+            boundary: CountryBoundary(from_wkt_into(wkt_str).unwrap()),
             locations: deserialize_feature_collection_to_fixed_array(geojson_str, "uk")
                 .unwrap(),
         }
@@ -50,7 +47,7 @@ impl AlertsInUaGeoClient {
 
 /// The API for the AlertsInUaClient
 pub trait AlertsInUaGeo: WithBoundingRect + Sync + Send + core::fmt::Debug {
-    fn boundary(&self) -> Polygon;
+    fn boundary(&self) -> CountryBoundary;
     fn locations(&self) -> [Location; 27];
     fn get_location_by_uid(&self, uid: i32) -> Option<Location>;
     fn get_location_by_name(&self, name: &str) -> Option<Location>;
@@ -58,7 +55,7 @@ pub trait AlertsInUaGeo: WithBoundingRect + Sync + Send + core::fmt::Debug {
 
 impl AlertsInUaGeo for AlertsInUaGeoClient {
     #[inline]
-    fn boundary(&self) -> Polygon {
+    fn boundary(&self) -> CountryBoundary {
         self.boundary.clone()
     }
 
@@ -88,7 +85,7 @@ mod tests {
     fn test_default() {
         let geo = AlertsInUaGeoClient::default();
         assert_eq!(geo.bounding_rect.coords_count(), 4);
-        assert_eq!(geo.boundary.coords_count(), 955);
+        assert_eq!(geo.boundary.0.coords_count(), 955);
         assert_eq!(geo.locations.len(), 27);
     }
 
@@ -96,7 +93,7 @@ mod tests {
     fn test_trait() {
         let geo_client: Arc<dyn AlertsInUaGeo> = Arc::new(AlertsInUaGeoClient::default());
         assert_eq!(geo_client.bounding_rect().coords_count(), 4);
-        assert_eq!(geo_client.boundary().coords_count(), 955);
+        assert_eq!(geo_client.boundary().0.coords_count(), 955);
         assert_eq!(geo_client.locations().len(), 27);
     }
 }

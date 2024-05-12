@@ -6,6 +6,7 @@ pub mod cli;
 pub mod components;
 pub mod config;
 pub mod constants;
+pub mod draw;
 pub mod fs;
 pub mod layout;
 pub mod mode;

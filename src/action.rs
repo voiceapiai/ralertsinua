@@ -1,5 +1,4 @@
-use geo::Polygon;
-use ralertsinua_geo::Location;
+use ralertsinua_geo::{CountryBoundary, Location};
 use ralertsinua_models::*;
 use serde::{
     // de::{self, Deserializer, Visitor},
@@ -21,10 +20,10 @@ pub enum Action {
     Help,
     Locale,
     SelectTab(usize),
-    SelectLocation(Option<usize>),
+    SelectLocationByUid(Option<usize>),
     FetchGeo,
     GetLocations([Location; 27]),
-    GetBoundaries(Polygon),
+    GetBoundaries(CountryBoundary),
     FetchActiveAlerts,
     GetActiveAlerts(Alerts),
     FetchAirRaidAlertOblastStatuses,

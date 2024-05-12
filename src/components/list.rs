@@ -4,16 +4,15 @@ use getset::*;
 use ralertsinua_models::*;
 use ratatui::{
     prelude::*,
-    style::{Color, Modifier, Style, Stylize},
-    widgets::{Block, List, ListItem, ListState},
+    style::{Color, Modifier, Style},
+    widgets::{Block, List, ListState},
 };
 use rust_i18n::t;
-use std::str::FromStr;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
 
 use super::{Component, Frame, WithPlacement};
-use crate::{action::Action, config::*, constants::*, layout::*};
+use crate::{action::Action, config::*, constants::*, draw::*, layout::*};
 
 #[derive(Debug, Getters, MutGetters, Setters)]
 pub struct LocationsList<'a> {
@@ -30,6 +29,7 @@ pub struct LocationsList<'a> {
     state: ListState,
     #[getset(get = "pub", get_mut)]
     last_selected: Option<usize>,
+    selected_location_uid: i32,
 }
 
 impl<'a> LocationsList<'a> {
@@ -43,6 +43,7 @@ impl<'a> LocationsList<'a> {
             list: List::default(),
             state: ListState::default(),
             last_selected: None,
+            selected_location_uid: -1,
         }
     }
 
@@ -50,35 +51,17 @@ impl<'a> LocationsList<'a> {
     fn generate_list(&mut self, is_loading: bool) -> List<'a> {
         let locale = self.config.get_locale();
         let oblast_statuses = self.oblast_statuses();
-        let items = oblast_statuses
-            .iter()
-            .map(|item| Self::to_list_item(item, locale.as_str()));
+        let items = oblast_statuses.iter().map(|item| {
+            let text: &str = if locale.as_str() == "uk" {
+                item.location_title()
+            } else {
+                item.location_title_en()
+            };
+            let is_selected = (item.location_uid) == self.selected_location_uid;
+            Self::get_styled_line_by_status(text, item.status(), is_selected)
+        });
 
         List::new(items)
-    }
-
-    /// Builds new `ListItem` from `location`-like instance, based on references only
-    pub fn to_list_item(item: &AirRaidAlertOblastStatus, locale: &str) -> ListItem<'a> {
-        use strum::EnumProperty;
-
-        let icon: &str = item.status().get_str("icon").unwrap();
-        let color_str: &str = item.status().get_str("color").unwrap();
-        let color: Color = Color::from_str(color_str).unwrap();
-        let text: &str = if locale == "uk" {
-            item.location_title()
-        } else {
-            item.location_title_en()
-        };
-        let list_item: ListItem = ListItem::new(format!("{} {}", icon, text)).style(color);
-
-        match item.status() {
-            AlertStatus::A => list_item
-                .add_modifier(Modifier::BOLD)
-                .add_modifier(Modifier::RAPID_BLINK),
-            AlertStatus::P => list_item.add_modifier(Modifier::ITALIC),
-            AlertStatus::L => list_item.add_modifier(Modifier::DIM),
-            _ => list_item,
-        }
     }
 
     pub fn next(&mut self) {
@@ -139,6 +122,8 @@ impl WithPlacement for LocationsList<'_> {
     }
 }
 
+impl<'a> WithLineItems for LocationsList<'a> {}
+
 impl<'a> Component<'a> for LocationsList<'a> {
     fn init(&mut self, size: Rect) -> Result<()> {
         self.debug();
@@ -195,19 +180,23 @@ impl<'a> Component<'a> for LocationsList<'a> {
         match key_event.code {
             KeyCode::Down => {
                 self.next();
-                let location_uid = self.selected().unwrap().location_uid as usize;
-                let action = Action::SelectLocation(Some(location_uid));
+                let selected = self.selected().unwrap();
+                self.selected_location_uid = selected.location_uid;
+                let action =
+                    Action::SelectLocationByUid(Some(selected.location_uid as usize));
                 Ok(Some(action))
             }
             KeyCode::Up => {
                 self.previous();
-                let location_uid = self.selected().unwrap().location_uid as usize;
-                let action = Action::SelectLocation(Some(location_uid));
+                let selected = self.selected().unwrap();
+                self.selected_location_uid = selected.location_uid;
+                let action =
+                    Action::SelectLocationByUid(Some(selected.location_uid as usize));
                 Ok(Some(action))
             }
             KeyCode::Esc => {
                 self.unselect();
-                let action = Action::SelectLocation(None);
+                let action = Action::SelectLocationByUid(None);
                 Ok(Some(action))
             }
             // Other handlers you could add here.

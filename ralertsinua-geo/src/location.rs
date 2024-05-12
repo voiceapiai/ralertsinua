@@ -1,6 +1,5 @@
 use geo::{BoundingRect, Geometry, Polygon, Rect};
 #[cfg(feature = "tui")]
-use geo::{Centroid, Coord};
 use geojson::de::deserialize_geometry;
 #[cfg(feature = "tui")]
 use ratatui::{
@@ -63,10 +62,15 @@ impl WithBoundingRect for Location {
     }
 }
 
-impl HasName for Location {
+impl WithName for Location {
     /// Name in uk
     fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Name in en
+    fn name_en(&self) -> &str {
+        &self.name_en
     }
 }
 
@@ -91,6 +95,7 @@ impl Default for Location {
 }
 
 impl Location {
+    #[inline]
     pub fn boundary(&self) -> &Polygon {
         // If you're sure that the underlying geometry is always a Polygon, you can use the if let construct to try to downcast it. This will allow you to avoid having to provide match arms for all the other possible variants. However, please note that if the underlying geometry is not a Polygon, this will panic at runtime.
         if let Geometry::Polygon(polygon) = &self.geometry {
@@ -100,21 +105,47 @@ impl Location {
         }
     }
 
+    #[inline]
     pub fn center(&self) -> (f64, f64) {
         let rect = self.bounding_rect();
-        let center = rect.center();
-        (center.x, center.y)
+        rect.center().x_y()
     }
 }
 
 #[cfg(feature = "tui")]
+/// Draws location boundary with [`Canvas`]
 impl Shape for Location {
+    /// This method draws points of `Polygon` of the location with `Painter` object. It iterates over the exterior coordinates of the boundary and paints each point with `Painter` using the `paint` method
     #[inline]
     fn draw(&self, painter: &mut Painter) {
-        let center: Coord = self.geometry.centroid().unwrap().into();
-        if let Some((x, y)) = painter.get_point(center.x, center.y) {
-            painter.paint(x, y, Color::LightBlue);
-        }
+        self.boundary().exterior().coords().for_each(|coord| {
+            if let Some((x, y)) = painter.get_point(coord.x, coord.y) {
+                painter.paint(x, y, Color::Reset);
+            }
+        });
+    }
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq, Serialize)]
+pub struct CountryBoundary(pub Polygon);
+
+impl Default for CountryBoundary {
+    fn default() -> Self {
+        Self(default_polygon())
+    }
+}
+
+/// Draws country boundary with [`Canvas`]
+#[cfg(feature = "tui")]
+impl Shape for CountryBoundary {
+    #[inline]
+    /// This method draws points of `Polygon` of the boundary with `Painter` object. It iterates over the exterior coordinates of the boundary and paints each point with `Painter` using the `paint` method
+    fn draw(&self, painter: &mut Painter) {
+        self.0.exterior().coords().for_each(|coord| {
+            if let Some((x, y)) = painter.get_point(coord.x, coord.y) {
+                painter.paint(x, y, Color::Reset);
+            }
+        });
     }
 }
 

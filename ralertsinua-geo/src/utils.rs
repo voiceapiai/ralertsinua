@@ -1,5 +1,8 @@
+use std::str::FromStr;
+
 use geo::{Coord, LineString, Polygon};
 use geojson::de::deserialize_feature_collection_str_to_vec;
+use icu_locid::subtags::Language;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -9,7 +12,6 @@ where
     T: TryFrom<wkt::Wkt<f64>>,
     <T as TryFrom<wkt::Wkt<f64>>>::Error: std::error::Error + 'static,
 {
-    use std::str::FromStr;
     let result: T = wkt::Wkt::from_str(wkts)?.try_into()?;
     Ok(result)
 }
@@ -19,7 +21,7 @@ pub fn deserialize_feature_collection_to_fixed_array<T, const CAP: usize>(
     locale_str: &str,
 ) -> Result<[T; CAP]>
 where
-    T: serde::de::DeserializeOwned + Clone + HasName,
+    T: serde::de::DeserializeOwned + Clone + WithName,
 {
     let mut features: Vec<T> =
         deserialize_feature_collection_str_to_vec(geojson_str).unwrap();
@@ -36,8 +38,23 @@ pub fn default_polygon() -> Polygon {
     Polygon::new(LineString::from(Vec::<Coord>::new()), vec![])
 }
 
-pub trait HasName {
+pub trait WithName {
     fn name(&self) -> &str;
+
+    fn name_en(&self) -> &str;
+
+    fn get_name_by_locale<L>(&self, locale: L) -> &str
+    where
+        L: FromStr,
+        Language: From<L>,
+    {
+        let locale: Language = locale.into();
+        if locale.as_str() == "uk" {
+            return self.name();
+        } else {
+            return self.name_en();
+        };
+    }
 }
 
 /// Sort a `Vec<T>` (objects) by comparing strings according to language-dependent conventions.

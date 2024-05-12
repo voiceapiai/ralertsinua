@@ -2939,7 +2939,7 @@ dependencies = [
 
 [[package]]
 name = "ralertsinua"
-version = "0.3.3"
+version = "0.4.0"
 dependencies = [
  "async-trait",
  "better-panic",
@@ -2999,9 +2999,8 @@ dependencies = [
 
 [[package]]
 name = "ralertsinua-geo"
-version = "0.3.3"
+version = "0.4.0"
 dependencies = [
- "async-trait",
  "color-eyre",
  "delegate",
  "geo",
@@ -3010,6 +3009,7 @@ dependencies = [
  "getset",
  "icu_collator",
  "icu_locid",
+ "lazy_static",
  "num-traits",
  "ratatui 0.26.2",
  "rstar",
@@ -3021,7 +3021,7 @@ dependencies = [
 
 [[package]]
 name = "ralertsinua-http"
-version = "0.3.3"
+version = "0.4.0"
 dependencies = [
  "async-trait",
  "mockito",
@@ -3035,7 +3035,7 @@ dependencies = [
 
 [[package]]
 name = "ralertsinua-models"
-version = "0.3.3"
+version = "0.4.0"
 dependencies = [
  "color-eyre",
  "delegate",

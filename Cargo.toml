@@ -4,7 +4,7 @@ description = "Rust async API wrapper (reqwest) & TUI (ratatui) for alerts.in.ua
 repository = "https://github.com/voiceapiai/ralertsinua"
 categories = ["api-bindings", "geo"]
 keywords = ["geo", "api", "tui", "cli"]
-version = "0.3.3"
+version = "0.4.0"
 authors = ["voznik <mrvoznik@gmail.com>"]
 license = "MIT"
 edition = "2021"
@@ -24,11 +24,11 @@ default-locale = "en"
 load-path = "locales"
 
 [dependencies]
-ralertsinua-geo = { path = "ralertsinua-geo", version = "0.3.3", features = [
+ralertsinua-geo = { path = "ralertsinua-geo", version = "0.4.0", features = [
     "tui",
 ] }
-ralertsinua-http = { path = "ralertsinua-http", version = "0.3.3" }
-ralertsinua-models = { path = "ralertsinua-models", version = "0.3.3" }
+ralertsinua-http = { path = "ralertsinua-http", version = "0.4.0" }
+ralertsinua-models = { path = "ralertsinua-models", version = "0.4.0" }
 
 async-trait = "0.1.80"
 better-panic = "0.3"
