@@ -1,13 +1,7 @@
-use serde::Deserialize;
+use std::str::FromStr;
 
 #[derive(
-    Debug,
-    Default,
-    Deserialize,
-    Clone,
-    strum_macros::Display,
-    strum_macros::EnumString,
-    PartialEq,
+    Debug, Default, Clone, strum_macros::Display, strum_macros::EnumString, PartialEq,
 )]
 pub enum AlertType {
     #[default]
@@ -23,16 +17,21 @@ pub enum AlertType {
     Chemical,
 }
 
-pub mod into_alert_type {
-    use super::AlertType;
-    use serde::de::*;
-    use std::str::FromStr;
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<AlertType, D::Error>
+impl serde::Serialize for AlertType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        D: Deserializer<'de>,
+        S: serde::Serializer,
     {
-        let s = String::deserialize(deserializer)?;
-        AlertType::from_str(s.as_str()).map_err(Error::custom)
+        serializer.serialize_str(&self.to_string())
+    }
+}
+impl<'de> serde::Deserialize<'de> for AlertType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        Self: FromStr,
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Self::from_str(&value).map_err(serde::de::Error::custom)
     }
 }

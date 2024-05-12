@@ -46,6 +46,6 @@ rust-project.json
 
 ### Local
 tmp/
-assets/*.sqlite
+.coverage/
 
 # End of https://www.toptal.com/developers/gitignore/api/rust,rust-analyzer,visualstudiocode,dotenv

@@ -1,46 +1,47 @@
 use color_eyre::eyre::Result;
 use crossterm::event::KeyEvent;
 use log::LevelFilter;
-use ratatui::{layout::Rect, prelude::*, widgets::Block};
+use ratatui::{prelude::*, widgets::Block};
 use rust_i18n::t;
-use std::sync::Arc;
 
 use tokio::sync::mpsc::UnboundedSender;
 use tui_logger::{TuiLoggerLevelOutput, TuiLoggerWidget, TuiWidgetState};
 
-use super::Component;
-use crate::{action::Action, config::ConfigService, layout::*, tui::Frame};
+use super::{Component, WithPlacement};
+use crate::{action::Action, config::*, layout::*, tui::Frame};
 
 // #[derive(Debug, Default, Clone, Copy, Display, FromRepr, EnumIter)]
 
 // #[derive(Debug)]
-pub struct Logger {
+pub struct Logger<'a> {
     command_tx: Option<UnboundedSender<Action>>,
+    placement: LayoutPoint,
     #[allow(unused)]
-    config: Arc<dyn ConfigService>,
-
+    config: Config,
+    #[allow(unused)]
+    title: Line<'a>,
     state: TuiWidgetState,
 }
 
-impl Logger {
-    pub fn new(config: Arc<dyn ConfigService>) -> Self {
+impl<'a> Logger<'a> {
+    pub fn new() -> Self {
         Self {
             command_tx: Option::default(),
-            config,
+            placement: LayoutPoint(LayoutArea::Inner, Some(LayoutTab::Tab2)),
+            config: Config::default(),
+            title: Line::default(),
             state: TuiWidgetState::new().set_default_display_level(LevelFilter::Trace),
         }
     }
 }
 
-impl Component for Logger {
-    fn display(&self) -> Result<String> {
-        Ok("Logger".to_string())
+impl WithPlacement for Logger<'_> {
+    fn placement(&self) -> &LayoutPoint {
+        &self.placement
     }
+}
 
-    fn placement(&self) -> LayoutPoint {
-        LayoutPoint(LayoutArea::Inner, Some(LayoutTab::Tab2))
-    }
-
+impl<'a> Component<'a> for Logger<'a> {
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.command_tx = Some(tx);
         Ok(())
@@ -54,7 +55,8 @@ impl Component for Logger {
         }
     }
 
-    fn draw(&mut self, f: &mut Frame<'_>, area: &Rect) -> Result<()> {
+    fn draw(&mut self, f: &mut Frame) -> Result<()> {
+        let area = self.get_area(f.size())?;
         let widget = TuiLoggerWidget::default()
             .block(
                 Block::bordered().title(t!("views.Logger.title").to_string().light_blue()),
@@ -72,7 +74,7 @@ impl Component for Logger {
             .output_line(true)
             .state(&self.state);
 
-        f.render_widget(widget, *area);
+        f.render_widget(widget, area);
         Ok(())
     }
 }

@@ -1,34 +1,33 @@
 #![allow(non_camel_case_types)]
-use async_trait::async_trait;
 use color_eyre::eyre::Result;
 use delegate::delegate;
 use dotenv_config::EnvConfig;
-use getset::{Getters, MutGetters, Setters};
+use getset::{Getters, Setters};
+use icu_locid::subtags::{language, Language};
 use serde::{Deserialize, Serialize};
-use std::string::ToString;
-use strum_macros::{Display, EnumString};
+use std::{str::FromStr, string::ToString};
 use tracing::warn;
 
-// const FILE_NAME: &str = "config.toml";
-
-#[derive(Debug, Clone, EnvConfig, MutGetters)]
+#[derive(Debug, Clone, EnvConfig, Getters)]
 pub struct Config {
     // pub keybindings: HashMap<String, String>, // FIXME: fails with new EnvConfig derive
-    #[getset(get_mut)]
+    #[getset(get = "pub")]
     pub settings: Settings,
 }
 
-#[derive(Debug, Clone, EnvConfig, Getters, Setters)]
+#[derive(Debug, Deserialize, Clone, EnvConfig, Getters, Setters, Serialize)]
 pub struct Settings {
     #[env_config(name = "ALERTSINUA_BASE_URL", default = "https://api.alerts.in.ua")]
     #[getset(get = "pub", set = "pub")]
     pub base_url: String,
     #[env_config(name = "ALERTSINUA_TOKEN", default = "")]
-    #[getset(get = "pub")]
+    #[getset(get = "pub", set = "pub")]
     pub token: String,
-    #[env_config(default = "en", help = "Available locales: en, uk", parse(false))]
+    /// [`Language`] represents a Unicode base language code conformant to the
+    /// [`unicode_language_id`] field of the Language and Locale Identifier.
+    #[env_config(default = "en", help = "Available locales: en, uk", parse(true))]
     #[getset(get = "pub with_prefix", set = "pub")]
-    pub locale: String, // Locale, // FIXME: fails with new EnvConfig derive
+    pub locale: String, // Language, // FIXME: fails with new EnvConfig derive
     #[env_config(name = "TICK_RATE", default = 1.0)]
     #[getset(get = "pub")]
     pub tick_rate: f64,
@@ -37,77 +36,56 @@ pub struct Settings {
     pub frame_rate: f64,
 }
 
-#[async_trait]
-pub trait ConfigService: Sync + Send + core::fmt::Debug {
-    fn settings(&self) -> &Settings;
-    fn base_url(&self) -> &str;
-    fn set_base_url(&mut self, val: String) -> &mut Settings;
-    fn token(&self) -> &str;
-    fn get_locale(&self) -> String;
-    fn set_locale<L>(&self, val: L) -> String
-    where
-        L: Into<String>,
-        Self: Sized;
-    fn toggle_locale(&self) -> String;
-    fn tick_rate(&self) -> &f64;
-    fn frame_rate(&self) -> &f64;
+impl Default for Config {
+    fn default() -> Self {
+        Config::init().unwrap()
+    }
 }
 
-impl ConfigService for Config {
+impl Config {
     delegate! {
         to self.settings {
-            fn base_url(&self) -> &str;
-            fn set_base_url(&mut self, val: String) -> &mut Settings;
-            fn token(&self) -> &str;
-            fn tick_rate(&self) -> &f64;
-            fn frame_rate(&self) -> &f64;
+            pub fn base_url(&self) -> &str;
+            pub fn set_base_url(&mut self, val: String) -> &mut Settings;
+            pub fn token(&self) -> &str;
+            pub fn set_token(&mut self, val: String) -> &mut Settings;
+            pub fn tick_rate(&self) -> &f64;
+            pub fn frame_rate(&self) -> &f64;
         }
     }
 
-    fn settings(&self) -> &Settings {
-        &self.settings
+    #[inline]
+    pub fn get_locale(&self) -> Language {
+        let i18n_locale: &str = &rust_i18n::locale();
+        let curr_lang: Language = i18n_locale.parse().unwrap();
+        curr_lang
     }
 
-    fn get_locale(&self) -> String {
-        rust_i18n::locale().to_string() // FIXME: dirty fix to not mutate self
-    }
-
-    fn toggle_locale(&self) -> String {
-        let curr_locale = &self.get_locale();
-        let locale = if curr_locale == &Locale::en.to_string() {
-            Locale::uk
+    #[inline]
+    pub fn toggle_locale(&mut self) -> &mut Settings {
+        let curr_lang: Language = self.get_locale();
+        let lang = if curr_lang == language!("en") {
+            language!("uk")
         } else {
-            Locale::en
+            language!("en")
         };
-        self.set_locale(locale.to_string());
-        self.get_locale()
+        self.set_locale(lang);
+        &mut self.settings
     }
 
-    fn set_locale<L>(&self, locale: L) -> String
+    #[inline]
+    pub fn set_locale<L>(&mut self, value: L) -> &mut Settings
     where
-        L: Into<String>,
+        L: FromStr,
+        Language: From<L>,
     {
+        let lang: Language = value.into();
         let locales = rust_i18n::available_locales!();
-        let locale: &str = &locale.into();
-        if !locales.contains(&locale) {
-            warn!("Locale '{}' is not available, using fallback 'en'", locale);
-            return self.get_locale();
+        if !locales.contains(&lang.as_str()) {
+            warn!("Locale '{}' is not available, using fallback 'en'", lang);
+            return &mut self.settings;
         }
-        // self.settings_mut().locale = locale.to_string(); // FIXME: dirty fix to not mutate self
-        rust_i18n::set_locale(locale);
-        self.get_locale()
-    }
-}
-
-#[derive(Default, Display, Debug, Clone, EnumString, PartialEq, Deserialize, Serialize)]
-pub enum Locale {
-    #[default]
-    en,
-    uk,
-}
-
-impl From<Locale> for String {
-    fn from(val: Locale) -> Self {
-        val.to_string()
+        rust_i18n::set_locale(lang.as_str());
+        &mut self.settings
     }
 }

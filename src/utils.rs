@@ -1,8 +1,8 @@
 use color_eyre::eyre::Result;
 use directories::ProjectDirs;
 use lazy_static::lazy_static;
-use std::env;
 use std::path::PathBuf;
+use std::{any::type_name, env};
 use tracing::error;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{
@@ -191,3 +191,19 @@ Config directory: {config_dir_path}
 Data directory: {data_dir_path}"
     )
 }
+
+pub fn type_of<T>(_: T) -> &'static str {
+    type_name::<T>().split("::").last().unwrap()
+}
+
+/* use std::{collections::HashMap, hash::Hash};
+
+pub fn memoize<A, B, F>(f: F) -> impl FnMut(A) -> B
+where
+    A: Eq + Hash + Clone,
+    B: Clone,
+    F: Fn(A) -> B,
+{
+    let mut cache = HashMap::new();
+    move |x| (*cache.entry(x.clone()).or_insert_with(|| f(x))).clone()
+} */

@@ -1,12 +1,12 @@
 use crate::{alert_type::*, LocationType};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq, Serialize)]
 pub struct Alert {
     pub id: i32,
     pub location_title: String,
-    #[serde(with = "crate::location_type::into_location_type")]
+    #[serde(with = "crate::location_type::LocationType")]
     pub location_type: LocationType,
     #[serde(with = "time::serde::iso8601")]
     pub started_at: OffsetDateTime,
@@ -14,7 +14,6 @@ pub struct Alert {
     pub updated_at: OffsetDateTime,
     // #[serde(skip_serializing, with = "time::serde::iso8601")]
     pub finished_at: Option<String>, // TODO: parse Option to OffsetDateTime
-    #[serde(with = "crate::alert_type::into_alert_type")]
     pub alert_type: AlertType,
     pub location_oblast: String,
     #[serde(with = "into_int")]
@@ -29,7 +28,14 @@ pub struct Alert {
 
 pub mod into_int {
     use super::*;
-    use serde::de::*;
+    use serde::{de::*, Serializer};
+
+    pub fn serialize<S>(value: &i32, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&value.to_string())
+    }
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<i32, D::Error>
     where
@@ -72,7 +78,7 @@ mod tests {
 
         assert_eq!(alert.id, 8757);
         assert_eq!(alert.location_title, "Луганська область");
-        assert_eq!(alert.location_type, LocationType::Region);
+        assert_eq!(alert.location_type, LocationType::Oblast);
         assert_eq!(alert.location_oblast, "Луганська область");
         assert_eq!(alert.location_uid, 16);
         assert_eq!(alert.location_oblast_uid, 16);

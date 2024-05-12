@@ -1,3 +1,4 @@
+use ralertsinua_geo::{CountryBoundary, Location};
 use ralertsinua_models::*;
 use serde::{
     // de::{self, Deserializer, Visitor},
@@ -19,7 +20,12 @@ pub enum Action {
     Help,
     Locale,
     SelectTab(usize),
-    SelectRegion(i32),
-    Selected(Option<AirRaidAlertOblastStatus>),
-    Fetch,
+    SelectLocationByUid(Option<usize>),
+    FetchGeo,
+    GetLocations([Location; 27]),
+    GetBoundaries(CountryBoundary),
+    FetchActiveAlerts,
+    GetActiveAlerts(Alerts),
+    FetchAirRaidAlertOblastStatuses,
+    GetAirRaidAlertOblastStatuses(AirRaidAlertOblastStatuses),
 }

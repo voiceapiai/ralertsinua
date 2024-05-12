@@ -1,10 +1,12 @@
+use color_eyre::eyre::Result;
 use delegate::delegate;
 use getset::Getters;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use time::{format_description::BorrowedFormatItem, OffsetDateTime};
 use time_macros::format_description;
 
-use crate::{Alert, AlertType, LocationType};
+#[allow(unused)]
+use crate::{Alert, AlertType, LocationType, ModelError};
 
 /// "2024/05/06 10:02:45 +0000"
 /// const LAST_UPDATED_AT_FORMAT: &str = "%Y/%m/%d %H:%M:%S %z";
@@ -16,18 +18,29 @@ const LAST_UPDATED_AT_FORMAT: &[BorrowedFormatItem] = format_description!(
 /// Custom deserializer needed for the `last_updated_at` field in response
 mod with_custom_date_format {
     use super::*;
-    use serde::de::*;
+    use serde::{de::*, Serializer};
+    // use time::error::Format;
+
+    pub fn serialize<S>(value: &OffsetDateTime, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // let _serr = Err(serde::ser::Error::custom( "path contains invalid UTF-8 characters", ));
+        let s = value.format(LAST_UPDATED_AT_FORMAT).unwrap();
+        serializer.serialize_str(&s)
+    }
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<OffsetDateTime, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let s = String::deserialize(deserializer)?;
+        let err = Error::custom("Invalid date format");
+        let s = String::deserialize(deserializer).map_err(|_| err)?;
         OffsetDateTime::parse(s.as_str(), LAST_UPDATED_AT_FORMAT).map_err(Error::custom)
     }
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq, Getters)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Getters)]
 struct Meta {
     #[get = "pub with_prefix"]
     #[serde(with = "with_custom_date_format")]
@@ -35,7 +48,7 @@ struct Meta {
 }
 
 /// Alerts struct is a collection of alerts and various methods to filter and access these alerts.
-#[derive(Debug, Deserialize, Clone, PartialEq, Getters)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Getters)]
 pub struct Alerts {
     // #[get_copy = "pub with_prefix"]
     alerts: Vec<Alert>,
@@ -86,18 +99,10 @@ impl Alerts {
             .collect()
     }
 
-    pub fn get_alerts_by_region(&self, title: &str) -> Vec<Alert> {
+    pub fn get_alerts_by_location(&self, title: &str) -> Vec<Alert> {
         self.alerts
             .iter()
             .filter(|alert| alert.location_oblast == title)
-            .cloned()
-            .collect()
-    }
-
-    pub fn get_alerts_by_region_uid(&self, int_uid: i32) -> Vec<Alert> {
-        self.alerts
-            .iter()
-            .filter(|alert| alert.location_oblast_uid == int_uid)
             .cloned()
             .collect()
     }
@@ -212,7 +217,7 @@ mod tests {
         let expected_alert = alerts.get_alerts_by_alert_type(AlertType::UrbanFights);
         assert_eq!(expected_alert.len(), 0);
 
-        let expected_alert = alerts.get_alerts_by_region_uid(16);
+        let expected_alert = alerts.get_alerts_by_location_uid(16);
         assert_eq!(expected_alert.len(), 1);
         assert_eq!(expected_alert[0].id, alert1.id);
 
@@ -224,7 +229,7 @@ mod tests {
         assert_eq!(expected_alert.len(), 1);
         assert_eq!(expected_alert[0].id, alert1.id);
 
-        let expected_alert = alerts.get_alerts_by_region("Луганська область");
+        let expected_alert = alerts.get_alerts_by_location("Луганська область");
         assert_eq!(expected_alert.len(), 1);
         assert_eq!(expected_alert[0].id, alert1.id);
 

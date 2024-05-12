@@ -1,6 +1,8 @@
+use std::str::FromStr;
+
 use geo::{Coord, LineString, Polygon};
 use geojson::de::deserialize_feature_collection_str_to_vec;
-use icu::locid::Locale;
+use icu_locid::subtags::Language;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -10,7 +12,6 @@ where
     T: TryFrom<wkt::Wkt<f64>>,
     <T as TryFrom<wkt::Wkt<f64>>>::Error: std::error::Error + 'static,
 {
-    use std::str::FromStr;
     let result: T = wkt::Wkt::from_str(wkts)?.try_into()?;
     Ok(result)
 }
@@ -20,7 +21,7 @@ pub fn deserialize_feature_collection_to_fixed_array<T, const CAP: usize>(
     locale_str: &str,
 ) -> Result<[T; CAP]>
 where
-    T: serde::de::DeserializeOwned + Clone + HasName,
+    T: serde::de::DeserializeOwned + Clone + WithName,
 {
     let mut features: Vec<T> =
         deserialize_feature_collection_str_to_vec(geojson_str).unwrap();
@@ -37,8 +38,23 @@ pub fn default_polygon() -> Polygon {
     Polygon::new(LineString::from(Vec::<Coord>::new()), vec![])
 }
 
-pub trait HasName {
+pub trait WithName {
     fn name(&self) -> &str;
+
+    fn name_en(&self) -> &str;
+
+    fn get_name_by_locale<L>(&self, locale: L) -> &str
+    where
+        L: FromStr,
+        Language: From<L>,
+    {
+        let locale: Language = locale.into();
+        if locale.as_str() == "uk" {
+            return self.name();
+        } else {
+            return self.name_en();
+        };
+    }
 }
 
 /// Sort a `Vec<T>` (objects) by comparing strings according to language-dependent conventions.
@@ -51,12 +67,14 @@ pub trait SortByKeyIcu<T> {
 }
 
 impl<T> SortByKeyIcu<T> for Vec<T> {
+    #[inline]
     fn sort_by_key_icu<F, K>(&mut self, mut f: F, l: &str)
     where
         F: FnMut(&T) -> K,
         K: Into<String> + Sized,
     {
-        use icu::collator::*;
+        use icu_collator::*;
+        use icu_locid::Locale;
         // https://github.com/unicode-org/icu4x/tree/main/components/collator#examples
         let mut options = CollatorOptions::new();
         options.strength = Some(Strength::Secondary);
@@ -74,7 +92,7 @@ impl<T> SortByKeyIcu<T> for Vec<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::region::Region;
+    use crate::location::Location;
 
     #[test]
     fn test_sort_by_key_uk() {
@@ -124,11 +142,11 @@ mod tests {
                     }
                 ]
             }"#;
-        let regions: [Region; 1] =
+        let locations: [Location; 1] =
             deserialize_feature_collection_to_fixed_array(&geojson_str, "uk").unwrap();
-        assert_eq!(regions.len(), 1);
+        assert_eq!(locations.len(), 1);
 
-        let region = &regions[0];
-        assert_eq!(region.location_uid, 31);
+        let location = &locations[0];
+        assert_eq!(location.location_uid, 31);
     }
 }

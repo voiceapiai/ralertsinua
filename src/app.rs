@@ -1,84 +1,71 @@
-use std::sync::Arc;
-
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{Context, Result};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ralertsinua_geo::*;
 use ralertsinua_http::*;
 use ralertsinua_models::*;
 use ratatui::prelude::*;
+use std::sync::Arc;
 use tokio::{
-    sync::mpsc,
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     time::{sleep, Duration},
 };
-use tracing::{error, info};
+#[allow(unused)]
+use tracing::{debug, trace};
 
-use crate::{
-    action::Action,
-    components::{
-        fps::FpsCounter, header::Header, list::RegionsList, logger::Logger, map::Map,
-        Component,
-    },
-    config::*,
-    layout::*,
-    mode::Mode,
-    tui,
-};
+use crate::{action::*, components::*, config::*, layout::*, tui};
 
 pub struct App {
-    pub config: Arc<dyn ConfigService>,
+    action_tx: UnboundedSender<Action>,
+    action_rx: UnboundedReceiver<Action>,
+    pub config: Config,
     pub api_client: Arc<dyn AlertsInUaApi>,
     pub geo_client: Arc<dyn AlertsInUaGeo>,
-    pub components: Vec<Box<dyn Component>>,
+    pub components: Vec<Box<dyn Component<'static>>>,
     /// View stack: The top (=front) of the stack is the view that is displayed
-    // pub view_stack: VecDeque<Box<dyn Component>>,
+    // pub view_stack: VecDeque<Box<dyn Component>>, // TODO
     pub should_quit: bool,
     pub should_suspend: bool,
-    pub mode: Mode,
     pub selected_tab: LayoutTab,
     pub last_tick_key_events: Vec<KeyEvent>,
 }
 
 impl App {
     pub fn new(
-        config: Arc<dyn ConfigService>,
+        config: Config,
         api_client: Arc<dyn AlertsInUaApi>,
         geo_client: Arc<dyn AlertsInUaGeo>,
     ) -> Result<Self> {
-        let header = Header::new(config.clone());
-        let map = Map::new(config.clone(), geo_client.clone());
-        let list = RegionsList::new(config.clone(), api_client.clone());
-        let fps = FpsCounter::new(config.clone());
-        let logger = Logger::new(config.clone());
-        let mode = Mode::Map;
-        let components: Vec<Box<dyn Component>> = vec![
+        let (action_tx, action_rx) = mpsc::unbounded_channel();
+        let header = Header::new();
+        let map = Map::new();
+        let list = LocationsList::new();
+        let fps = FpsCounter::new();
+        let logger = Logger::new();
+        let components: Vec<Box<dyn Component<'static>>> = vec![
             Box::new(header),
             Box::new(map),
             Box::new(list),
             Box::new(fps),
             Box::new(logger),
         ];
-        // let tick_rate = std::time::Duration::from_secs(10);
         Ok(Self {
+            action_tx,
+            action_rx,
             config,
             api_client,
             geo_client,
             components,
-            // view_stack: VecDeque::new(),
             should_quit: false,
             should_suspend: false,
-            mode,
             selected_tab: LayoutTab::default(),
             last_tick_key_events: Vec::new(),
         })
     }
 
     pub async fn init(&mut self) -> Result<()> {
-        let response: Alerts = self.api_client.get_active_alerts().await?;
-
-        info!("fetch_alerts: total {} alerts", response.len());
-        response.iter().for_each(|alert| {
-            info!("fetch_alerts:alert {:?}", alert);
-        });
+        self.action_tx.send(Action::FetchGeo)?;
+        self.action_tx
+            .send(Action::FetchAirRaidAlertOblastStatuses)?;
         Ok(())
     }
 
@@ -90,103 +77,103 @@ impl App {
         self.selected_tab = self.selected_tab.previous();
     }
 
-    pub async fn run(&mut self) -> Result<()> {
-        let (action_tx, mut action_rx) = mpsc::unbounded_channel();
-        let periodic_action_tx = action_tx.clone();
+    pub fn selected_tab(&self) -> &LayoutTab {
+        &self.selected_tab
+    }
 
+    pub async fn run(&mut self) -> Result<()> {
+        let periodic_action_tx = self.action_tx.clone();
         let mut tui = tui::Tui::new()?
             .tick_rate(self.config.tick_rate())
             .frame_rate(self.config.frame_rate());
         // tui.mouse(true);
         tui.enter()?;
 
+        // ---------------------------------------------------------------------
         self.init().await?;
 
         // ---------------------------------------------------------------------
         // EXAMPLE PERIODIC
         // ---------------------------------------------------------------------
         // dispatch fetch action after 2 seconds
+        debug!(target:"app", "init periodic fetch action");
         tokio::spawn(async move {
-            sleep(Duration::from_secs(2)).await;
-            if let Err(err) = periodic_action_tx.send(Action::Fetch) {
-                error!("App->run: Failed to send fetch action: {:?}", err);
-            } else {
-                info!("App->run: Sent fetch action");
+            loop {
+                sleep(Duration::from_secs(30)).await;
+                let _ = periodic_action_tx
+                    .send(Action::FetchAirRaidAlertOblastStatuses)
+                    .with_context(|| "periodic fetch action failed");
             }
         });
 
         for component in self.components.iter_mut() {
-            component.register_action_handler(action_tx.clone())?;
+            component.register_action_handler(self.action_tx.clone())?;
         }
 
         for component in self.components.iter_mut() {
-            component.init(tui.size()?).await?;
-            info!("Initialized component {}", component.display()?);
+            component.register_config_handler(self.config.clone())?;
+        }
+
+        for component in self.components.iter_mut() {
+            component.init(tui.size()?)?;
         }
 
         loop {
             if let Some(e) = tui.next().await {
                 match e {
-                    tui::Event::Quit => action_tx.send(Action::Quit)?,
-                    tui::Event::Tick => action_tx.send(Action::Tick)?,
-                    tui::Event::Render => action_tx.send(Action::Render)?,
-                    tui::Event::Resize(x, y) => action_tx.send(Action::Resize(x, y))?,
-                    tui::Event::Key(key_event) => {
-                        info!("Got key event: {key_event:?}");
-                        match key_event.code {
-                            KeyCode::Char('q') => {
-                                action_tx.send(Action::Quit)?;
-                            }
-                            KeyCode::Char('c') | KeyCode::Char('C') => {
-                                if key_event.modifiers == KeyModifiers::CONTROL {
-                                    action_tx.send(Action::Quit)?;
-                                }
-                            }
-                            KeyCode::Down => {
-                                action_tx.send(Action::SelectRegion(1))?;
-                            }
-                            KeyCode::Up => {
-                                action_tx.send(Action::SelectRegion(-1))?;
-                            }
-                            KeyCode::Right => {
-                                self.next_tab();
-                                action_tx
-                                    .send(Action::SelectTab(self.selected_tab as usize))?;
-                            }
-                            KeyCode::Left => {
-                                self.previous_tab();
-                                action_tx
-                                    .send(Action::SelectTab(self.selected_tab as usize))?;
-                            }
-                            KeyCode::Char('u') => {
-                                action_tx.send(Action::Fetch)?;
-                            }
-                            KeyCode::Char('l') => {
-                                action_tx.send(Action::Locale)?;
-                            }
-                            KeyCode::Char('r') => {
-                                action_tx.send(Action::Refresh)?;
-                            }
-                            KeyCode::Char('z') => {
-                                action_tx.send(Action::Suspend)?;
-                            }
-                            _ => {}
-                        }
+                    tui::Event::Quit => self.action_tx.send(Action::Quit)?,
+                    tui::Event::Tick => self.action_tx.send(Action::Tick)?,
+                    tui::Event::Render => self.action_tx.send(Action::Render)?,
+                    tui::Event::Resize(x, y) => {
+                        self.action_tx.send(Action::Resize(x, y))?
                     }
+                    tui::Event::Key(key_event) => match key_event.code {
+                        KeyCode::Char('q') => {
+                            self.action_tx.send(Action::Quit)?;
+                        }
+                        KeyCode::Char('c') | KeyCode::Char('C') => {
+                            if key_event.modifiers == KeyModifiers::CONTROL {
+                                self.action_tx.send(Action::Quit)?;
+                            }
+                        }
+                        KeyCode::Right => {
+                            self.next_tab();
+                            self.action_tx
+                                .send(Action::SelectTab(self.selected_tab as usize))?;
+                        }
+                        KeyCode::Left => {
+                            self.previous_tab();
+                            self.action_tx
+                                .send(Action::SelectTab(self.selected_tab as usize))?;
+                        }
+                        KeyCode::Char('u') => {
+                            // self.action_tx.send(Action::Fetch)?;
+                        }
+                        KeyCode::Char('l') => {
+                            self.action_tx.send(Action::Locale)?;
+                        }
+                        KeyCode::Char('r') => {
+                            self.action_tx.send(Action::Refresh)?;
+                        }
+                        KeyCode::Char('z') => {
+                            self.action_tx.send(Action::Suspend)?;
+                        }
+                        _ => {}
+                    },
                     _ => {}
                 }
                 for component in self.components.iter_mut() {
                     if let Some(action) = component.handle_events(Some(e.clone()))? {
-                        action_tx.send(action)?;
+                        self.action_tx.send(action)?;
                     }
                 }
             }
 
-            while let Ok(action) = action_rx.try_recv() {
+            while let Ok(action) = self.action_rx.try_recv() {
                 if action != Action::Tick && action != Action::Render {
-                    log::debug!("{action:?}");
+                    debug!(target:"app_events", "{action:?}");
                 }
-                match action {
+                match action.clone() {
                     Action::Tick => {
                         self.last_tick_key_events.drain(..);
                     }
@@ -195,7 +182,7 @@ impl App {
                     Action::Resume => self.should_suspend = false,
                     Action::Locale => {
                         self.config.toggle_locale();
-                        action_tx.send(Action::Refresh)?;
+                        self.action_tx.send(Action::Refresh)?;
                     }
                     Action::Resize(w, h) => {
                         tui.resize(Rect::new(0, 0, w, h))?;
@@ -204,58 +191,65 @@ impl App {
                             for component in self.components.iter_mut() {
                                 let r = component.draw(f, &f.size());
                                 if let Err(e) = r {
-                                    action_tx
+                                    self.action_tx
                                         .send(Action::Error(format!("Failed to draw: {:?}", e)))
                                         .unwrap();
                                 }
                             }
                         })?; */
                     }
-
                     Action::Render => {
-                        let layout = tui.layout().clone();
                         tui.draw(|f| {
+                            let selected_tab = *self.selected_tab();
                             self.components
                                 .iter_mut()
-                                .filter(|c| {
-                                    let LayoutPoint(_, cmp_tab) = c.placement();
-                                    cmp_tab.is_none()
-                                        || cmp_tab.unwrap() == self.selected_tab
-                                })
+                                .filter(|c| c.is_visible(&selected_tab))
                                 .for_each(|component| {
-                                    let LayoutPoint(cmp_area, _) = component.placement();
-                                    let area = layout.get_area(cmp_area);
-                                    let r = component.draw(f, &area);
+                                    let r = component.draw(f);
                                     if let Err(e) = r {
-                                        action_tx
+                                        self.action_tx
                                             .send(Action::Error(format!(
-                                                "Failed to draw: {:?}",
+                                                "component failed to draw: {:?}",
                                                 e
                                             )))
                                             .unwrap();
                                     }
                                 });
-                        })?;
+                        })
+                        .with_context(|| "tui failed to draw {:?}")?;
                     }
-                    Action::Fetch => {
-                        // let alerts_as = self.facade.get_air_raid_alert_statuses_by_region().await?;
-                        // let tx_action = Action::SetAlertsByRegion(alerts_as.to_string());
-
-                        // // info!("App->on:FetchAlerts->action_tx.send: {}", tx_action);
-                        // action_tx.send(tx_action)?;
-                        // action_tx.send(Action::Refresh)?;
+                    Action::FetchGeo => {
+                        let boundary = self.geo_client.boundary();
+                        let locations = self.geo_client.locations();
+                        debug!(target:"app", "fetch geo: total {} alerts", locations.len());
+                        self.action_tx.send(Action::GetBoundaries(boundary))?;
+                        self.action_tx.send(Action::GetLocations(locations))?;
+                    }
+                    Action::FetchActiveAlerts => {
+                        let response: Alerts = self.api_client.get_active_alerts().await?;
+                        debug!(target:"app", "get_active_alerts: total {} alerts", response.len());
+                        self.action_tx.send(Action::GetActiveAlerts(response))?;
+                    }
+                    Action::FetchAirRaidAlertOblastStatuses => {
+                        let response: AirRaidAlertOblastStatuses = self
+                            .api_client
+                            .get_air_raid_alert_statuses_by_location()
+                            .await?;
+                        debug!(target:"app", "get_air_raid_alert_statuses_by_location: total {} alerts", response.len());
+                        self.action_tx
+                            .send(Action::GetAirRaidAlertOblastStatuses(response))?;
                     }
                     _ => {}
                 }
                 for component in self.components.iter_mut() {
                     if let Some(action) = component.update(action.clone())? {
-                        action_tx.send(action)?
+                        self.action_tx.send(action)?
                     };
                 }
             }
             if self.should_suspend {
                 tui.suspend()?;
-                action_tx.send(Action::Resume)?;
+                self.action_tx.send(Action::Resume)?;
                 tui = tui::Tui::new()?
                     .tick_rate(self.config.tick_rate())
                     .frame_rate(self.config.frame_rate());

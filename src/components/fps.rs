@@ -1,16 +1,16 @@
-use async_trait::async_trait;
 use color_eyre::eyre::Result;
+use getset::Getters;
 use ratatui::{layout::Offset, prelude::*, widgets::*};
-use std::{sync::Arc, time::Instant};
+use std::time::Instant;
 use throbber_widgets_tui::{Throbber, ThrobberState, WhichUse, BRAILLE_SIX_DOUBLE};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::info;
+// use tracing::debug;
 
-use super::Component;
+use super::{Component, WithPlacement};
 use crate::{action::Action, config::*, layout::*, tui::Frame};
 
-#[derive(Debug, Clone)]
-pub struct FpsCounter {
+#[derive(Debug, Clone, Getters)]
+pub struct FpsCounter<'a> {
     app_start_time: Instant,
     app_frames: u32,
     app_fps: f64,
@@ -18,15 +18,19 @@ pub struct FpsCounter {
     render_start_time: Instant,
     render_frames: u32,
     render_fps: f64,
-
     command_tx: Option<UnboundedSender<Action>>,
+
+    #[getset(get = "pub")]
+    placement: LayoutPoint,
+    #[allow(unused)]
+    title: Line<'a>,
     throbber_state: ThrobberState,
     #[allow(unused)]
-    config: Arc<dyn ConfigService>,
+    config: Config,
 }
 
-impl FpsCounter {
-    pub fn new(config: Arc<dyn ConfigService>) -> Self {
+impl<'a> FpsCounter<'a> {
+    pub fn new() -> Self {
         Self {
             app_start_time: Instant::now(),
             app_frames: 0,
@@ -34,10 +38,12 @@ impl FpsCounter {
             render_start_time: Instant::now(),
             render_frames: 0,
             render_fps: 0.0,
-
             command_tx: Option::default(),
+
+            placement: LayoutPoint(LayoutArea::Footer, None),
+            title: Line::default(),
             throbber_state: ThrobberState::default(),
-            config,
+            config: Config::default(),
         }
     }
 
@@ -72,17 +78,15 @@ impl FpsCounter {
     }
 }
 
-#[async_trait]
-impl Component for FpsCounter {
-    fn display(&self) -> Result<String> {
-        Ok("FpsCounter".to_string())
+impl WithPlacement for FpsCounter<'_> {
+    fn placement(&self) -> &LayoutPoint {
+        &self.placement
     }
+}
 
-    fn placement(&self) -> LayoutPoint {
-        LayoutPoint(LayoutArea::Footer, None)
-    }
-
-    async fn init(&mut self, area: Rect) -> Result<()> {
+impl<'a> Component<'a> for FpsCounter<'a> {
+    fn init(&mut self, size: Rect) -> Result<()> {
+        self.debug();
         Ok(())
     }
 
@@ -100,25 +104,23 @@ impl Component for FpsCounter {
             Action::Render => {
                 self.render_tick()?;
             }
-            Action::Refresh => {
-                info!("FpsCounter->update->Action::FetchAlerts: {:?}", action);
-            }
-            Action::Fetch => {
-                info!("FpsCounter->update->Action::FetchAlerts: {:?}", action);
+            Action::Refresh => {}
+            Action::GetAirRaidAlertOblastStatuses(data) => {
+                // debug!(target:"app", "FpsCounter->update: {:?}", action);
             }
             _ => {}
         }
         Ok(None)
     }
 
-    fn draw(&mut self, f: &mut Frame<'_>, area: &Rect) -> Result<()> {
+    fn draw(&mut self, f: &mut Frame) -> Result<()> {
         let rects = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![
                 Constraint::Min(0),
                 Constraint::Length(2), // last row
             ])
-            .split(*area);
+            .split(f.size());
         let left = rects[1].offset(Offset { x: 1, y: 0 });
         let rect = rects[1].offset(Offset { x: 4, y: 0 });
 

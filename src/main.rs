@@ -1,10 +1,12 @@
 #![allow(unused_variables)]
+#![allow(clippy::new_without_default)]
 pub mod action;
 pub mod app;
 pub mod cli;
 pub mod components;
 pub mod config;
 pub mod constants;
+pub mod draw;
 pub mod fs;
 pub mod layout;
 pub mod mode;
@@ -15,35 +17,55 @@ rust_i18n::i18n!();
 
 use clap::Parser;
 use cli::Cli;
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{eyre, Result};
 use ralertsinua_geo::*;
 use ralertsinua_http::*;
+use std::io::{stdin, stdout, Write};
 use std::sync::Arc;
-use tracing::info;
+use tracing::{debug, error, warn};
+use tui_logger::set_level_for_target;
 
 use crate::{
     app::App,
-    config::{Config, ConfigService},
+    config::Config,
     utils::{initialize_logging, initialize_panic_handler},
 };
 
 async fn tokio_main() -> Result<()> {
     dotenvy::dotenv().ok();
     initialize_logging()?;
-    info!(target:"AlertsInUa", "Logging initialized");
+    set_level_for_target("app", log::LevelFilter::Debug);
+    debug!(target:"app", "initialized logging");
     initialize_panic_handler()?;
 
-    let config = Config::init().unwrap();
+    let mut config = Config::init().map_err(|e| eyre!(e))?;
     let args = Cli::parse();
-    // TODO: override config with args ?
-    let config: Arc<dyn ConfigService> = Arc::new(config);
-    info!("\n{:?} \n\n-----------", config.settings());
+
+    if config.token().is_empty() {
+        warn!(target: "app", "token is empty, asking user for token");
+        print!("enter your 'alerts.in.ua' token: ");
+        stdout().flush()?;
+
+        let mut token = String::new();
+        stdin().read_line(&mut token)?;
+        let token = token.trim().to_string();
+
+        if token.is_empty() {
+            error!(target: "app", "token cannot be empty, exiting");
+            return Err(eyre!("token cannot be empty"));
+        } else {
+            debug!(target: "app", "token from user input accepted");
+            std::env::set_var("ALERTSINUA_TOKEN", &token);
+            config.set_token(token);
+        }
+    }
+    debug!(target: "app", "\n{:?} \n\n-----------", config.settings());
 
     let api_client: Arc<dyn AlertsInUaApi> =
         Arc::new(AlertsInUaClient::new(config.base_url(), config.token()));
     let geo_client: Arc<dyn AlertsInUaGeo> = Arc::new(AlertsInUaGeoClient::default());
 
-    let mut app = App::new(config.clone(), api_client.clone(), geo_client.clone())?;
+    let mut app = App::new(config, api_client.clone(), geo_client.clone())?;
     app.run().await?;
 
     Ok(())
