@@ -24,8 +24,11 @@ pub enum AlertStatus {
     #[default]
     N,
     /// Loading
-    #[strum(props(icon = "↻", color = "white"))]
+    #[strum(props(icon = "↻", color = "gray"))]
     L,
+    /// Offline
+    #[strum(props(icon = "?", color = "gray"))]
+    O,
 }
 
 impl From<char> for AlertStatus {
@@ -34,6 +37,7 @@ impl From<char> for AlertStatus {
             'A' => AlertStatus::A,
             'P' => AlertStatus::P,
             'L' => AlertStatus::L,
+            'O' => AlertStatus::O,
             _ => AlertStatus::N,
         }
     }

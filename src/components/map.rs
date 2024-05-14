@@ -100,6 +100,11 @@ impl<'a> Component<'a> for Map<'a> {
         Ok(())
     }
 
+    fn register_config_handler(&mut self, config: Config) -> Result<()> {
+        self.config = config;
+        Ok(())
+    }
+
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::Tick => {}
@@ -131,7 +136,9 @@ impl<'a> Component<'a> for Map<'a> {
         let size: Rect = f.size();
         let area: Rect = self.get_area(size)?;
         let (x_bounds, y_bounds) = self.get_x_y_bounds();
-
+        let title =
+            Self::get_title_with_online_status(t!("views.Map.title"), self.config.online())
+                .alignment(Alignment::Left);
         let widget = Canvas::default()
             .block(
                 Block::default()

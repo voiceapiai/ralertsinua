@@ -3122,7 +3122,7 @@ dependencies = [
  "ralertsinua-geo",
  "ralertsinua-http",
  "ralertsinua-models",
- "ratatui 0.26.2",
+ "ratatui",
  "ratatui-macros",
  "reqwest",
  "rmp-serde",
@@ -3133,8 +3133,8 @@ dependencies = [
  "serde_with",
  "signal-hook",
  "strip-ansi-escapes",
- "strum 0.26.1",
- "strum_macros 0.26.1",
+ "strum",
+ "strum_macros",
  "sys-locale",
  "thiserror",
  "throbber-widgets-tui",
@@ -3162,7 +3162,7 @@ dependencies = [
  "icu_locid",
  "lazy_static",
  "miette 7.2.0",
- "ratatui 0.26.2",
+ "ratatui",
  "serde",
  "serde_json",
  "thiserror",
@@ -3193,11 +3193,12 @@ version = "0.4.0"
 dependencies = [
  "getset",
  "miette 7.2.0",
- "ratatui 0.26.2",
+ "ratatui",
  "serde",
  "serde_json",
- "strum 0.26.1",
- "strum_macros 0.26.1",
+ "serde_with",
+ "strum",
+ "strum_macros",
  "thiserror",
  "time",
  "time-macros",
@@ -3364,25 +3365,6 @@ dependencies = [
 
 [[package]]
 name = "ratatui"
-version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5659e52e4ba6e07b2dad9f1158f578ef84a73762625ddb51536019f34d180eb"
-dependencies = [
- "bitflags 2.4.2",
- "cassowary",
- "crossterm",
- "indoc",
- "itertools 0.12.1",
- "lru",
- "paste",
- "stability 0.1.1",
- "strum 0.25.0",
- "unicode-segmentation",
- "unicode-width",
-]
-
-[[package]]
-name = "ratatui"
 version = "0.26.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a564a852040e82671dc50a37d88f3aa83bbc690dfc6844cfe7a2591620206a80"
@@ -3396,19 +3378,19 @@ dependencies = [
  "lru",
  "paste",
  "serde",
- "stability 0.2.0",
- "strum 0.26.1",
+ "stability",
+ "strum",
  "unicode-segmentation",
  "unicode-width",
 ]
 
 [[package]]
 name = "ratatui-macros"
-version = "0.2.4"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc73388a6265c1046886f169823b9a323dd9c8810b272685f2750c9eace1e52f"
+checksum = "778e51eba3b5e70a89116c302818c4edbee523f4af1fed3e4e3ae73518692c00"
 dependencies = [
- "ratatui 0.25.0",
+ "ratatui",
 ]
 
 [[package]]
@@ -4073,16 +4055,6 @@ dependencies = [
 
 [[package]]
 name = "stability"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebd1b177894da2a2d9120208c3386066af06a488255caabc5de8ddca22dbc3ce"
-dependencies = [
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "stability"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2ff9eaf853dec4c8802325d8b6d3dffa86cc707fd7a1a4cdbf416e13b061787a"
@@ -4126,33 +4098,11 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "strum"
-version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "290d54ea6f91c969195bdbcd7442c8c2a2ba87da8bf60a7ee86a235d4bc1e125"
-dependencies = [
- "strum_macros 0.25.3",
-]
-
-[[package]]
-name = "strum"
 version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "723b93e8addf9aa965ebe2d11da6d7540fa2283fcea14b3371ff055f7ba13f5f"
 dependencies = [
- "strum_macros 0.26.1",
-]
-
-[[package]]
-name = "strum_macros"
-version = "0.25.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23dc1fa9ac9c169a78ba62f0b841814b7abae11bdd047b9c58f893439e309ea0"
-dependencies = [
- "heck 0.4.1",
- "proc-macro2",
- "quote",
- "rustversion",
- "syn 2.0.48",
+ "strum_macros",
 ]
 
 [[package]]
@@ -4328,7 +4278,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "431b847a60fc7b1df94a5b1bcb3cdd7027bb0013b431b08038505e8891c577a2"
 dependencies = [
  "rand 0.8.5",
- "ratatui 0.26.2",
+ "ratatui",
 ]
 
 [[package]]
@@ -4675,7 +4625,7 @@ dependencies = [
  "lazy_static",
  "log",
  "parking_lot 0.12.1",
- "ratatui 0.26.2",
+ "ratatui",
  "tracing",
  "tracing-subscriber",
 ]
@@ -4688,7 +4638,7 @@ checksum = "581e0457c7a9f81db70431d3b6c82f8589bb556a722e414ca17d55367ce77c9d"
 dependencies = [
  "crossterm",
  "itertools 0.12.1",
- "ratatui 0.26.2",
+ "ratatui",
 ]
 
 [[package]]

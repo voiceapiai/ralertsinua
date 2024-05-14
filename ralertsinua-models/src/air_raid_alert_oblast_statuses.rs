@@ -46,7 +46,7 @@ pub mod deserialize_oblast_statuses {
 
 impl Default for AirRaidAlertOblastStatuses {
     fn default() -> Self {
-        Self::new(String::from("NNNNNNNNNNNNNNNNNNNNNNNNNNN"), Some(true))
+        Self::new(String::from("OOOOOOOOOOOOOOOOOOOOOOOOOOO"), Some(true))
     }
 }
 
@@ -59,6 +59,10 @@ impl AirRaidAlertOblastStatuses {
     }
     pub fn is_empty(&self) -> bool {
         self.oblast_statuses.is_empty()
+    }
+
+    pub fn raw_data(&self) -> &str {
+        &self.raw_data
     }
 
     /// Create a vec AirRaidAlertOblastStatuses from a string

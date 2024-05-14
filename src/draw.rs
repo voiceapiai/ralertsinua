@@ -1,5 +1,6 @@
 use ralertsinua_models::AlertStatus;
 use ratatui::prelude::*;
+use ratatui_macros::line;
 
 pub trait WithLineItems {
     /// Builds new [`Line`] with styled text
@@ -56,9 +57,24 @@ pub trait WithLineItems {
                 .add_modifier(Modifier::BOLD)
                 .add_modifier(Modifier::RAPID_BLINK),
             AlertStatus::P => line.add_modifier(Modifier::ITALIC),
-            AlertStatus::L => line.add_modifier(Modifier::DIM),
+            AlertStatus::L | AlertStatus::O => line.add_modifier(Modifier::DIM),
             _ => line,
         };
+
+        line
+    }
+
+    fn get_title_with_online_status<'a, S>(text: S, is_online: &bool) -> Line<'a>
+    where
+        S: Into<String>,
+    {
+        #[rustfmt::skip]
+        let suffix: &str = match is_online { true => "", false => ": Offline", };
+        let mut line: Line = line![text.into(), suffix];
+
+        if !is_online {
+            line = line.add_modifier(Modifier::DIM).style(Color::DarkGray)
+        }
 
         line
     }

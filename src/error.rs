@@ -6,7 +6,7 @@ use crate::action::*;
 
 /// Groups up the kinds of errors that may happen in this crate.
 #[derive(Error, Diagnostic, Debug)]
-#[error("oops!")]
+#[error("ralertsinua error!")]
 pub enum AppError {
     #[error("input/output error: {0}")]
     Io(#[from] std::io::Error),
@@ -25,7 +25,7 @@ pub enum AppError {
     #[error("component error")]
     #[diagnostic(code(ralertsinua::component))]
     ComponentError,
-    // #[error(transparent)]
+    #[error("API error")]
     #[diagnostic(transparent)]
     ApiError(#[from] ralertsinua_http::ApiError),
     #[error("unknown error")]

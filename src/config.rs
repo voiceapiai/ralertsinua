@@ -1,4 +1,3 @@
-#![allow(non_camel_case_types)]
 use delegate::delegate;
 use dotenv_config::EnvConfig;
 use getset::{Getters, Setters};
@@ -9,11 +8,17 @@ use serde::{Deserialize, Serialize};
 use std::{str::FromStr, string::ToString};
 use tracing::warn;
 
-#[derive(Debug, Clone, EnvConfig, Getters)]
+#[allow(unused_imports)]
+use crate::error::*;
+
+#[derive(Debug, Clone, EnvConfig, Getters, Setters)]
 pub struct Config {
     // pub keybindings: HashMap<String, String>, // FIXME: fails with new EnvConfig derive
     #[getset(get = "pub")]
-    pub settings: Settings,
+    settings: Settings,
+    #[env_config(default = false)]
+    #[getset(get = "pub", set = "pub")]
+    online: bool,
 }
 
 #[derive(Debug, Deserialize, Clone, EnvConfig, Getters, Setters, Serialize)]
@@ -22,12 +27,12 @@ pub struct Settings {
     #[getset(get = "pub", set = "pub")]
     pub base_url: String,
     #[env_config(name = "ALERTSINUA_TOKEN", default = "")]
-    #[getset(get = "pub", set = "pub")]
+    #[getset(get = "pub")]
     pub token: String,
     /// [`Language`] represents a Unicode base language code conformant to the
     /// [`unicode_language_id`] field of the Language and Locale Identifier.
     #[env_config(default = "en", help = "Available locales: en, uk", parse(true))]
-    #[getset(get = "pub with_prefix", set = "pub")]
+    #[getset(get = "pub with_prefix")]
     pub locale: String, // Language, // FIXME: fails with new EnvConfig derive
     #[env_config(name = "TICK_RATE", default = 1.0)]
     #[getset(get = "pub")]
@@ -49,10 +54,25 @@ impl Config {
             pub fn base_url(&self) -> &str;
             pub fn set_base_url(&mut self, val: String) -> &mut Settings;
             pub fn token(&self) -> &str;
-            pub fn set_token(&mut self, val: String) -> &mut Settings;
             pub fn tick_rate(&self) -> &f64;
             pub fn frame_rate(&self) -> &f64;
         }
+    }
+
+    #[inline]
+    pub fn set_token(&mut self, val: String) -> Result<&mut Settings> {
+        if Self::validate_token(&val) {
+            self.settings.token = val;
+            Ok(&mut self.settings)
+        } else {
+            Err(miette!("token is invalid, must be 46 characters long"))
+        }
+    }
+
+    /// For example, check if the token is 46 characters long and contains only alphanumeric characters
+    #[inline]
+    fn validate_token(token: &str) -> bool {
+        token.len() == 46 && token.chars().all(|c| c.is_alphanumeric())
     }
 
     #[inline]

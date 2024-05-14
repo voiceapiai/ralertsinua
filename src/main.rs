@@ -21,8 +21,12 @@ use cli::Cli;
 use miette::{miette, IntoDiagnostic, Result};
 use ralertsinua_geo::*;
 use ralertsinua_http::*;
-use std::io::{stdin, stdout, Write};
 use std::sync::Arc;
+#[allow(unused_imports)]
+use std::{
+    io::{stdin, stdout, Write},
+    time::Duration,
+};
 use tracing::{debug, error, warn};
 use tui_logger::set_level_for_target;
 
@@ -56,10 +60,25 @@ async fn tokio_main() -> Result<()> {
             return Err(miette!("token cannot be empty"));
         } else {
             debug!(target: "app", "token from user input accepted");
-            std::env::set_var("ALERTSINUA_TOKEN", &token);
-            config.set_token(token);
+            config.set_token(token)?;
         }
+    } else if !args.token.is_empty() {
+        debug!(target: "app", "token from parameters accepted, ignore env");
+        config.set_token(args.token)?;
     }
+
+    // Replace with a reliable public server (e.g., 8.8.8.8:53)
+    match std::net::TcpStream::connect("8.8.8.8:53") {
+        Ok(_) => {
+            debug!(target: "app", "sucsessful ping 8.8.8.8:53, online=true");
+            config.set_online(true);
+        }
+        Err(e) => {
+            error!(target: "app", "failed to ping 8.8.8.8:53, online=false, error={}", e);
+            config.set_online(false);
+        }
+    };
+
     debug!(target: "app", "\n{:?} \n\n-----------", config.settings());
 
     let api_client: Arc<dyn AlertsInUaApi> = Arc::new(AlertsInUaClient::new(

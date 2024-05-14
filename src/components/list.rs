@@ -134,6 +134,11 @@ impl<'a> Component<'a> for LocationsList<'a> {
         Ok(())
     }
 
+    fn register_config_handler(&mut self, config: Config) -> Result<()> {
+        self.config = config;
+        Ok(())
+    }
+
     #[tracing::instrument(skip(self))]
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {

@@ -11,7 +11,7 @@ use tokio::{
     time::{sleep, Duration},
 };
 #[allow(unused)]
-use tracing::{debug, trace};
+use tracing::{debug, error, trace};
 
 use crate::{action::*, components::*, config::*, error::*, layout::*, tui};
 
@@ -172,7 +172,7 @@ impl App {
 
             while let Ok(action) = self.action_rx.try_recv() {
                 if action != Action::Tick && action != Action::Render {
-                    debug!(target:"app_events", "{action:?}");
+                    debug!(target:"app_events", "received action: {}", action.to_string());
                 }
                 match action.clone() {
                     Action::Tick => {
@@ -231,10 +231,21 @@ impl App {
                         self.action_tx.send(Action::GetActiveAlerts(response))?;
                     }
                     Action::FetchAirRaidAlertOblastStatuses => {
+                        #[allow(clippy::bind_instead_of_map)]
                         let response: AirRaidAlertOblastStatuses = self
                             .api_client
                             .get_air_raid_alert_statuses_by_location()
-                            .await?;
+                            .await
+                            .and_then(|r| {
+                                trace!(target: "app", "get_air_raid_alert_statuses_by_location: {}", r.raw_data());
+                                Ok(r)
+                            })
+                            .inspect_err(|e| {
+                                error!(target: "app", "error from API catched, possibly offline");
+                                let _ = self.action_tx.send( Action::Error(e.to_string()));
+                                let _ = self.action_tx.send( Action::Online(false));
+                            })
+                            .unwrap_or_default();
                         debug!(target:"app", "get_air_raid_alert_statuses_by_location: total {} alerts", response.len());
                         self.action_tx
                             .send(Action::GetAirRaidAlertOblastStatuses(response))?;

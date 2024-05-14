@@ -5,9 +5,9 @@ use serde::{
     Deserialize,
     Serialize,
 };
-use strum::Display;
+use strum::{Display, VariantNames};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Display, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Display, VariantNames, Deserialize)]
 pub enum Action {
     Tick,
     Render,
@@ -18,6 +18,7 @@ pub enum Action {
     Refresh,
     Error(String),
     Help,
+    Online(bool),
     Locale,
     SelectTab(usize),
     SelectLocationByUid(Option<usize>),
