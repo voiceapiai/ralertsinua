@@ -45,7 +45,7 @@ impl<'a> Logger<'a> {
     }
 }
 
-impl WithPlacement for Logger<'_> {
+impl WithPlacement<'_> for Logger<'_> {
     fn placement(&self) -> &LayoutPoint {
         &self.placement
     }

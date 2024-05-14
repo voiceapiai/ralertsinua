@@ -6,8 +6,9 @@
     // "rust-analyzer.cargo.autoreload": false,
     // "rust-analyzer.numThreads": 2,
     // "rust-analyzer.debug.engine": "vadimcn.vscode-lldb",
-    "lldb.displayFormat": "auto",
-    "lldb.showDisassembly": "auto",
-    "lldb.dereferencePointers": true,
+
+    // "lldb.displayFormat": "auto",
+    // "lldb.showDisassembly": "auto",
+    // "lldb.dereferencePointers": true,
     "lldb.consoleMode": "evaluate",
 }

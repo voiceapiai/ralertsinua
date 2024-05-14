@@ -32,7 +32,7 @@ impl<'a> Header<'a> {
     }
 }
 
-impl WithPlacement for Header<'_> {
+impl WithPlacement<'_> for Header<'_> {
     fn placement(&self) -> &LayoutPoint {
         &self.placement
     }

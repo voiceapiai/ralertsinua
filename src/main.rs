@@ -6,12 +6,12 @@ pub mod cli;
 pub mod components;
 pub mod config;
 pub mod constants;
-pub mod draw;
 pub mod error;
 pub mod fs;
 pub mod layout;
 pub mod mode;
 pub mod tui;
+pub mod tui_helpers;
 pub mod utils;
 
 rust_i18n::i18n!();

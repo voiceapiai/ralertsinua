@@ -84,8 +84,9 @@ icu_collator = "1.4.0"
 icu_locid = { version = "1.4.0", features = ["serde"] }
 miette = { version = "7.2.0", features = ["fancy", "serde"] }
 lazy_static = "1.4.0"
-libc = "0.2.15"
+# libc = "0.2.15"
 log = "0.4.21"
+michie = "3.0.2"
 pretty_assertions = "1.4.0"
 ratatui = { version = "0.26.2", features = ["serde", "macros"] }
 ratatui-macros = "0.3.1"
@@ -111,6 +112,7 @@ tracing = "0.1"
 tracing-error = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "serde"] }
 tui-logger = { version = "0.11", features = ["tracing-support"] }
+tui-popup = "0.3.1"
 tui-prompts = "0.3.11"
 trait-variant = "0.1.2"
 

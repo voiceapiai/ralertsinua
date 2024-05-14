@@ -14,20 +14,20 @@ use serde::{Deserialize, Serialize};
 )]
 pub enum AlertStatus {
     /// Active
-    #[strum(props(icon = "🜸", color = "red"))] // 🔴
+    #[strum(to_string = "Active", props(icon = "🜸", color = "red"))] // 🔴
     A,
     /// Partially active
-    #[strum(props(icon = "🌤", color = "yellow"))] // 🟡
+    #[strum(to_string = "Partial", props(icon = "🌤", color = "yellow"))] // 🟡
     P,
     /// No information
-    #[strum(props(icon = "🌣", color = "blue"))] // 🟢
+    #[strum(to_string = "No info", props(icon = "🌣", color = "blue"))] // 🟢
     #[default]
     N,
     /// Loading
-    #[strum(props(icon = "↻", color = "gray"))]
+    #[strum(to_string = "Loading", props(icon = "↻", color = "gray"))]
     L,
     /// Offline
-    #[strum(props(icon = "?", color = "gray"))]
+    #[strum(to_string = "Offline", props(icon = "?", color = "darkgray"))]
     O,
 }
 

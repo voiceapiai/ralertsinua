@@ -40,7 +40,7 @@ impl LayoutTab {
     }
 }
 
-#[derive(Debug, Default, Clone, Hash, Display, FromRepr, EnumIter, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, Hash, Display, FromRepr, EnumIter, PartialEq, Eq)]
 pub enum LayoutArea {
     Header,
     Tabs,

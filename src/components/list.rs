@@ -11,7 +11,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
 
 use super::{Component, Frame, Result, WithPlacement};
-use crate::{action::Action, config::*, constants::*, draw::*, layout::*};
+use crate::{action::Action, config::*, constants::*, layout::*, tui_helpers::*};
 
 #[derive(Debug, Getters, MutGetters, Setters)]
 pub struct LocationsList<'a> {
@@ -57,7 +57,7 @@ impl<'a> LocationsList<'a> {
                 item.location_title_en()
             };
             let is_selected = (item.location_uid) == self.selected_location_uid;
-            Self::get_styled_line_by_status(text, item.status(), is_selected)
+            get_styled_line_by_status(text, item.status(), &is_selected)
         });
 
         List::new(items)
@@ -115,13 +115,11 @@ impl<'a> LocationsList<'a> {
     }
 }
 
-impl WithPlacement for LocationsList<'_> {
+impl WithPlacement<'_> for LocationsList<'_> {
     fn placement(&self) -> &LayoutPoint {
         &self.placement
     }
 }
-
-impl<'a> WithLineItems for LocationsList<'a> {}
 
 impl<'a> Component<'a> for LocationsList<'a> {
     fn init(&mut self, size: Rect) -> Result<()> {
@@ -151,6 +149,13 @@ impl<'a> Component<'a> for LocationsList<'a> {
                 self.list = self.generate_list(false);
                 info!("List->update->Action::Refresh: {}", action);
             }
+            Action::Online(online) => {
+                self.title = get_title_with_online_status(
+                    t!("views.List.title"),
+                    self.config.online(),
+                )
+                .alignment(Alignment::Left);
+            }
             _ => {}
         }
         Ok(None)
@@ -158,15 +163,11 @@ impl<'a> Component<'a> for LocationsList<'a> {
 
     fn draw(&mut self, f: &mut Frame) -> Result<()> {
         let area = self.get_area(f.size())?;
-        // let list: List<'a> = self.list.clone();
+        let title = self.title.clone();
         let widget: List<'a> = self
             .list
             .clone()
-            .block(
-                Block::bordered()
-                    .title(t!("views.List.title").to_string())
-                    .title_alignment(Alignment::Center),
-            )
+            .block(Block::bordered().title(title))
             .style(Style::default().fg(Color::Cyan))
             .highlight_style(
                 Style::default()

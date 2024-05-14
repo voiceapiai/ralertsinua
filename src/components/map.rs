@@ -1,6 +1,8 @@
+use std::fmt::Debug;
+
 use geo::Rect as GeoRect;
 use ralertsinua_geo::*;
-use ralertsinua_models::{AirRaidAlertOblastStatuses, AlertStatus};
+use ralertsinua_models::*;
 use ratatui::{
     prelude::*,
     widgets::{
@@ -12,9 +14,10 @@ use rust_i18n::t;
 use tokio::sync::mpsc::UnboundedSender;
 #[allow(unused)]
 use tracing::debug;
+// use tui_popup::Popup;
 
 use super::{Component, Frame, Result, WithPlacement};
-use crate::{action::*, config::*, draw::*, layout::*};
+use crate::{action::*, config::*, layout::*, tui_helpers::*};
 
 #[derive(Debug)]
 pub struct Map<'a> {
@@ -71,9 +74,22 @@ impl<'a> Map<'a> {
     {
         self.locations.iter().find(|r| predicate(r)).cloned()
     }
+
+    #[inline]
+    pub fn get_selected_location(&mut self) -> Option<Location> {
+        self.get_location_by(|l| l.location_uid == self.selected_location_uid)
+    }
+
+    #[inline]
+    pub fn get_selected_alert_status(&mut self) -> Option<AirRaidAlertOblastStatus> {
+        self.oblast_statuses
+            .iter()
+            .find(|&os| os.location_uid == self.selected_location_uid)
+            .cloned()
+    }
 }
 
-impl WithPlacement for Map<'_> {
+impl WithPlacement<'_> for Map<'_> {
     #[inline]
     fn placement(&self) -> &LayoutPoint {
         &self.placement
@@ -86,8 +102,6 @@ impl WithBoundingRect for Map<'_> {
         self.bounding_rect
     }
 }
-
-impl<'a> WithLineItems for Map<'a> {}
 
 impl<'a> Component<'a> for Map<'a> {
     fn init(&mut self, r: Rect) -> Result<()> {
@@ -127,6 +141,13 @@ impl<'a> Component<'a> for Map<'a> {
                     self.selected_location_uid = -1;
                 }
             },
+            Action::Online(online) => {
+                self.title = get_title_with_online_status(
+                    t!("views.Map.title"),
+                    self.config.online(),
+                )
+                .alignment(Alignment::Left);
+            }
             _ => {}
         }
         Ok(None)
@@ -136,16 +157,11 @@ impl<'a> Component<'a> for Map<'a> {
         let size: Rect = f.size();
         let area: Rect = self.get_area(size)?;
         let (x_bounds, y_bounds) = self.get_x_y_bounds();
-        let title =
-            Self::get_title_with_online_status(t!("views.Map.title"), self.config.online())
-                .alignment(Alignment::Left);
+        let selected_location = self.get_selected_location();
+        let selected_alert = self.get_selected_alert_status();
+        let title = self.title.clone();
         let widget = Canvas::default()
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(t!("views.Map.title").to_string().light_blue())
-                    .title_alignment(Alignment::Center),
-            )
+            .block(Block::bordered().title(title))
             .marker(Marker::Braille)
             .x_bounds(x_bounds)
             .y_bounds(y_bounds)
@@ -171,12 +187,30 @@ impl<'a> Component<'a> for Map<'a> {
                         .unwrap()
                         .status();
                     let is_selected = (l.location_uid) == self.selected_location_uid;
-                    let line = Self::get_styled_line_icon_by_status(status, is_selected);
+                    let line = get_styled_line_icon_by_status(status, &is_selected);
                     ctx.print(x, y, line);
                 });
             })
             .background_color(Color::Reset);
         f.render_widget(widget, area);
+
+        // popup
+        if let Some(sa) = selected_alert {
+            let popup_area = bottom_left_rect(area, 30, 20);
+            let popup_bg = get_color_by_status(sa.status());
+            let popup_text =
+                Text::from(format!("{}\n{}", sa.location_title_en(), sa.status()));
+            // let popup = Popup::new("Alert Status Details:", popup_text)
+            //     .style(Style::new().bg(popup_bg));
+            // f.render_widget(&popup, popup_area);
+            let paragraph = Paragraph::new(popup_text)
+                .dark_gray()
+                .alignment(Alignment::Center);
+            let block = Block::bordered()
+                .bg(popup_bg)
+                .title("Alert Status Details:".white().bold().italic());
+            f.render_widget(paragraph.block(block), popup_area);
+        };
         Ok(())
     }
 }
