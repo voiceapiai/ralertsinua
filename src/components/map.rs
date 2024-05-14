@@ -3,13 +3,8 @@ use std::fmt::Debug;
 use geo::Rect as GeoRect;
 use ralertsinua_geo::*;
 use ralertsinua_models::*;
-use ratatui::{
-    prelude::*,
-    widgets::{
-        canvas::{Canvas, Context},
-        *,
-    },
-};
+use ratatui::widgets::canvas::Canvas;
+use ratatui::{prelude::*, widgets::*};
 use rust_i18n::t;
 use tokio::sync::mpsc::UnboundedSender;
 #[allow(unused)]
@@ -41,7 +36,6 @@ pub struct Map<'a> {
 impl<'a> Map<'a> {
     #[inline]
     pub fn new() -> Self {
-        let context = Context::new(0, 0, [0.0, 0.0], [0.0, 0.0], Marker::Braille);
         Self {
             command_tx: Option::default(),
             placement: LayoutPoint(LayoutArea::Left, Some(LayoutTab::Tab1)),
@@ -214,7 +208,7 @@ impl<'a> Component<'a> for Map<'a> {
             .alignment(Alignment::Left);
         let block = Block::bordered()
             .bg(popup_bg)
-            .title("Alert Status Details:".white().bold().italic());
+            .title("Alert Details:".white().bold().italic());
         f.render_widget(paragraph.block(block), popup_area);
         Ok(())
     }

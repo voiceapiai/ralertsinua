@@ -99,10 +99,11 @@ impl App {
         // EXAMPLE PERIODIC
         // ---------------------------------------------------------------------
         // dispatch fetch action after 2 seconds
-        debug!(target:"app", "init periodic fetch action");
+        let interval = *self.config.polling_interval();
+        debug!(target:"app", "init periodic fetch action every {} seconds", interval);
         tokio::spawn(async move {
             loop {
-                sleep(Duration::from_secs(30)).await;
+                sleep(Duration::from_secs(interval)).await;
                 let _ = periodic_action_tx.send(Action::FetchAirRaidAlertOblastStatuses);
             }
         });

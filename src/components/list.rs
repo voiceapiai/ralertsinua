@@ -168,10 +168,10 @@ impl<'a> Component<'a> for LocationsList<'a> {
             .list
             .clone()
             .block(Block::bordered().title(title))
-            .style(Style::default().fg(Color::Cyan))
             .highlight_style(
                 Style::default()
                     .add_modifier(Modifier::BOLD)
+                    .bg(Color::Reset)
                     .fg(*SELECTED_STYLE_FG),
             )
             .highlight_symbol(">>")

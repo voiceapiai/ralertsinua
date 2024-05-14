@@ -56,4 +56,7 @@ pub enum ApiError {
 
     #[error("API Error: Invalid URL: {0}")]
     InvalidURL(reqwest::Error),
+
+    #[error("API Error: Internal error")]
+    Internal,
 }

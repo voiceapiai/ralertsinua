@@ -2,7 +2,9 @@
 //! @borrows https://github.com/ramsayleung/rspotify/blob/master/rspotify-http/src/reqwest.rs
 
 use async_trait::async_trait;
-use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
+use http_cache_reqwest::{
+    CACacheManager, Cache, CacheMode, CacheOptions, HttpCache, HttpCacheOptions,
+};
 use reqwest::{
     header::{HeaderMap, HeaderValue},
     Method, Response, StatusCode,
@@ -33,54 +35,54 @@ const APP_USER_AGENT: &str = concat!(
     // env!("VERGEN_CARGO_TARGET_TRIPLE"),
 );
 
-#[derive(Debug, Clone)]
+// #[derive(Debug)]
 pub struct AlertsInUaClient {
     base_url: String,
     token: String,
-    // cache_path: Option<&'static str>,
     client: ClientWithMiddleware,
+    cache_manager: CACacheManager,
+}
+
+impl std::fmt::Debug for AlertsInUaClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "AlertsInUaClient {{ base_url: {}, token: {}, client: {:?}, cache_manager: {:?} }}", self.base_url, self.token, self.client, "CACacheManager")
+    }
 }
 
 impl AlertsInUaClient {
-    pub fn new<U, T>(base_url: U, token: T, cache_path: Option<&str>) -> Self
-    where
-        U: Into<String>,
-        T: Into<String>,
-    {
+    pub fn new(base_url: &str, token: &str, cache_manager: Option<CACacheManager>) -> Self {
         let base_url = base_url.into();
         let token = token.into();
         let reqwest_client = reqwest::ClientBuilder::new()
             .timeout(Duration::from_secs(10))
             .user_agent(APP_USER_AGENT)
-            .default_headers({
-                let mut headers = HeaderMap::new();
-                headers.insert("accept", HeaderValue::from_static("value"));
-                headers
-            })
             .build()
             .expect("Failed to build reqwest client");
-        let manager = match cache_path {
-            Some(cache_path) => CACacheManager {
-                path: cache_path.into(),
-            },
-            None => CACacheManager::default(),
-        };
-        let mode = CacheMode::ForceCache;
-        let options = HttpCacheOptions::default();
-        log::trace!("Creating reqwest_middleware client with cache: mode {:?}, manager {:?}, options {:?}", mode, manager, options);
+
+        let manager: CACacheManager = cache_manager.unwrap_or_default();
+        let mode = CacheMode::Default;
         let client = ClientBuilder::new(reqwest_client)
             .with(Cache(HttpCache {
                 mode,
-                manager,
-                options,
+                manager: manager.clone(),
+                options: HttpCacheOptions {
+                    cache_key: None,
+                    cache_options: Some(CacheOptions {
+                        shared: false,
+                        ..Default::default()
+                    }),
+                    cache_mode_fn: None,
+                    cache_bust: None,
+                },
             }))
             .build();
+
         // building with these options cannot fail
         Self {
             base_url,
             token,
-            // cache_path,
             client,
+            cache_manager: manager.clone(),
         }
     }
 }
@@ -103,7 +105,23 @@ impl AlertsInUaClient {
         let mut request = self.client.request(method.clone(), url);
         // Enable HTTP bearer authentication.
         request = request.bearer_auth(&self.token);
-
+        // Get last_modified from cache
+        let last_modified = self.get_last_modified().await?;
+        // Set the headers
+        let mut headers = HeaderMap::new();
+        headers.insert("Accept", HeaderValue::from_static("*/*"));
+        headers.insert("User-Agent", HeaderValue::from_static("HTTPie/3.2.1"));
+        headers.insert(
+            "Cache-Control",
+            HeaderValue::from_static("public, max-age=7200, s-maxage=3600"),
+        );
+        headers.insert("Connection", HeaderValue::from_static("keep-alive"));
+        // Here we set the If-Modified-Since header from the last_modified
+        headers.insert(
+            "If-Modified-Since",
+            last_modified.parse().map_err(|_| ApiError::Internal)?,
+        );
+        request = request.headers(headers);
         // Configuring the request for the specific type (get/post/put/delete)
         request = add_data(request);
 
@@ -115,8 +133,21 @@ impl AlertsInUaClient {
             reqwest_middleware::Error::from(e)
         })?;
 
-        // Making sure that the status code is OK
+        let _last_modified = response
+            .headers()
+            .get("Last-Modified")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
+        log::trace!(
+            "Made request, response.headers {:?} last_modified={}",
+            response.headers(),
+            _last_modified
+        );
+        self.set_last_modified(&_last_modified).await?;
 
+        // Making sure that the status code is OK
         match response.error_for_status() {
             Ok(res) => res.json::<R>().await.map_err(Into::into),
             Err(err) => match err.status() {
@@ -134,6 +165,39 @@ impl AlertsInUaClient {
             },
         }
     }
+
+    async fn get_last_modified(&self) -> Result<String> {
+        #[allow(clippy::let_and_return)]
+        let _last_modified =
+            match cacache::read(&self.cache_manager.path, "last_modified").await {
+                Ok(d) => {
+                    log::debug!("Last modified from cache: {:?}", d);
+                    String::from_utf8(d)
+                        .inspect_err(|e| {
+                            log::error!(
+                                "Error deserializing last_modified from cache: {:?}",
+                                e
+                            );
+                        })
+                        .map_err(|_| ApiError::Internal)
+                }
+                Err(_e) => {
+                    log::error!("Error reading last_modified from cache: {:?}", _e);
+                    Ok(String::from("Tue, 14 May 2024 18:18:18 GMT"))
+                }
+            };
+        _last_modified
+    }
+
+    async fn set_last_modified(&self, value: &str) -> Result<()> {
+        let _ = cacache::write(&self.cache_manager.path, "last_modified", value)
+            .await
+            .inspect_err(|e| {
+                log::error!("Error writing last_modified to cache: {:?}", e);
+            })
+            .map_err(|_| ApiError::Internal);
+        Ok(())
+    }
 }
 
 /// This trait represents the interface to be implemented for an HTTP client,
@@ -146,8 +210,7 @@ impl AlertsInUaClient {
 /// different ways (`Value::Null`, an empty `Value::Object`...), so this removes
 /// redundancy and edge cases (a `Some(Value::Null), for example, doesn't make
 /// much sense).
-/// TODO: If-Modified-Since + Last-Modified for caching
-pub trait BaseHttpClient: Send + Clone + fmt::Debug {
+pub trait BaseHttpClient: Send + fmt::Debug {
     // This internal function should always be given an object value in JSON.
     #[allow(async_fn_in_trait)]
     async fn get<R>(&self, url: &str, payload: &Query) -> Result<R>
@@ -167,7 +230,7 @@ impl BaseHttpClient for AlertsInUaClient {
 
 /// The API for the AlertsInUaClient
 #[async_trait]
-pub trait AlertsInUaApi: core::fmt::Debug {
+pub trait AlertsInUaApi: fmt::Debug {
     async fn get_active_alerts(&self) -> Result<Alerts>;
 
     async fn get_alerts_history(&self, location_aid: &i8, period: &str) -> Result<Alerts>;
@@ -231,7 +294,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_active_alerts() -> Result<()> {
         let mut server = MockServer::new_async().await;
-        let client = AlertsInUaClient::new(server.url(), "token", None);
+        let client = AlertsInUaClient::new(server.url().as_str(), "token", None);
         let mock = server
             .mock(
                 "GET",
@@ -254,7 +317,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_air_raid_alert_statuses_by_location() -> Result<()> {
         let mut server = MockServer::new_async().await;
-        let client = AlertsInUaClient::new(server.url(), "token", None);
+        let client = AlertsInUaClient::new(server.url().as_str(), "token", None);
         let mock = server
             .mock(
                 "GET",

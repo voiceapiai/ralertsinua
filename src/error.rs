@@ -14,10 +14,10 @@ pub enum AppError {
     TokioSend(#[from] tokio::sync::mpsc::error::SendError<Action>),
     #[error("tokio channel error: {0}")]
     TokioChannel(#[from] tokio::sync::mpsc::error::TrySendError<Action>),
-    #[error("encode error: {0}")]
-    Encode(#[from] rmp_serde::encode::Error),
-    #[error("decode error: {0}")]
-    Decode(#[from] rmp_serde::decode::Error),
+    // #[error("encode error: {0}")]
+    // Encode(#[from] rmp_serde::encode::Error),
+    // #[error("decode error: {0}")]
+    // Decode(#[from] rmp_serde::decode::Error),
     #[error("json parse error: {0}")]
     ParseJson(#[from] serde_json::Error),
     #[error("cacache error: {0}")]

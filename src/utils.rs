@@ -1,11 +1,10 @@
 use directories::ProjectDirs;
 use lazy_static::lazy_static;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use std::marker::PhantomData;
+// use serde::de::DeserializeOwned;
+// use serde::Serialize;
+// use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::{any::type_name, env};
-// use tracing::error;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{
     self, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt,
@@ -181,6 +180,7 @@ where
     move |x| (*cache.entry(x.clone()).or_insert_with(|| f(x))).clone()
 } */
 
+/*
 pub struct SerdeCacache<D, K>
 where
     D: Serialize + DeserializeOwned,
@@ -208,3 +208,4 @@ where
         Ok(rmp_serde::from_slice(&read)?)
     }
 }
+ */

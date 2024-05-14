@@ -18,7 +18,10 @@ rust_i18n::i18n!();
 
 use clap::Parser;
 use cli::Cli;
+#[allow(unused_imports)]
+use http_cache_reqwest::{CACacheManager, CacheManager};
 use miette::{miette, IntoDiagnostic, Result};
+// use quick_cache::sync::Cache;
 use ralertsinua_geo::*;
 use ralertsinua_http::*;
 use std::sync::Arc;
@@ -30,11 +33,7 @@ use std::{
 use tracing::{debug, error, warn};
 use tui_logger::set_level_for_target;
 
-use crate::{
-    app::App,
-    config::Config,
-    utils::{initialize_logging, initialize_panic_handler},
-};
+use crate::{app::App, config::Config, utils::*};
 
 async fn tokio_main() -> Result<()> {
     dotenvy::dotenv().ok();
@@ -81,10 +80,13 @@ async fn tokio_main() -> Result<()> {
 
     debug!(target: "app", "\n{:?} \n\n-----------", config.settings());
 
+    let directory = get_data_dir().join("cache");
+    std::fs::create_dir_all(directory.clone()).into_diagnostic()?;
+    let cache_manager = CACacheManager { path: directory };
     let api_client: Arc<dyn AlertsInUaApi> = Arc::new(AlertsInUaClient::new(
         config.base_url(),
         config.token(),
-        Some("./tmp/http-cache"),
+        Some(cache_manager),
     ));
     let geo_client: Arc<dyn AlertsInUaGeo> = Arc::new(AlertsInUaGeoClient::default());
 

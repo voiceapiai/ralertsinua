@@ -29,6 +29,9 @@ pub struct Settings {
     #[env_config(name = "ALERTSINUA_TOKEN", default = "")]
     #[getset(get = "pub")]
     pub token: String,
+    #[env_config(name = "ALERTSINUA_POLLING_INTERVAL_SEC", default = 30)]
+    #[getset(get = "pub")]
+    pub polling_interval: u64,
     /// [`Language`] represents a Unicode base language code conformant to the
     /// [`unicode_language_id`] field of the Language and Locale Identifier.
     #[env_config(default = "en", help = "Available locales: en, uk", parse(true))]
@@ -54,6 +57,7 @@ impl Config {
             pub fn base_url(&self) -> &str;
             pub fn set_base_url(&mut self, val: String) -> &mut Settings;
             pub fn token(&self) -> &str;
+            pub fn polling_interval(&self) -> &u64;
             pub fn tick_rate(&self) -> &f64;
             pub fn frame_rate(&self) -> &f64;
         }
