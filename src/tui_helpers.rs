@@ -111,7 +111,7 @@ pub fn centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
 }
 
 #[memoized(key_expr = (r, p_x, p_y), store_type = HashMap<(Rect, u16, u16), Rect>)]
-pub fn bottom_left_rect(r: Rect, p_x: u16, p_y: u16) -> Rect {
+pub fn get_bottom_left_rect(r: Rect, p_x: u16, p_y: u16) -> Rect {
     let vertical: Rc<[Rect]> = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Percentage(100 - p_y), Percentage(p_y)])
@@ -152,6 +152,17 @@ pub fn get_component_area(
         LayoutArea::Hidden => Rect::default(),
     };
     debug!(target:"app", "calculated area for component '{}' - {:?}", cmp_name, area);
+
+    area
+}
+
+#[memoized(key_expr = (frame_size, max_height), store_type = HashMap<(Rect, u16), Rect>)]
+pub fn get_terminal_area_max_height(frame_size: Rect, max_height: u16) -> Rect {
+    if frame_size.height <= max_height {
+        return frame_size;
+    }
+    let area = Rect::new(0, 0, frame_size.width, max_height);
+    debug!(target:"app", "calculated terminal area max_height: {:?}",  area);
 
     area
 }

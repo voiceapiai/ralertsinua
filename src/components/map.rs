@@ -194,23 +194,28 @@ impl<'a> Component<'a> for Map<'a> {
             .background_color(Color::Reset);
         f.render_widget(widget, area);
 
+        let popup_area = get_bottom_left_rect(area, 30, 20);
+        let mut popup_bg = Color::Reset;
+        let mut popup_text = Text::from(vec![
+            "No details".into(),
+            "To view details, select a location on the map using Up/Down arrow keys".into(),
+            "↓: move down".into(),
+            "↑: move up".into(),
+        ]);
+
         // popup
         if let Some(sa) = selected_alert {
-            let popup_area = bottom_left_rect(area, 30, 20);
-            let popup_bg = get_color_by_status(sa.status());
-            let popup_text =
-                Text::from(format!("{}\n{}", sa.location_title_en(), sa.status()));
-            // let popup = Popup::new("Alert Status Details:", popup_text)
-            //     .style(Style::new().bg(popup_bg));
-            // f.render_widget(&popup, popup_area);
-            let paragraph = Paragraph::new(popup_text)
-                .dark_gray()
-                .alignment(Alignment::Center);
-            let block = Block::bordered()
-                .bg(popup_bg)
-                .title("Alert Status Details:".white().bold().italic());
-            f.render_widget(paragraph.block(block), popup_area);
+            popup_bg = get_color_by_status(sa.status());
+            popup_text = Text::from(format!("{}\n{}", sa.location_title_en(), sa.status()));
+            // let popup = Popup::new("Alert Status Details:", popup_text).style(Style::new().bg(popup_bg));
         };
+        let paragraph = Paragraph::new(popup_text)
+            .dark_gray()
+            .alignment(Alignment::Left);
+        let block = Block::bordered()
+            .bg(popup_bg)
+            .title("Alert Status Details:".white().bold().italic());
+        f.render_widget(paragraph.block(block), popup_area);
         Ok(())
     }
 }

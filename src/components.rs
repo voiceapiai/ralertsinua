@@ -34,7 +34,8 @@ pub trait WithPlacement<'a> {
     fn get_area(&self, frame_size: Rect) -> Result<Rect> {
         let cmp_name = type_of(self);
         let LayoutPoint(area, _) = self.placement();
-        Ok(get_component_area(frame_size, cmp_name, *area))
+        let frame_wrapper = get_terminal_area_max_height(frame_size, 30);
+        Ok(get_component_area(frame_wrapper, cmp_name, *area))
     }
     /// Check if the component is visible based on current selected tab
     fn is_visible(&self, selected_tab: &LayoutTab) -> bool {
