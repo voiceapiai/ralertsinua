@@ -2,22 +2,18 @@
 //! @borrows https://github.com/ramsayleung/rspotify/blob/master/rspotify-http/src/reqwest.rs
 
 use async_trait::async_trait;
-use http_cache_reqwest::{
-    CACacheManager, Cache, CacheMode, CacheOptions, HttpCache, HttpCacheOptions,
-};
+use bytes::Bytes;
+use ralertsinua_models::*;
 use reqwest::{
     header::{HeaderMap, HeaderValue},
-    Method, Response, StatusCode,
+    Client, ClientBuilder, Method, RequestBuilder, Response, StatusCode,
 };
-use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, RequestBuilder};
 use serde::Deserialize;
-use std::collections::HashMap;
 use std::fmt;
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Duration;
+use std::{collections::HashMap, sync::Arc};
 
-use crate::ApiError;
-use ralertsinua_models::*;
+#[cfg(feature = "cache")]
+use crate::{cache::*, error::*};
 
 pub type Headers = HashMap<String, String>;
 pub type Query<'a> = HashMap<&'a str, &'a str>;
@@ -26,6 +22,7 @@ type Result<T> = miette::Result<T, ApiError>;
 
 pub const API_BASE_URL: &str = "https://api.alerts.in.ua";
 pub const API_VERSION: &str = "/v1";
+pub const API_CACHE_SIZE: usize = 1000;
 // Name your user agent after your app?
 const APP_USER_AGENT: &str = concat!(
     env!("CARGO_PKG_NAME"),
@@ -35,12 +32,12 @@ const APP_USER_AGENT: &str = concat!(
     // env!("VERGEN_CARGO_TARGET_TRIPLE"),
 );
 
-// #[derive(Debug)]
 pub struct AlertsInUaClient {
     base_url: String,
     token: String,
-    client: ClientWithMiddleware,
-    cache_manager: CACacheManager,
+    client: Client,
+    #[allow(unused)]
+    cache_manager: Arc<dyn CacheManagerSync>,
 }
 
 impl std::fmt::Debug for AlertsInUaClient {
@@ -50,49 +47,55 @@ impl std::fmt::Debug for AlertsInUaClient {
 }
 
 impl AlertsInUaClient {
-    pub fn new(base_url: &str, token: &str, cache_manager: Option<CACacheManager>) -> Self {
+    #[cfg(not(feature = "cache"))]
+    pub fn new(base_url: &str, token: &str) -> Self {
         let base_url = base_url.into();
         let token = token.into();
-        let reqwest_client = reqwest::ClientBuilder::new()
+        let client = reqwest::ClientBuilder::new()
             .timeout(Duration::from_secs(10))
             .user_agent(APP_USER_AGENT)
             .build()
             .expect("Failed to build reqwest client");
-
-        let manager: CACacheManager = cache_manager.unwrap_or_default();
-        let mode = CacheMode::Default;
-        let client = ClientBuilder::new(reqwest_client)
-            .with(Cache(HttpCache {
-                mode,
-                manager: manager.clone(),
-                options: HttpCacheOptions {
-                    cache_key: None,
-                    cache_options: Some(CacheOptions {
-                        shared: false,
-                        ..Default::default()
-                    }),
-                    cache_mode_fn: None,
-                    cache_bust: None,
-                },
-            }))
-            .build();
 
         // building with these options cannot fail
         Self {
             base_url,
             token,
             client,
-            cache_manager: manager.clone(),
+            // cache_manager: manager.clone(),
+        }
+    }
+
+    #[cfg(feature = "cache")]
+    pub fn new(
+        base_url: &str,
+        token: &str,
+        cache_manager: Option<Arc<dyn CacheManagerSync>>,
+    ) -> Self {
+        let base_url = base_url.into();
+        let token = token.into();
+        let client = ClientBuilder::new()
+            .timeout(std::time::Duration::from_secs(10))
+            .user_agent(APP_USER_AGENT)
+            .build()
+            // building with these options cannot fail
+            .unwrap();
+
+        let cache_manager = cache_manager
+            .unwrap_or_else(|| Arc::new(CacheManagerQuick::new(API_CACHE_SIZE)));
+
+        Self {
+            base_url,
+            token,
+            client,
+            cache_manager: cache_manager.clone(),
         }
     }
 }
 
 impl AlertsInUaClient {
     fn get_api_url(&self, url: &str) -> String {
-        let version = API_VERSION;
-        let base_url = self.base_url.clone();
-        // if !base_url.ends_with('/') { base_url.push('/'); }
-        base_url + version + url
+        format!("{}{}{}", self.base_url, API_VERSION, url)
     }
 
     async fn request<R, D>(&self, method: Method, url: &str, add_data: D) -> Result<R>
@@ -100,57 +103,40 @@ impl AlertsInUaClient {
         R: for<'de> Deserialize<'de>,
         D: Fn(RequestBuilder) -> RequestBuilder,
     {
+        let mut last_modified = String::new();
+        let mut cached_data: Bytes = Bytes::new();
         // Build full URL
         let url = self.get_api_url(url);
-        let mut request = self.client.request(method.clone(), url);
+        let mut req = self.client.request(method.clone(), &url);
         // Enable HTTP bearer authentication.
-        request = request.bearer_auth(&self.token);
+        req = req.bearer_auth(&self.token);
         // Get last_modified from cache
-        let last_modified = self.get_last_modified().await?;
-        // Set the headers
         let mut headers = HeaderMap::new();
-        headers.insert("Accept", HeaderValue::from_static("*/*"));
-        headers.insert("User-Agent", HeaderValue::from_static("HTTPie/3.2.1"));
-        headers.insert(
-            "Cache-Control",
-            HeaderValue::from_static("public, max-age=7200, s-maxage=3600"),
-        );
-        headers.insert("Connection", HeaderValue::from_static("keep-alive"));
+        // Set the headers
+        headers.insert("Accept", HeaderValue::from_static("application/json"));
+
+        if let Some(CacheEntry(bytes, lm)) = self.cache_manager.get(&url)? {
+            last_modified = lm;
+            cached_data = bytes;
+        }
         // Here we set the If-Modified-Since header from the last_modified
         headers.insert(
             "If-Modified-Since",
-            last_modified.parse().map_err(|_| ApiError::Internal)?,
+            last_modified.parse().map_err(http::Error::from)?,
         );
-        request = request.headers(headers);
+        req = req.headers(headers);
         // Configuring the request for the specific type (get/post/put/delete)
-        request = add_data(request);
+        req = add_data(req);
 
         // Finally performing the request and handling the response
-        log::trace!("Making request {:?}", request); // Debugging
-        let response: Response = request.send().await.map_err(|e| {
+        log::trace!(target: APP_USER_AGENT, "Request {:?}", req);
+        let res: Response = req.send().await.inspect_err(|e| {
             log::error!("Error making request: {:?}", e);
-            #[allow(clippy::useless_conversion)]
-            reqwest_middleware::Error::from(e)
         })?;
-
-        let _last_modified = response
-            .headers()
-            .get("Last-Modified")
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_string();
-        log::trace!(
-            "Made request, response.headers {:?} last_modified={}",
-            response.headers(),
-            _last_modified
-        );
-        self.set_last_modified(&_last_modified).await?;
-
+        log::trace!(target: APP_USER_AGENT, "Response {:?}", res);
         // Making sure that the status code is OK
-        match response.error_for_status() {
-            Ok(res) => res.json::<R>().await.map_err(Into::into),
-            Err(err) => match err.status() {
+        if let Err(err) = res.error_for_status_ref() {
+            let err = match err.status() {
                 Some(StatusCode::BAD_REQUEST) => Err(ApiError::InvalidParameterException),
                 Some(StatusCode::UNAUTHORIZED) => Err(ApiError::UnauthorizedError(err)),
                 Some(StatusCode::FORBIDDEN) => Err(ApiError::InvalidParameterException),
@@ -162,41 +148,33 @@ impl AlertsInUaClient {
                     Err(ApiError::InternalServerError)
                 }
                 _ => Err(ApiError::Unknown(err)),
-            },
-        }
-    }
-
-    async fn get_last_modified(&self) -> Result<String> {
-        #[allow(clippy::let_and_return)]
-        let _last_modified =
-            match cacache::read(&self.cache_manager.path, "last_modified").await {
-                Ok(d) => {
-                    log::debug!("Last modified from cache: {:?}", d);
-                    String::from_utf8(d)
-                        .inspect_err(|e| {
-                            log::error!(
-                                "Error deserializing last_modified from cache: {:?}",
-                                e
-                            );
-                        })
-                        .map_err(|_| ApiError::Internal)
-                }
-                Err(_e) => {
-                    log::error!("Error reading last_modified from cache: {:?}", _e);
-                    Ok(String::from("Tue, 14 May 2024 18:18:18 GMT"))
-                }
             };
-        _last_modified
-    }
 
-    async fn set_last_modified(&self, value: &str) -> Result<()> {
-        let _ = cacache::write(&self.cache_manager.path, "last_modified", value)
-            .await
-            .inspect_err(|e| {
-                log::error!("Error writing last_modified to cache: {:?}", e);
-            })
-            .map_err(|_| ApiError::Internal);
-        Ok(())
+            return err;
+        }
+
+        last_modified = format!("{:?}", res.headers().get("Last-Modified").unwrap());
+        // -------------------------------------------------------------
+        let data: Bytes = match res.status() {
+            StatusCode::NOT_MODIFIED => {
+                log::trace!(target: APP_USER_AGENT, "Response status was not modified, using cached data");
+                cached_data
+            }
+            _ => {
+                let bytes = res.bytes().await?;
+                // Save the data to the cache
+                self.cache_manager
+                    .put(&url, &last_modified, bytes.clone())
+                    .inspect_err(|e| {
+                        log::error!("Error writing to cache: {:?}", e);
+                    })?;
+
+                bytes
+            }
+        };
+
+        // Return deserialized data
+        Ok(serde_json::from_slice(&data)?)
     }
 }
 
@@ -269,10 +247,16 @@ impl AlertsInUaApi for AlertsInUaClient {
     }
 }
 
+// The existence of this function makes the compiler catch if the Buf
+// trait is "object-safe" or not.
+fn _assert_trait_object(_: &dyn AlertsInUaApi) {}
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
+    #[allow(unused_imports)]
+    use mockall::predicate::*;
     use mockito::Server as MockServer;
     use serde_json::json;
     use std::sync::Arc;
@@ -283,6 +267,13 @@ mod tests {
             Arc::new(AlertsInUaClient::new("", "", None));
         println!("{:?}", api_client);
     }
+
+    /* #[tokio::test]
+    async fn test_get_last_modified() {
+        let client = AlertsInUaClient::new("https://api.alerts.in.ua", "token", None);
+        let result = client.get_last_modified().await;
+        assert!(result.is_ok());
+    } */
 
     #[test]
     fn test_get_api_url() {
@@ -300,6 +291,7 @@ mod tests {
                 "GET",
                 mockito::Matcher::Any, /* API_ALERTS_ACTIVE_BY_REGION_STRING */
             )
+            .with_header("Last-Modified", "Tue, 14 May 2024 18:18:18 GMT")
             .with_body(r#"{"alerts":[],"disclaimer":"","meta":{"last_updated_at":"2024/05/06 10:02:45 +0000"}}"#)
             .create_async()
             .await;
@@ -323,6 +315,7 @@ mod tests {
                 "GET",
                 mockito::Matcher::Any, /* API_ALERTS_ACTIVE_BY_REGION_STRING */
             )
+            .with_header("Last-Modified", "Tue, 14 May 2024 18:18:18 GMT")
             .with_body(r#""ANNAANNANNNPANANANNNNAANNNN""#)
             .create_async()
             .await;

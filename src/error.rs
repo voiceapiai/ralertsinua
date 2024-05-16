@@ -20,8 +20,6 @@ pub enum AppError {
     // Decode(#[from] rmp_serde::decode::Error),
     #[error("json parse error: {0}")]
     ParseJson(#[from] serde_json::Error),
-    #[error("cacache error: {0}")]
-    Cache(#[from] cacache::Error),
     #[error("component error")]
     #[diagnostic(code(ralertsinua::component))]
     ComponentError,

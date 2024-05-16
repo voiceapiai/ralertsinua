@@ -19,9 +19,7 @@ rust_i18n::i18n!();
 use clap::Parser;
 use cli::Cli;
 #[allow(unused_imports)]
-use http_cache_reqwest::{CACacheManager, CacheManager};
 use miette::{miette, IntoDiagnostic, Result};
-// use quick_cache::sync::Cache;
 use ralertsinua_geo::*;
 use ralertsinua_http::*;
 use std::sync::Arc;
@@ -82,11 +80,10 @@ async fn tokio_main() -> Result<()> {
 
     let directory = get_data_dir().join("cache");
     std::fs::create_dir_all(directory.clone()).into_diagnostic()?;
-    let cache_manager = CACacheManager { path: directory };
     let api_client: Arc<dyn AlertsInUaApi> = Arc::new(AlertsInUaClient::new(
         config.base_url(),
         config.token(),
-        Some(cache_manager),
+        None,
     ));
     let geo_client: Arc<dyn AlertsInUaGeo> = Arc::new(AlertsInUaGeoClient::default());
 

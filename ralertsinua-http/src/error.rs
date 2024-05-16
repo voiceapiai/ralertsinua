@@ -32,9 +32,6 @@ pub enum ApiError {
     // #[diagnostic(code(my_lib::bad_code))]
     Unknown(#[from] reqwest::Error),
 
-    #[error(transparent)]
-    MiddleWareError(#[from] reqwest_middleware::Error),
-
     #[error("API Error: Invalid token")]
     InvalidToken,
 
@@ -56,6 +53,12 @@ pub enum ApiError {
 
     #[error("API Error: Invalid URL: {0}")]
     InvalidURL(reqwest::Error),
+
+    #[error("API Error: Generic Http error: {0}")]
+    HttpError(#[from] http::Error),
+
+    #[error("API Error: JSON parse error: {0}")]
+    ParseJson(#[from] serde_json::Error),
 
     #[error("API Error: Internal error")]
     Internal,
