@@ -50,6 +50,14 @@ pub mod into_int {
     }
 }
 
+impl Alert {
+    pub fn get_alert_duration(&self) -> std::time::Duration {
+        let now = OffsetDateTime::now_utc();
+        let offset_duration = now - self.started_at;
+        offset_duration.try_into().unwrap()
+    }
+}
+
 mod tests {
 
     #[test]

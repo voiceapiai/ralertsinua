@@ -1,3 +1,5 @@
+#![cfg(feature = "cache")]
+
 use bytes::Bytes;
 use quick_cache::sync::Cache;
 use std::{fmt, sync::Arc};
@@ -7,9 +9,6 @@ use crate::ApiError;
 type Result<T> = miette::Result<T, ApiError>;
 type LastModified = String;
 type ApiCache = Cache<String, (Bytes, LastModified)>;
-
-#[derive(Debug, Hash)]
-pub struct Pair<A, B>(pub A, pub B);
 
 #[derive(Debug)]
 pub struct CacheEntry(pub Bytes, pub LastModified);

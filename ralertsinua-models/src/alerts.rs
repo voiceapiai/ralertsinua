@@ -46,8 +46,16 @@ struct Meta {
     last_updated_at: OffsetDateTime,
 }
 
+impl Default for Meta {
+    fn default() -> Self {
+        Self {
+            last_updated_at: OffsetDateTime::now_utc(),
+        }
+    }
+}
+
 /// Alerts struct is a collection of alerts and various methods to filter and access these alerts.
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Getters)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone, PartialEq, Getters)]
 pub struct Alerts {
     alerts: Vec<Alert>,
     disclaimer: String,

@@ -13,30 +13,21 @@ use std::fmt;
 use std::{collections::HashMap, sync::Arc};
 
 #[cfg(feature = "cache")]
-use crate::{cache::*, error::*};
+use crate::cache::*;
+use crate::error::*;
 
-pub type Headers = HashMap<String, String>;
-pub type Query<'a> = HashMap<&'a str, &'a str>;
-
+type Query<'a> = HashMap<&'a str, &'a str>;
 type Result<T> = miette::Result<T, ApiError>;
 
 pub const API_BASE_URL: &str = "https://api.alerts.in.ua";
 pub const API_VERSION: &str = "/v1";
 pub const API_CACHE_SIZE: usize = 1000;
-// Name your user agent after your app?
-const APP_USER_AGENT: &str = concat!(
-    env!("CARGO_PKG_NAME"),
-    "/",
-    env!("CARGO_PKG_VERSION"),
-    // "/",
-    // env!("VERGEN_CARGO_TARGET_TRIPLE"),
-);
 
 pub struct AlertsInUaClient {
     base_url: String,
     token: String,
     client: Client,
-    #[allow(unused)]
+    #[cfg(feature = "cache")]
     cache_manager: Arc<dyn CacheManagerSync>,
 }
 
@@ -47,48 +38,27 @@ impl std::fmt::Debug for AlertsInUaClient {
 }
 
 impl AlertsInUaClient {
-    #[cfg(not(feature = "cache"))]
+    const APP_USER_AGENT: &'static str =
+        concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+
     pub fn new(base_url: &str, token: &str) -> Self {
-        let base_url = base_url.into();
-        let token = token.into();
-        let client = reqwest::ClientBuilder::new()
-            .timeout(Duration::from_secs(10))
-            .user_agent(APP_USER_AGENT)
-            .build()
-            .expect("Failed to build reqwest client");
-
-        // building with these options cannot fail
-        Self {
-            base_url,
-            token,
-            client,
-            // cache_manager: manager.clone(),
-        }
-    }
-
-    #[cfg(feature = "cache")]
-    pub fn new(
-        base_url: &str,
-        token: &str,
-        cache_manager: Option<Arc<dyn CacheManagerSync>>,
-    ) -> Self {
         let base_url = base_url.into();
         let token = token.into();
         let client = ClientBuilder::new()
             .timeout(std::time::Duration::from_secs(10))
-            .user_agent(APP_USER_AGENT)
+            .user_agent(Self::APP_USER_AGENT)
             .build()
             // building with these options cannot fail
             .unwrap();
 
-        let cache_manager = cache_manager
-            .unwrap_or_else(|| Arc::new(CacheManagerQuick::new(API_CACHE_SIZE)));
+        let cache_manager = Arc::new(CacheManagerQuick::new(API_CACHE_SIZE));
 
         Self {
             base_url,
             token,
             client,
-            cache_manager: cache_manager.clone(),
+            #[cfg(feature = "cache")]
+            cache_manager,
         }
     }
 }
@@ -115,25 +85,27 @@ impl AlertsInUaClient {
         // Set the headers
         headers.insert("Accept", HeaderValue::from_static("application/json"));
 
-        if let Some(CacheEntry(bytes, lm)) = self.cache_manager.get(&url)? {
-            last_modified = lm;
-            cached_data = bytes;
+        if cfg!(feature = "cache") {
+            if let Some(CacheEntry(bytes, lm)) = self.cache_manager.get(&url)? {
+                last_modified = lm;
+                cached_data = bytes;
+            }
+            // Here we set the If-Modified-Since header from the last_modified
+            headers.insert(
+                "If-Modified-Since",
+                last_modified.parse().map_err(http::Error::from)?,
+            );
         }
-        // Here we set the If-Modified-Since header from the last_modified
-        headers.insert(
-            "If-Modified-Since",
-            last_modified.parse().map_err(http::Error::from)?,
-        );
+
         req = req.headers(headers);
         // Configuring the request for the specific type (get/post/put/delete)
         req = add_data(req);
-
         // Finally performing the request and handling the response
-        log::trace!(target: APP_USER_AGENT, "Request {:?}", req);
+        log::trace!(target: env!("CARGO_PKG_NAME"), "Request {:?}", req);
         let res: Response = req.send().await.inspect_err(|e| {
-            log::error!("Error making request: {:?}", e);
+            log::error!(target: env!("CARGO_PKG_NAME"),  "Error making request: {:?}", e);
         })?;
-        log::trace!(target: APP_USER_AGENT, "Response {:?}", res);
+        log::trace!(target: env!("CARGO_PKG_NAME"), "Response {:?}", res);
         // Making sure that the status code is OK
         if let Err(err) = res.error_for_status_ref() {
             let err = match err.status() {
@@ -156,18 +128,21 @@ impl AlertsInUaClient {
         last_modified = format!("{:?}", res.headers().get("Last-Modified").unwrap());
         // -------------------------------------------------------------
         let data: Bytes = match res.status() {
+            #[cfg(feature = "cache")]
             StatusCode::NOT_MODIFIED => {
-                log::trace!(target: APP_USER_AGENT, "Response status was not modified, using cached data");
+                log::trace!(target: env!("CARGO_PKG_NAME"), "Response status '304 Not Modified', return cached data");
                 cached_data
             }
             _ => {
                 let bytes = res.bytes().await?;
-                // Save the data to the cache
-                self.cache_manager
-                    .put(&url, &last_modified, bytes.clone())
-                    .inspect_err(|e| {
-                        log::error!("Error writing to cache: {:?}", e);
-                    })?;
+                if cfg!(feature = "cache") {
+                    // Save the data to the cache
+                    self.cache_manager
+                        .put(&url, &last_modified, bytes.clone())
+                        .inspect_err(|e| {
+                            log::error!("Error writing to cache: {:?}", e);
+                        })?;
+                }
 
                 bytes
             }
@@ -263,21 +238,20 @@ mod tests {
 
     #[test]
     fn test_trait() {
-        let api_client: Arc<dyn AlertsInUaApi> =
-            Arc::new(AlertsInUaClient::new("", "", None));
+        let api_client: Arc<dyn AlertsInUaApi> = Arc::new(AlertsInUaClient::new("", ""));
         println!("{:?}", api_client);
     }
 
     /* #[tokio::test]
     async fn test_get_last_modified() {
-        let client = AlertsInUaClient::new("https://api.alerts.in.ua", "token", None);
+        let client = AlertsInUaClient::new("https://api.alerts.in.ua", "token");
         let result = client.get_last_modified().await;
         assert!(result.is_ok());
     } */
 
     #[test]
     fn test_get_api_url() {
-        let client = AlertsInUaClient::new("https://api.alerts.in.ua", "token", None);
+        let client = AlertsInUaClient::new("https://api.alerts.in.ua", "token");
         let url = client.get_api_url("/alerts/active.json");
         assert_eq!(url, "https://api.alerts.in.ua/v1/alerts/active.json");
     }
@@ -285,7 +259,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_active_alerts() -> Result<()> {
         let mut server = MockServer::new_async().await;
-        let client = AlertsInUaClient::new(server.url().as_str(), "token", None);
+        let client = AlertsInUaClient::new(server.url().as_str(), "token");
         let mock = server
             .mock(
                 "GET",
@@ -309,7 +283,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_air_raid_alert_statuses_by_location() -> Result<()> {
         let mut server = MockServer::new_async().await;
-        let client = AlertsInUaClient::new(server.url().as_str(), "token", None);
+        let client = AlertsInUaClient::new(server.url().as_str(), "token");
         let mock = server
             .mock(
                 "GET",

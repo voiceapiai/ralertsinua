@@ -69,6 +69,7 @@ impl App {
         self.action_tx.send(Action::FetchGeo)?;
         self.action_tx
             .send(Action::FetchAirRaidAlertOblastStatuses)?;
+        self.action_tx.send(Action::FetchActiveAlerts)?;
         Ok(())
     }
 
@@ -105,6 +106,7 @@ impl App {
             loop {
                 sleep(Duration::from_secs(interval)).await;
                 let _ = periodic_action_tx.send(Action::FetchAirRaidAlertOblastStatuses);
+                let _ = periodic_action_tx.send(Action::FetchActiveAlerts);
             }
         });
 

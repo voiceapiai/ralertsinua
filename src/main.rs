@@ -78,13 +78,8 @@ async fn tokio_main() -> Result<()> {
 
     debug!(target: "app", "\n{:?} \n\n-----------", config.settings());
 
-    let directory = get_data_dir().join("cache");
-    std::fs::create_dir_all(directory.clone()).into_diagnostic()?;
-    let api_client: Arc<dyn AlertsInUaApi> = Arc::new(AlertsInUaClient::new(
-        config.base_url(),
-        config.token(),
-        None,
-    ));
+    let api_client: Arc<dyn AlertsInUaApi> =
+        Arc::new(AlertsInUaClient::new(config.base_url(), config.token()));
     let geo_client: Arc<dyn AlertsInUaGeo> = Arc::new(AlertsInUaGeoClient::default());
 
     let mut app = App::new(config, api_client.clone(), geo_client.clone())?;
