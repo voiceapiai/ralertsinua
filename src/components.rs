@@ -1,15 +1,15 @@
-use cached::proc_macro::cached;
-use color_eyre::eyre::Result;
 use crossterm::event::{KeyEvent, MouseEvent};
-use ratatui::layout::{Constraint::*, Layout, Rect};
+use ratatui::layout::Rect;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::debug;
 
 use crate::{
     action::Action,
     config::Config,
+    error::AppError,
     layout::*,
     tui::{Event, Frame},
+    tui_helpers::*,
     utils::type_of,
 };
 
@@ -25,51 +25,17 @@ pub use list::*;
 pub use logger::*;
 pub use map::*;
 
-#[derive(thiserror::Error, Debug, Clone)]
-pub enum ComponentError {
-    #[error("Unknown component error")]
-    Unknown,
-}
+pub type Result<T> = miette::Result<T, AppError>;
 
-#[cached]
-pub fn get_component_area(
-    frame_size: Rect,
-    cmp_name: String,
-    cmp_area: LayoutArea,
-) -> Result<Rect, ComponentError> {
-    let vertical = Layout::vertical([Length(1), Min(0), Length(1)]);
-    let [header_area, inner_area, footer_area] = vertical.areas(frame_size);
-
-    let horizontal = Layout::horizontal([Min(0), Length(20)]);
-    let [tabs_area, title_area] = horizontal.areas(header_area);
-
-    let main = Layout::horizontal([Percentage(75), Percentage(25)]);
-    let [left_area, right_area] = main.areas(inner_area);
-
-    let area = match cmp_area {
-        LayoutArea::Header => header_area,
-        LayoutArea::Tabs => tabs_area,
-        LayoutArea::Title => title_area,
-        LayoutArea::Inner => inner_area,
-        LayoutArea::Left => left_area,
-        LayoutArea::Right => right_area,
-        LayoutArea::Footer => footer_area,
-        LayoutArea::Hidden => Rect::default(),
-    };
-
-    debug!(target:"app", "calculated area for component '{}' - {:?}", cmp_name, area);
-
-    Ok(area)
-}
-
-pub trait WithPlacement {
+pub trait WithPlacement<'a> {
     /// Get the placement of the component.
     fn placement(&self) -> &LayoutPoint;
     /// Get rectangle in current frame for the component based on its placement
-    fn get_area(&self, frame_size: Rect) -> Result<Rect, ComponentError> {
-        let cmp_name = type_of(self).to_string();
-        let LayoutPoint(area, _) = self.placement().clone();
-        get_component_area(frame_size, cmp_name, area)
+    fn get_area(&self, frame_size: Rect) -> Result<Rect> {
+        let cmp_name = type_of(self);
+        let LayoutPoint(area, _) = self.placement();
+        let frame_wrapper = get_terminal_area_max_height(frame_size, 30);
+        Ok(get_component_area(frame_wrapper, cmp_name, *area))
     }
     /// Check if the component is visible based on current selected tab
     fn is_visible(&self, selected_tab: &LayoutTab) -> bool {
@@ -88,7 +54,7 @@ pub trait WithPlacement {
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 /// Implementors of this trait can be registered with the main application loop and will be able to receive events,
 /// update state, and be rendered on the screen.
-pub trait Component<'a>: WithPlacement {
+pub trait Component<'a>: WithPlacement<'a> {
     /// Register an action handler that can send actions for processing if necessary.
     ///
     /// # Arguments

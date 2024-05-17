@@ -1,5 +1,6 @@
-use color_eyre::eyre::{Context, Result};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+#[allow(unused_imports)]
+use miette::{Context, WrapErr};
 use ralertsinua_geo::*;
 use ralertsinua_http::*;
 use ralertsinua_models::*;
@@ -10,9 +11,11 @@ use tokio::{
     time::{sleep, Duration},
 };
 #[allow(unused)]
-use tracing::{debug, trace};
+use tracing::{debug, error, trace};
 
-use crate::{action::*, components::*, config::*, layout::*, tui};
+use crate::{action::*, components::*, config::*, error::*, layout::*, tui};
+
+type Result<T> = miette::Result<T, AppError>;
 
 pub struct App {
     action_tx: UnboundedSender<Action>,
@@ -66,6 +69,7 @@ impl App {
         self.action_tx.send(Action::FetchGeo)?;
         self.action_tx
             .send(Action::FetchAirRaidAlertOblastStatuses)?;
+        self.action_tx.send(Action::FetchActiveAlerts)?;
         Ok(())
     }
 
@@ -96,13 +100,13 @@ impl App {
         // EXAMPLE PERIODIC
         // ---------------------------------------------------------------------
         // dispatch fetch action after 2 seconds
-        debug!(target:"app", "init periodic fetch action");
+        let interval = *self.config.polling_interval();
+        debug!(target:"app", "init periodic fetch action every {} seconds", interval);
         tokio::spawn(async move {
             loop {
-                sleep(Duration::from_secs(30)).await;
-                let _ = periodic_action_tx
-                    .send(Action::FetchAirRaidAlertOblastStatuses)
-                    .with_context(|| "periodic fetch action failed");
+                sleep(Duration::from_secs(interval)).await;
+                let _ = periodic_action_tx.send(Action::FetchAirRaidAlertOblastStatuses);
+                let _ = periodic_action_tx.send(Action::FetchActiveAlerts);
             }
         });
 
@@ -171,7 +175,7 @@ impl App {
 
             while let Ok(action) = self.action_rx.try_recv() {
                 if action != Action::Tick && action != Action::Render {
-                    debug!(target:"app_events", "{action:?}");
+                    debug!(target:"app_events", "received action: {}", action.to_string());
                 }
                 match action.clone() {
                     Action::Tick => {
@@ -215,8 +219,7 @@ impl App {
                                             .unwrap();
                                     }
                                 });
-                        })
-                        .with_context(|| "tui failed to draw {:?}")?;
+                        })?;
                     }
                     Action::FetchGeo => {
                         let boundary = self.geo_client.boundary();
@@ -231,10 +234,21 @@ impl App {
                         self.action_tx.send(Action::GetActiveAlerts(response))?;
                     }
                     Action::FetchAirRaidAlertOblastStatuses => {
+                        #[allow(clippy::bind_instead_of_map)]
                         let response: AirRaidAlertOblastStatuses = self
                             .api_client
                             .get_air_raid_alert_statuses_by_location()
-                            .await?;
+                            .await
+                            .and_then(|r| {
+                                trace!(target: "app", "get_air_raid_alert_statuses_by_location: {}", r.raw_data());
+                                Ok(r)
+                            })
+                            .inspect_err(|e| {
+                                error!(target: "app", "error from API catched, possibly offline");
+                                let _ = self.action_tx.send( Action::Error(e.to_string()));
+                                let _ = self.action_tx.send( Action::Online(false));
+                            })
+                            .unwrap_or_default();
                         debug!(target:"app", "get_air_raid_alert_statuses_by_location: total {} alerts", response.len());
                         self.action_tx
                             .send(Action::GetAirRaidAlertOblastStatuses(response))?;

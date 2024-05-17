@@ -1,19 +1,23 @@
 use crate::{alert_type::*, LocationType};
 use serde::{Deserialize, Serialize};
+use serde_with::{serde_as, skip_serializing_none, DisplayFromStr};
 use time::OffsetDateTime;
 
+#[skip_serializing_none]
+#[serde_as]
 #[derive(Debug, Deserialize, Clone, PartialEq, Serialize)]
 pub struct Alert {
     pub id: i32,
     pub location_title: String,
-    #[serde(with = "crate::location_type::LocationType")]
+    #[serde_as(as = "DisplayFromStr")] // Serialize with Display, deserialize with FromStr
     pub location_type: LocationType,
     #[serde(with = "time::serde::iso8601")]
     pub started_at: OffsetDateTime,
     #[serde(with = "time::serde::iso8601")]
     pub updated_at: OffsetDateTime,
-    // #[serde(skip_serializing, with = "time::serde::iso8601")]
+    // #[serde(with = "time::serde::iso8601")]
     pub finished_at: Option<String>, // TODO: parse Option to OffsetDateTime
+    #[serde_as(as = "DisplayFromStr")] // Serialize with Display, deserialize with FromStr
     pub alert_type: AlertType,
     pub location_oblast: String,
     #[serde(with = "into_int")]
@@ -43,6 +47,14 @@ pub mod into_int {
     {
         let s = String::deserialize(deserializer)?;
         s.parse::<i32>().map_err(Error::custom)
+    }
+}
+
+impl Alert {
+    pub fn get_alert_duration(&self) -> std::time::Duration {
+        let now = OffsetDateTime::now_utc();
+        let offset_duration = now - self.started_at;
+        offset_duration.try_into().unwrap()
     }
 }
 

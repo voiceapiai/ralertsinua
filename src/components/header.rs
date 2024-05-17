@@ -1,4 +1,3 @@
-use color_eyre::eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::{
     style::{Modifier, Style},
@@ -7,7 +6,7 @@ use ratatui::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::{Component, WithPlacement};
+use super::{Component, Result, WithPlacement};
 use crate::{action::Action, config::*, constants::*, layout::*, tui::Frame};
 
 #[derive(Debug)]
@@ -33,7 +32,7 @@ impl<'a> Header<'a> {
     }
 }
 
-impl WithPlacement for Header<'_> {
+impl WithPlacement<'_> for Header<'_> {
     fn placement(&self) -> &LayoutPoint {
         &self.placement
     }

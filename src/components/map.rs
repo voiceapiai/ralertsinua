@@ -1,22 +1,17 @@
-// use cached::proc_macro::cached;
-use color_eyre::eyre::Result;
 use geo::Rect as GeoRect;
 use ralertsinua_geo::*;
-use ralertsinua_models::{AirRaidAlertOblastStatuses, AlertStatus};
-use ratatui::{
-    prelude::*,
-    widgets::{
-        canvas::{Canvas, Context},
-        *,
-    },
-};
+use ralertsinua_models::*;
+use ratatui::widgets::canvas::Canvas;
+use ratatui::{prelude::*, widgets::*};
 use rust_i18n::t;
+use std::fmt::Debug;
 use tokio::sync::mpsc::UnboundedSender;
 #[allow(unused)]
 use tracing::debug;
+// use tui_popup::Popup;
 
-use super::{Component, Frame, WithPlacement};
-use crate::{action::*, config::*, draw::*, layout::*};
+use super::{Component, Frame, Result, WithPlacement};
+use crate::{action::*, config::*, layout::*, tui_helpers::*};
 
 #[derive(Debug)]
 pub struct Map<'a> {
@@ -31,6 +26,7 @@ pub struct Map<'a> {
     locations: [Location; 27],
     selected_location_uid: i32,
     oblast_statuses: AirRaidAlertOblastStatuses,
+    alerts: Alerts,
     //
     width: u16,
     height: u16,
@@ -40,7 +36,6 @@ pub struct Map<'a> {
 impl<'a> Map<'a> {
     #[inline]
     pub fn new() -> Self {
-        let context = Context::new(0, 0, [0.0, 0.0], [0.0, 0.0], Marker::Braille);
         Self {
             command_tx: Option::default(),
             placement: LayoutPoint(LayoutArea::Left, Some(LayoutTab::Tab1)),
@@ -51,6 +46,7 @@ impl<'a> Map<'a> {
             locations: core::array::from_fn(|_| Location::default()),
             selected_location_uid: -1,
             oblast_statuses: AirRaidAlertOblastStatuses::default(),
+            alerts: Alerts::default(),
             //
             width: 0,
             height: 0,
@@ -73,9 +69,28 @@ impl<'a> Map<'a> {
     {
         self.locations.iter().find(|r| predicate(r)).cloned()
     }
+
+    #[inline]
+    pub fn get_selected_location(&self) -> Option<Location> {
+        self.get_location_by(|l| l.location_uid == self.selected_location_uid)
+    }
+
+    #[inline]
+    pub fn get_selected_alert_status(&self) -> Option<AirRaidAlertOblastStatus> {
+        self.oblast_statuses
+            .get_by_location_uid(self.selected_location_uid)
+    }
+
+    #[inline]
+    pub fn get_selected_alert(&self) -> Option<Alert> {
+        self.alerts
+            .get_alerts_by_location_uid(self.selected_location_uid)
+            .first()
+            .cloned()
+    }
 }
 
-impl WithPlacement for Map<'_> {
+impl WithPlacement<'_> for Map<'_> {
     #[inline]
     fn placement(&self) -> &LayoutPoint {
         &self.placement
@@ -89,8 +104,6 @@ impl WithBoundingRect for Map<'_> {
     }
 }
 
-impl<'a> WithLineItems for Map<'a> {}
-
 impl<'a> Component<'a> for Map<'a> {
     fn init(&mut self, r: Rect) -> Result<()> {
         self.set_grid_size(r.width, r.height);
@@ -99,6 +112,11 @@ impl<'a> Component<'a> for Map<'a> {
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.command_tx = Some(tx);
+        Ok(())
+    }
+
+    fn register_config_handler(&mut self, config: Config) -> Result<()> {
+        self.config = config;
         Ok(())
     }
 
@@ -115,6 +133,9 @@ impl<'a> Component<'a> for Map<'a> {
             Action::GetAirRaidAlertOblastStatuses(data) => {
                 self.oblast_statuses = data;
             }
+            Action::GetActiveAlerts(data) => {
+                self.alerts = data;
+            }
             Action::SelectLocationByUid(a) => match a {
                 Some(location_uid) => {
                     self.selected_location_uid = location_uid as i32;
@@ -124,6 +145,13 @@ impl<'a> Component<'a> for Map<'a> {
                     self.selected_location_uid = -1;
                 }
             },
+            Action::Online(online) => {
+                self.title = get_title_with_online_status(
+                    t!("views.Map.title"),
+                    self.config.online(),
+                )
+                .alignment(Alignment::Left);
+            }
             _ => {}
         }
         Ok(None)
@@ -133,14 +161,12 @@ impl<'a> Component<'a> for Map<'a> {
         let size: Rect = f.size();
         let area: Rect = self.get_area(size)?;
         let (x_bounds, y_bounds) = self.get_x_y_bounds();
-
+        let selected_location = self.get_selected_location();
+        let selected_alert_status = self.get_selected_alert_status();
+        let selected_alert = self.get_selected_alert();
+        let title = self.title.clone();
         let widget = Canvas::default()
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(t!("views.Map.title").to_string().light_blue())
-                    .title_alignment(Alignment::Center),
-            )
+            .block(Block::bordered().title(title))
             .marker(Marker::Braille)
             .x_bounds(x_bounds)
             .y_bounds(y_bounds)
@@ -166,12 +192,46 @@ impl<'a> Component<'a> for Map<'a> {
                         .unwrap()
                         .status();
                     let is_selected = (l.location_uid) == self.selected_location_uid;
-                    let line = Self::get_styled_line_icon_by_status(status, is_selected);
+                    let line = get_styled_line_icon_by_status(status, &is_selected);
                     ctx.print(x, y, line);
                 });
             })
             .background_color(Color::Reset);
         f.render_widget(widget, area);
+
+        let popup_area = get_bottom_left_rect(area, 30, 20);
+        let mut popup_bg = Color::Reset;
+        let mut lines: Vec<Line> = vec![
+            "No details".into(),
+            "To view details, select a location on the map using Up/Down arrow keys".into(),
+            "↓: move down".into(),
+            "↑: move up".into(),
+        ];
+
+        // popup
+        if let Some(sas) = selected_alert_status {
+            popup_bg = get_color_by_status(sas.status());
+            lines = vec![
+                sas.location_title_en().to_string().into(),
+                sas.status().to_string().into(),
+            ];
+            if let Some(sa) = selected_alert {
+                let d = dur::Duration::from_std(sa.get_alert_duration());
+                lines = vec![
+                    sas.location_title_en().to_string().into(),
+                    sa.alert_type.to_string().into(),
+                    d.to_string().into(),
+                    sa.notes.unwrap_or_default().into(),
+                ];
+            };
+        };
+        let paragraph = Paragraph::new(Text::from(lines))
+            .dark_gray()
+            .alignment(Alignment::Left);
+        let block = Block::bordered()
+            .bg(popup_bg)
+            .title("Alert Details:".white().bold().italic());
+        f.render_widget(paragraph.block(block), popup_area);
         Ok(())
     }
 }

@@ -1,15 +1,13 @@
-use color_eyre::eyre::Result;
-use getset::Getters;
 use ratatui::{layout::Offset, prelude::*, widgets::*};
 use std::time::Instant;
 use throbber_widgets_tui::{Throbber, ThrobberState, WhichUse, BRAILLE_SIX_DOUBLE};
 use tokio::sync::mpsc::UnboundedSender;
 // use tracing::debug;
 
-use super::{Component, WithPlacement};
-use crate::{action::Action, config::*, layout::*, tui::Frame};
+use super::{Component, Result, WithPlacement};
+use crate::{action::Action, config::*, layout::*, tui::Frame, tui_helpers::*};
 
-#[derive(Debug, Clone, Getters)]
+#[derive(Debug, Clone)]
 pub struct FpsCounter<'a> {
     app_start_time: Instant,
     app_frames: u32,
@@ -20,7 +18,6 @@ pub struct FpsCounter<'a> {
     render_fps: f64,
     command_tx: Option<UnboundedSender<Action>>,
 
-    #[getset(get = "pub")]
     placement: LayoutPoint,
     #[allow(unused)]
     title: Line<'a>,
@@ -78,7 +75,7 @@ impl<'a> FpsCounter<'a> {
     }
 }
 
-impl WithPlacement for FpsCounter<'_> {
+impl WithPlacement<'_> for FpsCounter<'_> {
     fn placement(&self) -> &LayoutPoint {
         &self.placement
     }
@@ -95,6 +92,11 @@ impl<'a> Component<'a> for FpsCounter<'a> {
         Ok(())
     }
 
+    fn register_config_handler(&mut self, config: Config) -> Result<()> {
+        self.config = config;
+        Ok(())
+    }
+
     #[tracing::instrument(skip(self))]
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
@@ -105,8 +107,9 @@ impl<'a> Component<'a> for FpsCounter<'a> {
                 self.render_tick()?;
             }
             Action::Refresh => {}
-            Action::GetAirRaidAlertOblastStatuses(data) => {
-                // debug!(target:"app", "FpsCounter->update: {:?}", action);
+            Action::Online(online) => {
+                self.title = get_title_with_online_status("Satus", self.config.online())
+                    .alignment(Alignment::Left);
             }
             _ => {}
         }
@@ -128,8 +131,8 @@ impl<'a> Component<'a> for FpsCounter<'a> {
             "{:.2} ticks per sec (app) {:.2} frames per sec (render)",
             self.app_fps, self.render_fps
         );
-        let block =
-            Block::default().title(block::Title::from(s.dim()).alignment(Alignment::Left));
+        let title = self.title.clone();
+        let block = Block::default().title(title);
         f.render_widget(block, rect);
         // Show "spinner"
         let throb = Throbber::default()

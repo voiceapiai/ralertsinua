@@ -1,4 +1,4 @@
-use delegate::delegate;
+use miette::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::{AirRaidAlertOblastStatus, AlertStatus, ModelError, REGIONS_DATA};
@@ -46,17 +46,23 @@ pub mod deserialize_oblast_statuses {
 
 impl Default for AirRaidAlertOblastStatuses {
     fn default() -> Self {
-        Self::new(String::from("NNNNNNNNNNNNNNNNNNNNNNNNNNN"), Some(true))
+        Self::new(String::from("OOOOOOOOOOOOOOOOOOOOOOOOOOO"), Some(true))
     }
 }
 
 impl AirRaidAlertOblastStatuses {
-    delegate! {
-        to self.oblast_statuses {
-            pub fn iter(&self) -> std::slice::Iter<AirRaidAlertOblastStatus>;
-            pub fn len(&self) -> usize;
-            pub fn is_empty(&self) -> bool;
-        }
+    pub fn iter(&self) -> std::slice::Iter<AirRaidAlertOblastStatus> {
+        self.oblast_statuses.iter()
+    }
+    pub fn len(&self) -> usize {
+        self.oblast_statuses.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.oblast_statuses.is_empty()
+    }
+
+    pub fn raw_data(&self) -> &str {
+        &self.raw_data
     }
 
     /// Create a vec AirRaidAlertOblastStatuses from a string

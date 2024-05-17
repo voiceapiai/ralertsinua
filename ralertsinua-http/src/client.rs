@@ -2,70 +2,70 @@
 //! @borrows https://github.com/ramsayleung/rspotify/blob/master/rspotify-http/src/reqwest.rs
 
 use async_trait::async_trait;
+use bytes::Bytes;
+use ralertsinua_models::*;
 use reqwest::{
     header::{HeaderMap, HeaderValue},
-    Method, RequestBuilder, StatusCode,
+    Client, ClientBuilder, Method, RequestBuilder, Response, StatusCode,
 };
 use serde::Deserialize;
-use std::collections::HashMap;
 use std::fmt;
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Duration;
+use std::{collections::HashMap, sync::Arc};
 
-use crate::ApiError;
-use ralertsinua_models::*;
+#[cfg(feature = "cache")]
+use crate::cache::*;
+use crate::error::*;
 
-pub type Headers = HashMap<String, String>;
-pub type Query<'a> = HashMap<&'a str, &'a str>;
-type Result<T> = std::result::Result<T, ApiError>;
+type Query<'a> = HashMap<&'a str, &'a str>;
+type Result<T> = miette::Result<T, ApiError>;
 
 pub const API_BASE_URL: &str = "https://api.alerts.in.ua";
 pub const API_VERSION: &str = "/v1";
-// Name your user agent after your app?
-const APP_USER_AGENT: &str = concat!(
-    env!("CARGO_PKG_NAME"),
-    "/",
-    env!("CARGO_PKG_VERSION"),
-    // "/",
-    // env!("VERGEN_CARGO_TARGET_TRIPLE"),
-);
+pub const API_CACHE_SIZE: usize = 1000;
 
-#[derive(Debug, Clone)]
 pub struct AlertsInUaClient {
     base_url: String,
     token: String,
-    client: reqwest::Client,
+    client: Client,
+    #[cfg(feature = "cache")]
+    cache_manager: Arc<dyn CacheManagerSync>,
+}
+
+impl std::fmt::Debug for AlertsInUaClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "AlertsInUaClient {{ base_url: {}, token: {}, client: {:?}, cache_manager: {:?} }}", self.base_url, self.token, self.client, "CACacheManager")
+    }
 }
 
 impl AlertsInUaClient {
-    #[rustfmt::skip]
-    pub fn new<U, T>(base_url: U, token: T) -> Self where U: Into<String>, T: Into<String>,
-    {
-        let client = reqwest::ClientBuilder::new()
-            .timeout(Duration::from_secs(10))
-            .user_agent(APP_USER_AGENT)
-            .default_headers({
-                let mut headers = HeaderMap::new();
-                headers.insert("accept", HeaderValue::from_static("value"));
-                headers
-            })
+    const APP_USER_AGENT: &'static str =
+        concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+
+    pub fn new(base_url: &str, token: &str) -> Self {
+        let base_url = base_url.into();
+        let token = token.into();
+        let client = ClientBuilder::new()
+            .timeout(std::time::Duration::from_secs(10))
+            .user_agent(Self::APP_USER_AGENT)
             .build()
             // building with these options cannot fail
             .unwrap();
+
+        let cache_manager = Arc::new(CacheManagerQuick::new(API_CACHE_SIZE));
+
         Self {
-            base_url: base_url.into(),
-            token: token.into(),
+            base_url,
+            token,
             client,
+            #[cfg(feature = "cache")]
+            cache_manager,
         }
     }
 }
 
 impl AlertsInUaClient {
     fn get_api_url(&self, url: &str) -> String {
-        let version = API_VERSION;
-        let base_url = self.base_url.clone();
-        // if !base_url.ends_with('/') { base_url.push('/'); }
-        base_url + version + url
+        format!("{}{}{}", self.base_url, API_VERSION, url)
     }
 
     async fn request<R, D>(&self, method: Method, url: &str, add_data: D) -> Result<R>
@@ -73,24 +73,42 @@ impl AlertsInUaClient {
         R: for<'de> Deserialize<'de>,
         D: Fn(RequestBuilder) -> RequestBuilder,
     {
+        let mut last_modified = String::new();
+        let mut cached_data: Bytes = Bytes::new();
         // Build full URL
         let url = self.get_api_url(url);
-        let mut request = self.client.request(method.clone(), url);
+        let mut req = self.client.request(method.clone(), &url);
         // Enable HTTP bearer authentication.
-        request = request.bearer_auth(&self.token);
+        req = req.bearer_auth(&self.token);
+        // Get last_modified from cache
+        let mut headers = HeaderMap::new();
+        // Set the headers
+        headers.insert("Accept", HeaderValue::from_static("application/json"));
 
+        if cfg!(feature = "cache") {
+            if let Some(CacheEntry(bytes, lm)) = self.cache_manager.get(&url)? {
+                last_modified = lm;
+                cached_data = bytes;
+            }
+            // Here we set the If-Modified-Since header from the last_modified
+            headers.insert(
+                "If-Modified-Since",
+                last_modified.parse().map_err(http::Error::from)?,
+            );
+        }
+
+        req = req.headers(headers);
         // Configuring the request for the specific type (get/post/put/delete)
-        request = add_data(request);
-
+        req = add_data(req);
         // Finally performing the request and handling the response
-        // log::info!("Making request {:?}", request);
-        let response = request.send().await?;
-
+        log::trace!(target: env!("CARGO_PKG_NAME"), "Request {:?}", req);
+        let res: Response = req.send().await.inspect_err(|e| {
+            log::error!(target: env!("CARGO_PKG_NAME"),  "Error making request: {:?}", e);
+        })?;
+        log::trace!(target: env!("CARGO_PKG_NAME"), "Response {:?}", res);
         // Making sure that the status code is OK
-
-        match response.error_for_status() {
-            Ok(res) => res.json::<R>().await.map_err(Into::into),
-            Err(err) => match err.status() {
+        if let Err(err) = res.error_for_status_ref() {
+            let err = match err.status() {
                 Some(StatusCode::BAD_REQUEST) => Err(ApiError::InvalidParameterException),
                 Some(StatusCode::UNAUTHORIZED) => Err(ApiError::UnauthorizedError(err)),
                 Some(StatusCode::FORBIDDEN) => Err(ApiError::InvalidParameterException),
@@ -102,8 +120,36 @@ impl AlertsInUaClient {
                     Err(ApiError::InternalServerError)
                 }
                 _ => Err(ApiError::Unknown(err)),
-            },
+            };
+
+            return err;
         }
+
+        last_modified = format!("{:?}", res.headers().get("Last-Modified").unwrap());
+        // -------------------------------------------------------------
+        let data: Bytes = match res.status() {
+            #[cfg(feature = "cache")]
+            StatusCode::NOT_MODIFIED => {
+                log::trace!(target: env!("CARGO_PKG_NAME"), "Response status '304 Not Modified', return cached data");
+                cached_data
+            }
+            _ => {
+                let bytes = res.bytes().await?;
+                if cfg!(feature = "cache") {
+                    // Save the data to the cache
+                    self.cache_manager
+                        .put(&url, &last_modified, bytes.clone())
+                        .inspect_err(|e| {
+                            log::error!("Error writing to cache: {:?}", e);
+                        })?;
+                }
+
+                bytes
+            }
+        };
+
+        // Return deserialized data
+        Ok(serde_json::from_slice(&data)?)
     }
 }
 
@@ -117,8 +163,7 @@ impl AlertsInUaClient {
 /// different ways (`Value::Null`, an empty `Value::Object`...), so this removes
 /// redundancy and edge cases (a `Some(Value::Null), for example, doesn't make
 /// much sense).
-/// TODO: If-Modified-Since + Last-Modified for caching
-pub trait BaseHttpClient: Send + Clone + fmt::Debug {
+pub trait BaseHttpClient: Send + fmt::Debug {
     // This internal function should always be given an object value in JSON.
     #[allow(async_fn_in_trait)]
     async fn get<R>(&self, url: &str, payload: &Query) -> Result<R>
@@ -138,17 +183,13 @@ impl BaseHttpClient for AlertsInUaClient {
 
 /// The API for the AlertsInUaClient
 #[async_trait]
-pub trait AlertsInUaApi: Sync + Send + core::fmt::Debug {
-    #[allow(async_fn_in_trait)]
+pub trait AlertsInUaApi: fmt::Debug {
     async fn get_active_alerts(&self) -> Result<Alerts>;
 
-    #[allow(async_fn_in_trait)] // 'week_ago'
     async fn get_alerts_history(&self, location_aid: &i8, period: &str) -> Result<Alerts>;
 
-    #[allow(async_fn_in_trait)] // 'week_ago'
     async fn get_air_raid_alert_status(&self, location_aid: &i8) -> Result<String>;
 
-    #[allow(async_fn_in_trait)]
     async fn get_air_raid_alert_statuses_by_location(
         &self,
     ) -> Result<AirRaidAlertOblastStatuses>;
@@ -156,25 +197,21 @@ pub trait AlertsInUaApi: Sync + Send + core::fmt::Debug {
 
 #[async_trait]
 impl AlertsInUaApi for AlertsInUaClient {
-    #[inline]
     async fn get_active_alerts(&self) -> Result<Alerts> {
         let url = "/alerts/active.json";
         self.get(url, &Query::default()).await
     }
 
-    #[inline]
     async fn get_alerts_history(&self, location_aid: &i8, period: &str) -> Result<Alerts> {
         let url = format!("/locations/{}/alerts/{}.json", location_aid, period);
         self.get(&url, &Query::default()).await
     }
 
-    #[inline]
     async fn get_air_raid_alert_status(&self, location_aid: &i8) -> Result<String> {
         let url = format!("/iot/active_air_raid_alerts/{}.json", location_aid);
         self.get(&url, &Query::default()).await
     }
 
-    #[inline]
     async fn get_air_raid_alert_statuses_by_location(
         &self,
     ) -> Result<AirRaidAlertOblastStatuses> {
@@ -185,10 +222,16 @@ impl AlertsInUaApi for AlertsInUaClient {
     }
 }
 
+// The existence of this function makes the compiler catch if the Buf
+// trait is "object-safe" or not.
+fn _assert_trait_object(_: &dyn AlertsInUaApi) {}
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
+    #[allow(unused_imports)]
+    use mockall::predicate::*;
     use mockito::Server as MockServer;
     use serde_json::json;
     use std::sync::Arc;
@@ -198,6 +241,13 @@ mod tests {
         let api_client: Arc<dyn AlertsInUaApi> = Arc::new(AlertsInUaClient::new("", ""));
         println!("{:?}", api_client);
     }
+
+    /* #[tokio::test]
+    async fn test_get_last_modified() {
+        let client = AlertsInUaClient::new("https://api.alerts.in.ua", "token");
+        let result = client.get_last_modified().await;
+        assert!(result.is_ok());
+    } */
 
     #[test]
     fn test_get_api_url() {
@@ -209,12 +259,13 @@ mod tests {
     #[tokio::test]
     async fn test_get_active_alerts() -> Result<()> {
         let mut server = MockServer::new_async().await;
-        let client = AlertsInUaClient::new(server.url(), "token");
+        let client = AlertsInUaClient::new(server.url().as_str(), "token");
         let mock = server
             .mock(
                 "GET",
                 mockito::Matcher::Any, /* API_ALERTS_ACTIVE_BY_REGION_STRING */
             )
+            .with_header("Last-Modified", "Tue, 14 May 2024 18:18:18 GMT")
             .with_body(r#"{"alerts":[],"disclaimer":"","meta":{"last_updated_at":"2024/05/06 10:02:45 +0000"}}"#)
             .create_async()
             .await;
@@ -232,12 +283,13 @@ mod tests {
     #[tokio::test]
     async fn test_get_air_raid_alert_statuses_by_location() -> Result<()> {
         let mut server = MockServer::new_async().await;
-        let client = AlertsInUaClient::new(server.url(), "token");
+        let client = AlertsInUaClient::new(server.url().as_str(), "token");
         let mock = server
             .mock(
                 "GET",
                 mockito::Matcher::Any, /* API_ALERTS_ACTIVE_BY_REGION_STRING */
             )
+            .with_header("Last-Modified", "Tue, 14 May 2024 18:18:18 GMT")
             .with_body(r#""ANNAANNANNNPANANANNNNAANNNN""#)
             .create_async()
             .await;

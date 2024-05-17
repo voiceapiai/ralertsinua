@@ -6,30 +6,32 @@ pub mod cli;
 pub mod components;
 pub mod config;
 pub mod constants;
-pub mod draw;
+pub mod error;
 pub mod fs;
 pub mod layout;
 pub mod mode;
 pub mod tui;
+pub mod tui_helpers;
 pub mod utils;
 
 rust_i18n::i18n!();
 
 use clap::Parser;
 use cli::Cli;
-use color_eyre::eyre::{eyre, Result};
+#[allow(unused_imports)]
+use miette::{miette, IntoDiagnostic, Result};
 use ralertsinua_geo::*;
 use ralertsinua_http::*;
-use std::io::{stdin, stdout, Write};
 use std::sync::Arc;
+#[allow(unused_imports)]
+use std::{
+    io::{stdin, stdout, Write},
+    time::Duration,
+};
 use tracing::{debug, error, warn};
 use tui_logger::set_level_for_target;
 
-use crate::{
-    app::App,
-    config::Config,
-    utils::{initialize_logging, initialize_panic_handler},
-};
+use crate::{app::App, config::Config, utils::*};
 
 async fn tokio_main() -> Result<()> {
     dotenvy::dotenv().ok();
@@ -38,27 +40,42 @@ async fn tokio_main() -> Result<()> {
     debug!(target:"app", "initialized logging");
     initialize_panic_handler()?;
 
-    let mut config = Config::init().map_err(|e| eyre!(e))?;
+    let mut config = Config::default();
     let args = Cli::parse();
 
     if config.token().is_empty() {
         warn!(target: "app", "token is empty, asking user for token");
         print!("enter your 'alerts.in.ua' token: ");
-        stdout().flush()?;
+        stdout().flush().into_diagnostic()?;
 
         let mut token = String::new();
-        stdin().read_line(&mut token)?;
+        stdin().read_line(&mut token).into_diagnostic()?;
         let token = token.trim().to_string();
 
         if token.is_empty() {
             error!(target: "app", "token cannot be empty, exiting");
-            return Err(eyre!("token cannot be empty"));
+            return Err(miette!("token cannot be empty"));
         } else {
             debug!(target: "app", "token from user input accepted");
-            std::env::set_var("ALERTSINUA_TOKEN", &token);
-            config.set_token(token);
+            config.set_token(token)?;
         }
+    } else if !args.token.is_empty() {
+        debug!(target: "app", "token from parameters accepted, ignore env");
+        config.set_token(args.token)?;
     }
+
+    // Replace with a reliable public server (e.g., 8.8.8.8:53)
+    match std::net::TcpStream::connect("8.8.8.8:53") {
+        Ok(_) => {
+            debug!(target: "app", "sucsessful ping 8.8.8.8:53, online=true");
+            config.set_online(true);
+        }
+        Err(e) => {
+            error!(target: "app", "failed to ping 8.8.8.8:53, online=false, error={}", e);
+            config.set_online(false);
+        }
+    };
+
     debug!(target: "app", "\n{:?} \n\n-----------", config.settings());
 
     let api_client: Arc<dyn AlertsInUaApi> =
@@ -74,7 +91,7 @@ async fn tokio_main() -> Result<()> {
 #[tokio::main]
 async fn main() -> Result<()> {
     if let Err(e) = tokio_main().await {
-        eprintln!("{} error: Something went wrong", env!("CARGO_PKG_NAME"));
+        eprintln!("{} panicked: Something went wrong", env!("CARGO_PKG_NAME"));
         Err(e)
     } else {
         Ok(())

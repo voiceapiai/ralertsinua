@@ -23,24 +23,20 @@
 /// }
 /// # }
 /// ```
-#[derive(thiserror::Error, Debug)]
+#[derive(thiserror::Error, miette::Diagnostic, Debug)]
+#[diagnostic(code(ralertsinua_http::client))]
 pub enum ApiError {
     /// The request couldn't be completed because there was an error when trying
     /// to do so
-    #[error("API Error: {0}")]
+    #[error(transparent)]
+    // #[diagnostic(code(my_lib::bad_code))]
     Unknown(#[from] reqwest::Error),
-
-    /// The request was made, but the server returned an unsuccessful status
-    /// code, such as 404 or 503. In some cases, the response may contain a
-    /// custom message with more information, which can be
-    /// serialized into `ApiError`.
-    #[error("API Error: Status code {}", reqwest::Response::status(.0))]
-    Unknown2(reqwest::Response),
 
     #[error("API Error: Invalid token")]
     InvalidToken,
 
     #[error("API Error: Unauthorized: {0}")]
+    #[diagnostic(help("most likely token is invalid or missing\n check you've provided it via environment variable 'ALERTSINUA_TOKEN' or as a parameter '--token'"))]
     UnauthorizedError(reqwest::Error),
 
     #[error("API Error: Rate limit exceeded")]
@@ -57,4 +53,13 @@ pub enum ApiError {
 
     #[error("API Error: Invalid URL: {0}")]
     InvalidURL(reqwest::Error),
+
+    #[error("API Error: Generic Http error: {0}")]
+    HttpError(#[from] http::Error),
+
+    #[error("API Error: JSON parse error: {0}")]
+    ParseJson(#[from] serde_json::Error),
+
+    #[error("API Error: Internal error")]
+    Internal,
 }

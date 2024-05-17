@@ -1,4 +1,3 @@
-#![allow(clippy::borrow_deref_ref)]
 use geo::Rect;
 
 use crate::{constants::*, location::*, utils::*};
