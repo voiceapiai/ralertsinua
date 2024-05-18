@@ -1,11 +1,11 @@
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=voiceapiai_alertsinua-cli&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=voiceapiai_alertsinua-cli) [![Coverage Status](https://coveralls.io/repos/github/voiceapiai/ralertsinua/badge.svg)](https://coveralls.io/github/voiceapiai/ralertsinua) ![Crates.io Version](https://img.shields.io/crates/v/ralertsinua-http) ![Crates.io License](https://img.shields.io/crates/l/ralertsinua-http) ![docs.rs](https://img.shields.io/docsrs/ralertsinua-http)
 
 
-# ralertsinua
+# ralertsinua-http
 
 <p>Rust async API wrapper (<em>reqwest</em>) & <abbr title="Terminal User Interface">TUI</abbr> (<em>ratatui</em>) for <u>alerts.in.ua</u>
 
-![screencast](https://raw.githubusercontent.com/voiceapiai/ralertsinua/main/screencast.gif)
+![screencast](https://raw.githubusercontent.com/voiceapiai/ralertsinua/main/docs/assets/screencast.gif)
 
 #
 
@@ -18,7 +18,7 @@ The Alerts.in.ua API Client is a Rust library that simplifies access to the aler
 To install the Alerts.in.ua API Client, run the following command in your terminal:
 
 ```bash
-cargo add ralertsinua
+cargo add ralertsinua-http
 ```
 
 ## Usage

@@ -1,11 +1,11 @@
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=voiceapiai_alertsinua-cli&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=voiceapiai_alertsinua-cli) [![Coverage Status](https://coveralls.io/repos/github/voiceapiai/ralertsinua/badge.svg)](https://coveralls.io/github/voiceapiai/ralertsinua) ![Crates.io Version](https://img.shields.io/crates/v/ralertsinua-http) ![Crates.io License](https://img.shields.io/crates/l/ralertsinua-http) ![docs.rs](https://img.shields.io/docsrs/ralertsinua-http)
 
 
-# ralertsinua
+# ralertsinua-geo
 
 <p>Rust async API wrapper (<em>reqwest</em>) & <abbr title="Terminal User Interface">TUI</abbr> (<em>ratatui</em>) for <u>alerts.in.ua</u>
 
-![screencast](https://raw.githubusercontent.com/voiceapiai/ralertsinua/main/screencast.gif)
+![screencast](https://raw.githubusercontent.com/voiceapiai/ralertsinua/main/docs/assets/screencast.gif)
 
 #
 
@@ -18,7 +18,7 @@ The Alerts.in.ua API Client is a Rust library that simplifies access to the aler
 To install the Alerts.in.ua API Client, run the following command in your terminal:
 
 ```bash
-cargo add ralertsinua
+cargo add ralertsinua-geo
 ```
 
 ## Usage
@@ -28,160 +28,47 @@ cargo add ralertsinua
 Here's an basic example of how to use the library to get a list of active alerts:
 
 Async:
-```rust
-use ralertsinua_http::{AlertsInUaClient, API_BASE_URL}
+```rs
+use ralertsinua_geo::AlertsInUaGeo;
+// Initialize the client
+geo_client = AlertsInUaGeo();
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    # Initialize the client with your token
-    alerts_client = AlertsInUaClient(API_BASE_URL, "your_token");
-
-    # Get the active alerts
-    active_alerts = await alerts_client.get_active_alerts();
-
-    print!("active_alerts: {}", active_alerts.into());
+/// The API for the AlertsInUaClient
+pub trait AlertsInUaGeo: WithBoundingRect + Sync + Send + core::fmt::Debug {
+    fn boundary(&self) -> CountryBoundary;
+    fn locations(&self) -> [Location; 27];
+    fn get_location_by_uid(&self, uid: i32) -> Option<Location>;
+    fn get_location_by_name(&self, name: &str) -> Option<Location>;
 }
 ```
 
-<!--
-```
-or sync:
-```rust
-use ralertsinua_http::AlertsInUaClient
+## Location
 
-alerts_client = AlertsClient(token="your_token")
+The `Location` struct represents a Ukraine's administrative unit lv4
 
-## Get the active alerts
-active_alerts = alerts_client.get_active_alerts()
-print(active_alerts)
-```
--->
+```rs
+/// Ukraine's administrative unit lv4  - *oblast*
+#[derive(Debug, Deserialize, Clone, PartialEq, Serialize)]
+pub struct Location {
+    /// OSM Relation Id
+    pub relation_id: String,
+    /// Alerts.in.ua "uid"
+    pub location_uid: i32,
+    /// "state" or "city" or "special"
+    pub location_type: String,
+    /// Geometry for boundary (Polygon or MultiPolygon)
+    pub geometry: Geometry,
+    /// Name in uk
+    pub name: String,
+    /// Name in en
+    pub name_en: String,
 
-## Alerts
-
-Alerts class is a collection of alerts and provides various methods to filter and access these alerts.
-
-When user call `client.get_active_alerts()` it returns `Alerts` class.
-## Methods
-
-### filter(*args: str) -> Vec<Alert>
-This method filters the alerts based on the given parameters.
-
-```rust
-filtered_alerts = active_alerts.filter('location_oblast', 'Донецька область','alert_type','air_raid')
-```
-In this example, filtered_alerts will contain all the air raid alerts that have the location oblast as 'Донецька область'.
-
-### get_alerts_by_location_title(location_title: str) -> Vec<Alert>
-This method returns all the alerts from specified location.
-
-```rust
-kyiv_alerts = active_alerts.get_alerts_by_location_title('м. Київ')
-```
-
-### get_air_raid_alerts() -> Vec<Alert>
-This method returns all the alerts that are of alert type 'air_raid'.
-```rust
-air_raid_alerts = active_alerts.get_air_raid_alerts()
-```
-
-### get_oblast_alerts() -> Vec<Alert>
-This method returns all the alerts that are of location type 'oblast'.
-
-```rust
-oblast_alerts = active_alerts.get_oblast_alerts()
-```
-
-### get_raion_alerts() -> Vec<Alert>
-This method returns all the alerts that are of location type 'raion'.
-```rust
-raion_alerts = active_alerts.get_raion_alerts()
-```
-
-### get_hromada_alerts() -> Vec<Alert>
-This method returns all the alerts that are of location type 'hromada'.
-```rust
-hromada_alerts = active_alerts.get_hromada_alerts()
-```
-
-### get_city_alerts() -> Vec<Alert>
-This method returns all the alerts that are of location type 'city'.
-
-```rust
-city_alerts = active_alerts.get_city_alerts()
-```
-
-### get_alerts_by_alert_type(alert_type: str) -> Vec<Alert>
-This method returns all the alerts that are of the given alert type.
-
-```rust
-artillery_shelling_alerts = active_alerts.get_alerts_by_alert_type('artillery_shelling')
-```
-
-### get_alerts_by_location_type(location_type: str) -> Vec<Alert>
-This method returns all the alerts that are of the given location type.
-
-```rust
-urban_location_alerts = active_alerts.get_alerts_by_location_type('raion')
-```
-
-### get_alerts_by_oblast(oblast_title: str) -> Vec<Alert>
-This method returns all the alerts that are of the given oblast title.
-
-```rust
-donetsk_oblast_alerts = active_alerts.get_alerts_by_oblast('Донецька область')
-```
-
-### get_alerts_by_location_uid(location_uid: str) -> Vec<Alert>
-This method returns all the alerts that have the given location uid.
-```rust
-location_uid_alerts = active_alerts.get_alerts_by_location_uid('123456')
-```
-
-### get_artillery_shelling_alerts() -> Vec<Alert>
-This method returns all the alerts that are of alert type 'artillery_shelling'.
-```rust
-artillery_shelling_alerts = active_alerts.get_artillery_shelling_alerts()
-```
-
-### get_urban_fights_alerts() -> Vec<Alert>
-This method returns all the alerts that are of alert type 'urban_fights'.
-```rust
-urban_fights_alerts = active_alerts.get_urban_fights_alerts()
-```
-
-### get_nuclear_alerts() -> Vec<Alert>
-This method returns all the alerts that are of alert type 'nuclear'.
-```rust
-nuclear_alerts = active_alerts.get_nuclear_alerts()
-```
-
-### get_chemical_alerts() -> Vec<Alert>
-This method returns all the alerts that are of alert type 'chemical'.
-```rust
-chemical_alerts = active_alerts.get_chemical_alerts()
-```
-
-### get_all_alerts() -> Vec<Alert>
-This method returns all alerts.
-```rust
-all_alerts = active_alerts.get_all_alerts()
-```
-or you can use shortcut:
-```rust
-for alert in active_alerts:
-    print!(alert)
-```
-### get_last_updated_at() -> datetime.datetime
-This method returns the datetime object representing the time when the alert information was last updated (Kyiv timezone).
-```rust
-last_updated_at = alerts.get_last_updated_at()
-```
-
-### get_disclaimer() -> str
-This method returns the disclaimer associated with the alert information.
-```rust
-disclaimer = alerts.get_disclaimer()
+    /// And some functions from traits
+    fn geometry(&self) -> &Geometry;
+    fn boundary(&self) -> &Polygon;
+    fn center(&self) -> (f64, f64);
+    /// To be used in TUI when , implements `Shape`
+    fn draw(&self, painter: &mut Painter);
 ```
 
 ## License

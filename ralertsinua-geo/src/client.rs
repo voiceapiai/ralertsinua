@@ -2,10 +2,14 @@ use geo::Rect;
 
 use crate::{constants::*, location::*, utils::*};
 
+/// The Geo client for the AlertsInUa
 #[derive(Debug, Clone)]
 pub struct AlertsInUaGeoClient {
+    /// Bounding rectangle
     pub bounding_rect: Rect,
+    /// Boundary (borders) as Polygon
     pub boundary: CountryBoundary,
+    /// Administrative units
     pub locations: [Location; 27],
 }
 
@@ -44,7 +48,7 @@ impl AlertsInUaGeoClient {
     }
 }
 
-/// The API for the AlertsInUaClient
+/// The Geo client for the AlertsInUa
 pub trait AlertsInUaGeo: WithBoundingRect + Sync + Send + core::fmt::Debug {
     fn boundary(&self) -> CountryBoundary;
     fn locations(&self) -> [Location; 27];

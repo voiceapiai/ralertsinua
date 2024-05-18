@@ -4,20 +4,18 @@ description = "Data Transfer Object for alerts.in.ua"
 repository = "https://github.com/voiceapiai/ralertsinua"
 categories = ["api-bindings"]
 keywords = ["geo", "api", "tui", "cli"]
-version = "0.5.0"
+version = "0.5.1"
 license = "MIT"
 edition = "2021"
 authors = ["voiceapiai <voiceapiai@gmail.com>"]
-readme = "../README.md"
+readme = "./README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 getset = "0.1"
 miette = { version = "7.2.0", features = ["serde"] }
-ratatui = { version = "0.26.2", optional = true }
 serde = { version = "1.0.198", features = ["derive"] }
-serde_json = "1.0.116"
 serde_with = "3.8.1"
 strum = "0.26"
 strum_macros = "0.26"
@@ -30,13 +28,6 @@ time = { version = "0.3.36", features = [
 ] }
 time-macros = "0.2.18"
 
-[features]
-# default = []
-tui = ["ratatui"]
-
-[package.metadata.docs.rs]
-# When generating the docs, we also want to include the CLI methods, and working
-# links for `dotenvy`. We generate them for ureq so that the function signatures
-# of the endpoints don't look gnarly (because of `async-trait`).
-features = ["cli", "env-file"]
-no-default-features = true
+[dev-dependencies]
+serde_json = "1.0.116"
+# [package.metadata.docs.rs]

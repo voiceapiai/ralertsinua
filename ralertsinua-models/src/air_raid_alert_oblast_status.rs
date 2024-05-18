@@ -3,9 +3,6 @@ use getset::Getters;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-// #[cfg(feature = "tui")] // TODO:
-// use ratatui::{ style::{Color, Modifier, Stylize}, widgets::ListItem, };
-
 #[derive(Debug, Clone, Getters, PartialEq, Serialize, Deserialize)]
 pub struct AirRaidAlertOblastStatus {
     pub location_uid: i32,
