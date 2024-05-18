@@ -5,7 +5,7 @@ repository = "https://github.com/voiceapiai/ralertsinua"
 categories = ["api-bindings", "geo"]
 keywords = ["geo", "api", "tui", "cli"]
 version = "0.5.0"
-authors = ["voznik <mrvoznik@gmail.com>"]
+authors = ["voiceapiai <voiceapiai@gmail.com>"]
 license = "MIT"
 edition = "2021"
 
