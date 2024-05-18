@@ -3011,7 +3011,7 @@ checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
 
 [[package]]
 name = "ralertsinua"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "async-trait",
  "bincode",
@@ -3068,7 +3068,7 @@ dependencies = [
 
 [[package]]
 name = "ralertsinua-geo"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "geo",
  "geojson",
@@ -3085,7 +3085,7 @@ dependencies = [
 
 [[package]]
 name = "ralertsinua-http"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3105,11 +3105,10 @@ dependencies = [
 
 [[package]]
 name = "ralertsinua-models"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "getset",
  "miette",
- "ratatui",
  "serde",
  "serde_json",
  "serde_with",

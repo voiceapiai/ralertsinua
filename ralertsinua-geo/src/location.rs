@@ -1,5 +1,4 @@
 use geo::{BoundingRect, Geometry, Polygon, Rect};
-#[cfg(feature = "tui")]
 use geojson::de::deserialize_geometry;
 #[cfg(feature = "tui")]
 use ratatui::{
@@ -10,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::utils::*;
 
+/// WKT string
 pub type WktString = String;
 /// x/y bounds as pairs (e.g. for ratatui)
 #[allow(non_camel_case_types)]
@@ -112,8 +112,8 @@ impl Location {
     }
 }
 
-#[cfg(feature = "tui")]
 /// Draws location boundary with [`Canvas`]
+#[cfg(feature = "tui")]
 impl Shape for Location {
     /// This method draws points of `Polygon` of the location with `Painter` object. It iterates over the exterior coordinates of the boundary and paints each point with `Painter` using the `paint` method
     #[inline]
@@ -126,6 +126,7 @@ impl Shape for Location {
     }
 }
 
+/// Country boundary (borders) as a Polygon
 #[derive(Debug, Deserialize, Clone, PartialEq, Serialize)]
 pub struct CountryBoundary(pub Polygon);
 
