@@ -1,0 +1,35 @@
+{
+    "project": {
+        "name": "ralertsinua",
+        "description": "Rust async API wrapper (reqwest) & TUI (ratatui) for alerts.in.ua",
+        "repository": "https://github.com/voiceapiai/ralertsinua",
+        "license": "MIT"
+    },
+    "build": {
+        "dist_dir": "./docs/dist",
+        "static_dir": "./docs/assets",
+        "path_prefix": "ralertsinua",
+        "additional_pages": {}
+    },
+    "components": {
+        "changelog": false,
+        "artifacts": {
+            "cargo_dist": true
+        },
+        "mdbook": {
+            "path": "./docs"
+        }
+    },
+    "marketing": {
+        "analytics": {
+            "google": {
+                "tracking_id": "G-TCJ5D14XV4"
+            }
+        }
+    },
+    "styles": {
+        "theme": "hacker",
+        "favicon": "./docs/assets/voiceapi.logo.svg",
+        "additional_css": []
+    }
+}

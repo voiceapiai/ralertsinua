@@ -1,0 +1,7 @@
+[book]
+authors = ["voiceapiai <voiceapiai@gmail.com>"]
+license = "MIT"
+language = "en"
+multilingual = false
+src = "src"
+title = "ralertsinua"
