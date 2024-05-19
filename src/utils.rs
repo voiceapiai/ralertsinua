@@ -95,28 +95,36 @@ pub fn get_config_dir() -> PathBuf {
 }
 
 pub fn initialize_logging() -> Result<()> {
-    let directory = get_data_dir();
-    std::fs::create_dir_all(directory.clone())?;
-    let log_path = directory.join(LOG_FILE.clone());
-    let log_file = std::fs::File::create(log_path)?;
-    env::set_var(
-        "RUST_LOG",
-        env::var("RUST_LOG")
-            .or_else(|_| env::var(LOG_ENV.clone()))
-            .unwrap_or_else(|_| format!("{}=info", env!("CARGO_CRATE_NAME"))),
-    );
-    let file_subscriber = tracing_subscriber::fmt::layer()
-        .with_file(true)
-        .with_line_number(true)
-        .with_writer(log_file)
-        .with_target(false)
-        .with_ansi(false);
-    // .with_filter(tracing_subscriber::filter::EnvFilter::from_default_env());
-    tracing_subscriber::registry()
-        .with(file_subscriber)
-        .with(ErrorLayer::default())
-        .with(tui_logger::tracing_subscriber_layer())
-        .init();
+    let disable_file_logging: bool = env::var("ALERTSINUA_DISABLE_LOG_TO_FILE")
+        .map(|v| str_to_bool(v))
+        .unwrap();
+    println!("disable_file_logging: {}", disable_file_logging);
+
+    if !disable_file_logging {
+        let directory = get_data_dir();
+        std::fs::create_dir_all(directory.clone())?;
+        let log_path = directory.join(LOG_FILE.clone());
+        let log_file = std::fs::File::create(log_path)?;
+
+        let file_logger = tracing_subscriber::fmt::layer()
+            .with_file(true)
+            .with_line_number(true)
+            .with_writer(log_file)
+            .with_target(false)
+            .with_ansi(false);
+
+        tracing_subscriber::registry()
+            .with(file_logger)
+            .with(ErrorLayer::default())
+            .with(tui_logger::tracing_subscriber_layer())
+            .init();
+    } else {
+        tracing_subscriber::registry()
+            .with(ErrorLayer::default())
+            .with(tui_logger::tracing_subscriber_layer())
+            .init();
+    }
+
     Ok(())
 }
 
@@ -166,6 +174,15 @@ Data directory: {data_dir_path}"
 
 pub fn type_of<T>(_: T) -> &'static str {
     type_name::<T>().split("::").last().unwrap()
+}
+
+#[inline]
+pub fn str_to_bool(s: impl Into<String>) -> bool {
+    match s.into().to_lowercase().as_str() {
+        "true" | "1" => true,
+        "false" | "0" => false,
+        _ => false,
+    }
 }
 
 /* use std::{collections::HashMap, hash::Hash};

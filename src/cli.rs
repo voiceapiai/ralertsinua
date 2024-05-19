@@ -14,7 +14,7 @@ pub struct Cli {
     )]
     pub token: String,
 
-    #[arg(short, long, value_name = "LOCALE", help = "Locale", required = false, value_parser = rust_i18n::available_locales!(), default_value = sys_locale::get_locale().unwrap()[..2].to_string())]
+    #[arg(short, long, value_name = "LOCALE", help = "Locale", required = false, value_parser = get_available_locales(), default_value = get_default_locale())]
     pub locale: String,
 
     #[arg(
@@ -32,4 +32,22 @@ pub struct Cli {
         default_value_t = 1.0
     )]
     pub frame_rate: f64,
+}
+
+#[inline]
+fn get_available_locales() -> Vec<&'static str> {
+    let locales = rust_i18n::available_locales!();
+    if locales.is_empty() {
+        return vec!["en", "uk"];
+    }
+
+    locales
+}
+
+#[inline]
+fn get_default_locale() -> String {
+    match sys_locale::get_locale() {
+        Some(sl) => sl[..2].to_string(),
+        None => "en".to_string(),
+    }
 }
