@@ -11,6 +11,15 @@ edition = "2021"
 
 build = "build.rs"
 
+[profile.dev]
+# Disabling debug info speeds up builds a bunch,
+# and we don't rely on it for debugging that much.
+debug = false
+
+[profile.release]
+panic = 'unwind'
+debug = true
+
 [workspace]
 members = ["ralertsinua-http", "ralertsinua-geo", "ralertsinua-models"]
 
@@ -36,6 +45,7 @@ targets = [
     "aarch64-apple-darwin",
     "x86_64-apple-darwin",
     "x86_64-unknown-linux-gnu",
+    "x86_64-unknown-linux-musl",
     "x86_64-pc-windows-msvc",
 ]
 # Publish jobs to run in CI
@@ -43,19 +53,24 @@ pr-run-mode = "plan"
 # Whether to install an updater program
 install-updater = false
 
+# TODO: https://github.com/moonrepo/proto/blob/master/Cargo.toml#L71
+# [workspace.metadata.dist.github-custom-runners]
+# aarch64-unknown-linux-gnu = "buildjet-4vcpu-ubuntu-2204-arm"
+# aarch64-unknown-linux-musl = "buildjet-4vcpu-ubuntu-2204-arm"
+
 # The profile that 'cargo dist' will build with
 [profile.dist]
 inherits = "release"
 lto = "thin"
 
 [dependencies]
+ralertsinua-models = { path = "ralertsinua-models", version = "0.5.1" }
 ralertsinua-geo = { path = "ralertsinua-geo", version = "0.5.1", features = [
     "tui",
 ] }
 ralertsinua-http = { path = "ralertsinua-http", version = "0.5.1", features = [
     "cache",
 ] }
-ralertsinua-models = { path = "ralertsinua-models", version = "0.5.1" }
 
 async-trait = "0.1.80"
 bincode = "1.3.3"

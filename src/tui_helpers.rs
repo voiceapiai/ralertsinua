@@ -166,3 +166,35 @@ pub fn get_terminal_area_max_height(frame_size: Rect, max_height: u16) -> Rect {
 
     area
 }
+
+#[cfg(test)]
+mod tests {
+    #![allow(unused_comparisons)]
+    use super::*;
+
+    #[test]
+    fn test_get_component_area() {
+        let frame_size = Rect::new(0, 0, 100, 100);
+        let cmp_name = "test_component";
+
+        let areas = [
+            LayoutArea::Header,
+            LayoutArea::Tabs,
+            LayoutArea::Title,
+            LayoutArea::Inner,
+            LayoutArea::Left,
+            LayoutArea::Right,
+            LayoutArea::Footer,
+        ];
+
+        for &area in &areas {
+            let result = get_component_area(frame_size, cmp_name, area);
+
+            // Check that the result is a valid Rect
+            assert!(result.x >= 0);
+            assert!(result.y >= 0);
+            assert!(result.width > 0);
+            assert!(result.height > 0);
+        }
+    }
+}

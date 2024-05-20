@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # If crate A depends on crate B, B must come before A in this list
 crates=(
     ralertsinua-models
