@@ -94,16 +94,14 @@ pub fn get_config_dir() -> PathBuf {
     directory
 }
 
-pub fn initialize_logging() -> Result<()> {
-    let disable_file_logging: bool = env::var("ALERTSINUA_DISABLE_LOG_TO_FILE")
-        .map(|v| str_to_bool(v))
-        .unwrap();
-    println!("disable_file_logging: {}", disable_file_logging);
+pub fn initialize_logging(log_path: Option<impl Into<PathBuf>>) -> Result<()> {
+    let disable_file_logging: bool = log_path.is_none();
 
-    if !disable_file_logging {
-        let directory = get_data_dir();
-        std::fs::create_dir_all(directory.clone())?;
-        let log_path = directory.join(LOG_FILE.clone());
+    if log_path.is_some() {
+        let log_path: PathBuf = log_path.unwrap().into();
+        // let directory = get_data_dir();
+        // std::fs::create_dir_all(directory.clone())?;
+        // let log_path: PathBuf = directory.join(LOG_FILE.clone());
         let log_file = std::fs::File::create(log_path)?;
 
         let file_logger = tracing_subscriber::fmt::layer()

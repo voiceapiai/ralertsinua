@@ -53,19 +53,26 @@ pr-run-mode = "plan"
 # Whether to install an updater program
 install-updater = false
 
+# TODO: https://github.com/moonrepo/proto/blob/master/Cargo.toml#L71
+# [workspace.metadata.dist.github-custom-runners]
+# aarch64-unknown-linux-gnu = "buildjet-4vcpu-ubuntu-2204-arm"
+# aarch64-unknown-linux-musl = "buildjet-4vcpu-ubuntu-2204-arm"
+
 # The profile that 'cargo dist' will build with
 [profile.dist]
 inherits = "release"
 lto = "thin"
 
 [dependencies]
+ralertsinua-models = { path = "ralertsinua-models", version = "0.5.1" }
 ralertsinua-geo = { path = "ralertsinua-geo", version = "0.5.1", features = [
     "tui",
 ] }
-ralertsinua-http = { path = "ralertsinua-http", version = "0.5.1", features = [
+# [target.'cfg(not(target_env = "musl"))'.dependencies] # FIXME: how do we change dependencies based on target?
+ralertsinua-http = { path = "ralertsinua-http", version = "0.5.1", default-features = false, features = [
     "cache",
+    "reqwest-native-tls",
 ] }
-ralertsinua-models = { path = "ralertsinua-models", version = "0.5.1" }
 
 async-trait = "0.1.80"
 bincode = "1.3.3"

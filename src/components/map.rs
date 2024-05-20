@@ -226,7 +226,7 @@ impl<'a> Component<'a> for Map<'a> {
             };
         };
         let paragraph = Paragraph::new(Text::from(lines))
-            .dark_gray()
+            .white()
             .alignment(Alignment::Left);
         let block = Block::bordered()
             .bg(popup_bg)

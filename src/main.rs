@@ -22,11 +22,11 @@ use cli::Cli;
 use miette::{miette, IntoDiagnostic, Result};
 use ralertsinua_geo::*;
 use ralertsinua_http::*;
-use std::sync::Arc;
 #[allow(unused_imports)]
 use std::{
     io::{stdin, stdout, Write},
     time::Duration,
+    {path::PathBuf, sync::Arc},
 };
 use tracing::{debug, error, warn};
 use tui_logger::set_level_for_target;
@@ -35,13 +35,24 @@ use crate::{app::App, config::Config, utils::*};
 
 async fn tokio_main() -> Result<()> {
     dotenvy::dotenv().ok();
-    initialize_logging()?;
+
+    let mut log_file: Option<String> = None;
+    let args = Cli::parse();
+    let mut config = Config::default();
+
+    if config.log_file().is_empty() {
+        if !args.log_file.is_empty() {
+            config.set_log_file(args.log_file.to_string());
+            log_file = Some(args.log_file);
+        }
+    } else {
+        log_file = Some(config.log_file().to_string());
+    }
+
+    initialize_logging(log_file)?;
     set_level_for_target("app", log::LevelFilter::Debug);
     debug!(target:"app", "initialized logging");
     initialize_panic_handler()?;
-
-    let mut config = Config::default();
-    let args = Cli::parse();
 
     if config.token().is_empty() {
         warn!(target: "app", "token is empty, asking user for token");

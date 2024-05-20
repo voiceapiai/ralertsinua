@@ -19,6 +19,14 @@ pub struct Cli {
 
     #[arg(
         long,
+        value_name = "LOG_FILE",
+        help = "Path to log file",
+        default_value = ""
+    )]
+    pub log_file: String,
+
+    #[arg(
+        long,
         value_name = "FLOAT",
         help = "Tick rate, i.e. number of ticks per second",
         default_value_t = 1.0
