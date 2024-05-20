@@ -1,5 +1,6 @@
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=voiceapiai_alertsinua-cli&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=voiceapiai_alertsinua-cli) [![Coverage Status](https://coveralls.io/repos/github/voiceapiai/ralertsinua/badge.svg)](https://coveralls.io/github/voiceapiai/ralertsinua) ![Crates.io Version](https://img.shields.io/crates/v/ralertsinua-http) ![Crates.io License](https://img.shields.io/crates/l/ralertsinua-http) ![docs.rs](https://img.shields.io/docsrs/ralertsinua-http)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=voiceapiai_alertsinua-cli&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=voiceapiai_alertsinua-cli) [![Coverage Status](https://coveralls.io/repos/github/voiceapiai/ralertsinua/badge.svg)](https://coveralls.io/github/voiceapiai/ralertsinua) ![Crates.io Version](https://img.shields.io/crates/v/ralertsinua-http) ![Crates.io License](https://img.shields.io/crates/l/ralertsinua-http) ![docs.rs](https://img.shields.io/docsrs/ralertsinua-http) [![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/badges/StandWithUkraine.svg)](https://stand-with-ukraine.pp.ua)
 
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner-direct-single.svg)](https://stand-with-ukraine.pp.ua)
 
 # ralertsinua
 
@@ -14,10 +15,6 @@ The Alerts.in.ua API Client is a Rust library that simplifies access to the aler
 
 ## Installation
 
-### Cargo
-```bash
-cargo install ralertsinua
-```
 ### Install prebuilt binaries via shell script
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/voiceapiai/ralertsinua/releases/download/v0.5.0/ralertsinua-installer.sh | sh
