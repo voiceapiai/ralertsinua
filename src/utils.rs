@@ -1,8 +1,5 @@
 use directories::ProjectDirs;
 use lazy_static::lazy_static;
-// use serde::de::DeserializeOwned;
-// use serde::Serialize;
-// use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::{any::type_name, env};
 use tracing_error::ErrorLayer;
@@ -183,44 +180,39 @@ pub fn str_to_bool(s: impl Into<String>) -> bool {
     }
 }
 
-/* use std::{collections::HashMap, hash::Hash};
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use log::info;
+    use log::LevelFilter;
+    use std::fs::File;
+    use std::io::Read;
 
-pub fn memoize<A, B, F>(f: F) -> impl FnMut(A) -> B
-where
-    A: Eq + Hash + Clone,
-    B: Clone,
-    F: Fn(A) -> B,
-{
-    let mut cache = HashMap::new();
-    move |x| (*cache.entry(x.clone()).or_insert_with(|| f(x))).clone()
-} */
+    #[test]
+    fn test_initialize_logging_with_path() -> Result<()> {
+        let log_path = std::env::temp_dir().join("tmp.log");
+        File::create(&log_path).map_err(|err| AppError::Io(err))?;
 
-/*
-pub struct SerdeCacache<D, K>
-where
-    D: Serialize + DeserializeOwned,
-    K: AsRef<str>,
-{
-    name: PathBuf,
-    _phantom_data: PhantomData<D>,
-    _phantom_key: PhantomData<K>,
-}
+        let result = initialize_logging(Some(log_path.clone()));
+        assert!(result.is_ok());
 
-impl<D, K> SerdeCacache<D, K>
-where
-    D: Serialize + DeserializeOwned,
-    K: AsRef<str>,
-{
-    // Set an item in the cache
-    pub async fn set(&self, key: K, data: &D) -> Result<cacache::Integrity> {
-        let serialized = rmp_serde::to_vec(data)?;
-        Ok(cacache::write(&self.name, key, serialized).await?)
-    }
+        // Set the log level to Info
+        log::set_max_level(LevelFilter::Info);
 
-    // Get an item from the cache
-    pub async fn get(&self, key: K) -> Result<D> {
-        let read = cacache::read(&self.name, key).await?;
-        Ok(rmp_serde::from_slice(&read)?)
+        // Write a line to the log
+        let log_line = "This is a test log line.";
+        info!("{}", log_line);
+
+        // Read the log file
+        let mut log_file = File::open(&log_path).map_err(|err| AppError::Io(err))?;
+        let mut log_contents = String::new();
+        log_file
+            .read_to_string(&mut log_contents)
+            .map_err(|err| AppError::Io(err))?;
+
+        // Check that the log file contains the log line
+        assert!(log_contents.contains(log_line));
+
+        Ok(())
     }
 }
- */

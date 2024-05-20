@@ -20,23 +20,18 @@ bytes = "1.6.0"
 http = "1.1.0"
 miette = { version = "7.2.0", features = [] }
 log = "0.4.21"
-reqwest = { version = "0.12", default-features = false, features = [
-    "json",
-    "socks",
-], optional = true }
+reqwest = { version = "0.12", features = ["json"] } # default-features = false # https://github.com/seanmonstar/reqwest/issues/495
 serde = { version = "1.0.198", features = ["derive"] }
 serde_json = "1.0.116"
 thiserror = "1.0"
 quick_cache = { version = "0.5", default-features = false, optional = true }
 
 [features]
-default = ["reqwest-native-tls", "cache"]
+default = ["cache"]
 
 cache = ["quick_cache"]
 
-# Passing the TLS features to reqwest.
-reqwest-rustls-tls = ["reqwest/rustls-tls"]
-reqwest-native-tls = ["reqwest/native-tls"]
+# rustls-tls = ["reqwest/rustls-tls"]
 
 [dev-dependencies]
 mockall = "0.12.1"

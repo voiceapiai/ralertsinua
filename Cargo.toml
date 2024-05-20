@@ -68,10 +68,8 @@ ralertsinua-models = { path = "ralertsinua-models", version = "0.5.1" }
 ralertsinua-geo = { path = "ralertsinua-geo", version = "0.5.1", features = [
     "tui",
 ] }
-# [target.'cfg(not(target_env = "musl"))'.dependencies] # FIXME: how do we change dependencies based on target?
-ralertsinua-http = { path = "ralertsinua-http", version = "0.5.1", default-features = false, features = [
+ralertsinua-http = { path = "ralertsinua-http", version = "0.5.1", features = [
     "cache",
-    "reqwest-native-tls",
 ] }
 
 async-trait = "0.1.80"
