@@ -4,7 +4,7 @@ description = "Rust async API wrapper (reqwest) & TUI (ratatui) for alerts.in.ua
 repository = "https://github.com/voiceapiai/ralertsinua"
 categories = ["api-bindings", "geo"]
 keywords = ["geo", "api", "tui", "cli"]
-version = "0.5.1"
+version = "0.5.2"
 authors = ["voiceapiai <voiceapiai@gmail.com>"]
 license = "MIT"
 edition = "2021"
@@ -45,8 +45,8 @@ targets = [
     "aarch64-apple-darwin",
     "x86_64-apple-darwin",
     "x86_64-unknown-linux-gnu",
-    "x86_64-unknown-linux-musl",
     "x86_64-pc-windows-msvc",
+    # "x86_64-unknown-linux-musl", # TODO: doens't work with cargo-dist, use `sh tools/musl.sh` instead to manually build for musl
 ]
 # Publish jobs to run in CI
 pr-run-mode = "plan"
@@ -64,11 +64,11 @@ inherits = "release"
 lto = "thin"
 
 [dependencies]
-ralertsinua-models = { path = "ralertsinua-models", version = "0.5.1" }
-ralertsinua-geo = { path = "ralertsinua-geo", version = "0.5.1", features = [
+ralertsinua-models = { path = "ralertsinua-models", version = "0.5.2" }
+ralertsinua-geo = { path = "ralertsinua-geo", version = "0.5.2", features = [
     "tui",
 ] }
-ralertsinua-http = { path = "ralertsinua-http", version = "0.5.1", features = [
+ralertsinua-http = { path = "ralertsinua-http", version = "0.5.2", features = [
     "cache",
 ] }
 
