@@ -55,5 +55,16 @@ MIT 2024
 - echomap [echomap](https://github.com/pjsier/echomap)
 - alerts_in_ua Python client [alerts-in-ua](https://github.com/alerts-ua/alerts-in-ua-py)
 
+## History
+
+<a href="https://star-history.com/#voiceapiai/ralertsinua&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=voiceapiai/ralertsinua&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=voiceapiai/ralertsinua&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=voiceapiai/ralertsinua&type=Date" />
+ </picture>
+</a>
+
+---
 
 *[TUI]: Terminal User Interface
