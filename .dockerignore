@@ -1,6 +1,17 @@
+# Directories
+/.git/
+/.github/
 .github
 .vscode
 docs
-# benches
-tmp
 target
+tmp
+
+# Files
+.gitignore
+*.md
+Dockerfile
+LICENSE*
+rustfmt.toml
+deny.toml
+!tmp/ralertsinua

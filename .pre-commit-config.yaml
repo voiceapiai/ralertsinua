@@ -16,6 +16,16 @@ repos:
     -   id: fmt
     -   id: cargo-check
     -   id: clippy
+#   - repo: https://github.com/crate-ci/typos
+#     rev: v1.21.0
+#     hooks:
+#     - id: typos
+#       stages: [commit]
+  - repo: https://github.com/crate-ci/committed
+    rev: v1.0.20
+    hooks:
+    - id: committed
+      stages: [commit-msg]
 exclude: '.vscode'
 default_stages:
   - 'pre-commit'
