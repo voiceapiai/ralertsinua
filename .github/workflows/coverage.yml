@@ -10,6 +10,7 @@ jobs:
         name: Evaluate code coverage
         runs-on: ubuntu-latest
         steps:
+            - uses: extractions/setup-just@v1
             - uses: actions/checkout@v3
               with:
                   fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis

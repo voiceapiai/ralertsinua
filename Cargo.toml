@@ -24,8 +24,8 @@ build = "build.rs"
 # and we don't rely on it for debugging that much.
 debug = false
 
-# [profile.release]
-# panic = 'unwind'
+[profile.release]
+panic = 'unwind'
 # debug = true
 
 [workspace]
@@ -52,9 +52,9 @@ installers = ["shell"]
 targets = [
     "aarch64-apple-darwin",
     "x86_64-apple-darwin",
-    "x86_64-unknown-linux-gnu",
     "x86_64-pc-windows-msvc",
-    # "x86_64-unknown-linux-musl", # TODO: doens't work with cargo-dist, use `sh tools/musl.sh` instead to manually build for musl
+    "x86_64-unknown-linux-gnu",
+    "x86_64-unknown-linux-musl", # INFO: musl is built using clux/muslrust
 ]
 # Publish jobs to run in CI
 pr-run-mode = "plan"
@@ -62,7 +62,8 @@ pr-run-mode = "plan"
 install-updater = false
 
 # TODO: https://github.com/moonrepo/proto/blob/master/Cargo.toml#L71
-# [workspace.metadata.dist.github-custom-runners]
+[workspace.metadata.dist.github-custom-runners]
+x86_64-unknown-linux-musl = "clux/muslrust"
 # aarch64-unknown-linux-gnu = "buildjet-4vcpu-ubuntu-2204-arm"
 # aarch64-unknown-linux-musl = "buildjet-4vcpu-ubuntu-2204-arm"
 

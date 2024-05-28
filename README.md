@@ -21,6 +21,9 @@ curl --proto '=https' --tlsv1.2 -LsSf https://github.com/voiceapiai/ralertsinua/
 ```
 ### Download prebuilt binaries from the [releases page](https://github.com/voiceapiai/ralertsinua/releases/latest)
 
+#### NOTE
+Linux binaries compiled with musl and are light-weight, call straight into the kernel without other dynamic system library dependencies, can be shipped to most linux distributions without compatibility issues, and can be inserted as-is into lightweight docker images such as static distroless, scratch, or alpine.
+
 ## Usage
 
 ⚠️ Before you can use this library, you need to obtain an API token by submitting an [API request form](https://alerts.in.ua/api-request).

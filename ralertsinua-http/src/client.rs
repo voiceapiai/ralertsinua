@@ -22,6 +22,11 @@ type Result<T> = miette::Result<T, ApiError>;
 pub const API_BASE_URL: &str = "https://api.alerts.in.ua";
 pub const API_VERSION: &str = "/v1";
 pub const API_CACHE_SIZE: usize = 1000;
+#[rustfmt::skip]
+const CACHE_ENABLED_STR: &str = if cfg!(feature = "cache") { "enabled" } else { "disabled" };
+
+const PKG: &str = env!("CARGO_PKG_NAME");
+const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
 pub struct AlertsInUaClient {
     base_url: String,
@@ -38,20 +43,20 @@ impl std::fmt::Debug for AlertsInUaClient {
 }
 
 impl AlertsInUaClient {
-    const APP_USER_AGENT: &'static str =
-        concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
-
     pub fn new(base_url: &str, token: &str) -> Self {
         let base_url = base_url.into();
         let token = token.into();
         let client = ClientBuilder::new()
             .timeout(std::time::Duration::from_secs(10))
-            .user_agent(Self::APP_USER_AGENT)
+            .user_agent(USER_AGENT)
             .build()
             // building with these options cannot fail
             .unwrap();
 
+        #[cfg(feature = "cache")]
         let cache_manager = Arc::new(CacheManagerQuick::new(API_CACHE_SIZE));
+
+        log::debug!(target: PKG, "Caching is {}", CACHE_ENABLED_STR);
 
         Self {
             base_url,
@@ -101,11 +106,11 @@ impl AlertsInUaClient {
         // Configuring the request for the specific type (get/post/put/delete)
         req = add_data(req);
         // Finally performing the request and handling the response
-        log::trace!(target: env!("CARGO_PKG_NAME"), "Request {:?}", req);
+        log::trace!(target: PKG, "Request {:?}", req);
         let res: Response = req.send().await.inspect_err(|e| {
-            log::error!(target: env!("CARGO_PKG_NAME"),  "Error making request: {:?}", e);
+            log::error!(target: PKG,  "Error making request: {:?}", e);
         })?;
-        log::trace!(target: env!("CARGO_PKG_NAME"), "Response {:?}", res);
+        log::trace!(target: PKG, "Response {:?}", res);
         // Making sure that the status code is OK
         if let Err(err) = res.error_for_status_ref() {
             let err = match err.status() {
@@ -130,7 +135,7 @@ impl AlertsInUaClient {
         let data: Bytes = match res.status() {
             #[cfg(feature = "cache")]
             StatusCode::NOT_MODIFIED => {
-                log::trace!(target: env!("CARGO_PKG_NAME"), "Response status '304 Not Modified', return cached data");
+                log::trace!(target: PKG, "Response status '304 Not Modified', return cached data");
                 cached_data
             }
             _ => {
