@@ -156,6 +156,12 @@ pub fn get_component_area(
     area
 }
 
+#[memoized(key_expr = frame_size, store_type = HashMap<Rect, [Rect; 2]>)]
+pub fn get_horizontal_area_split(frame_size: Rect) -> [Rect; 2] {
+    let halfs = Layout::horizontal([Percentage(50), Percentage(50)]);
+    halfs.areas(frame_size)
+}
+
 #[memoized(key_expr = (frame_size, max_height), store_type = HashMap<(Rect, u16), Rect>)]
 pub fn get_terminal_area_max_height(frame_size: Rect, max_height: u16) -> Rect {
     if frame_size.height <= max_height {

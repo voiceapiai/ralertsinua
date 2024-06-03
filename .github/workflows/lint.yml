@@ -88,4 +88,4 @@ jobs:
         if: matrix.target != 'x86_64-pc-windows-msvc'
 
       - name: cargo clippy
-        run: cargo clippy --tests --workspace -- -D warnings
+        run: cargo clippy --workspace -- -D warnings

@@ -1,0 +1,42 @@
+[target.x86_64-unknown-linux-musl]
+image = "ghcr.io/cross-rs/x86_64-unknown-linux-musl:main"
+pre-build = [
+    """
+    dpkg --add-architecture amd64 && \
+    apt-get update && \
+    apt-get install --assume-yes libssl-dev
+    """
+]
+
+[target.aarch64-unknown-linux-musl]
+image = "ghcr.io/cross-rs/aarch64-unknown-linux-musl:main"
+pre-build = [
+    """
+    dpkg --add-architecture $CROSS_DEB_ARCH && \
+    apt-get update && \
+    apt-get install --assume-yes libssl-dev:$CROSS_DEB_ARCH
+    echo OPENSSL_LIB_DIR=$OPENSSL_LIB_DIR
+    """
+]
+
+[target.armv7-unknown-linux-musleabihf]
+image = "ghcr.io/cross-rs/armv7-unknown-linux-musleabihf:main"
+pre-build = [
+    """
+    dpkg --add-architecture $CROSS_DEB_ARCH && \
+    apt-get update && \
+    apt-get install --assume-yes libssl-dev:$CROSS_DEB_ARCH
+    echo OPENSSL_LIB_DIR=$OPENSSL_LIB_DIR
+    """
+]
+
+[target.arm-unknown-linux-musleabihf]
+image = "ghcr.io/cross-rs/arm-unknown-linux-musleabihf:main"
+pre-build = [
+    """
+    dpkg --add-architecture $CROSS_DEB_ARCH && \
+    apt-get update && \
+    apt-get install --assume-yes libssl-dev:$CROSS_DEB_ARCH
+    echo OPENSSL_LIB_DIR=$OPENSSL_LIB_DIR
+    """
+]

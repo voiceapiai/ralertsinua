@@ -23,58 +23,64 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
-            client_artifact_name: target/x86_64-unknown-linux-musl/release/pueue
-            daemon_artifact_name: target/x86_64-unknown-linux-musl/release/pueued
-            client_release_name: pueue-linux-x86_64
-            daemon_release_name: pueued-linux-x86_64
+            client_artifact_name: target/x86_64-unknown-linux-musl/release/ralertsinua
+            daemon_artifact_name: target/x86_64-unknown-linux-musl/release/ralertsinuad
+            client_release_name: ralertsinua-linux-x86_64
+            daemon_release_name: ralertsinuad-linux-x86_64
             cross: true
             strip: true
           - os: ubuntu-latest
             target: aarch64-unknown-linux-musl
-            client_artifact_name: target/aarch64-unknown-linux-musl/release/pueue
-            daemon_artifact_name: target/aarch64-unknown-linux-musl/release/pueued
-            client_release_name: pueue-linux-aarch64
-            daemon_release_name: pueued-linux-aarch64
+            client_artifact_name: target/aarch64-unknown-linux-musl/release/ralertsinua
+            daemon_artifact_name: target/aarch64-unknown-linux-musl/release/ralertsinuad
+            client_release_name: ralertsinua-linux-aarch64
+            daemon_release_name: ralertsinuad-linux-aarch64
             cross: true
             strip: false
+            env:
+              CARGO_NO_DFEALT_FEATURES: 1
+              CARGO_FEATURE_CACHE: 1
+              CARGO_FEATURE_REQWEST_RUSTLS_TLS: 1
+              OPENSSL_LIB_DIR: /usr/lib
+              OPENSSL_INCLUDE_DIR: /usr/include
           - os: ubuntu-latest
             target: armv7-unknown-linux-musleabihf
-            client_artifact_name: target/armv7-unknown-linux-musleabihf/release/pueue
-            daemon_artifact_name: target/armv7-unknown-linux-musleabihf/release/pueued
-            client_release_name: pueue-linux-armv7
-            daemon_release_name: pueued-linux-armv7
+            client_artifact_name: target/armv7-unknown-linux-musleabihf/release/ralertsinua
+            daemon_artifact_name: target/armv7-unknown-linux-musleabihf/release/ralertsinuad
+            client_release_name: ralertsinua-linux-armv7
+            daemon_release_name: ralertsinuad-linux-armv7
             cross: true
             strip: false
           - os: ubuntu-latest
             target: arm-unknown-linux-musleabihf
-            client_artifact_name: target/arm-unknown-linux-musleabihf/release/pueue
-            daemon_artifact_name: target/arm-unknown-linux-musleabihf/release/pueued
-            client_release_name: pueue-linux-arm
-            daemon_release_name: pueued-linux-arm
+            client_artifact_name: target/arm-unknown-linux-musleabihf/release/ralertsinua
+            daemon_artifact_name: target/arm-unknown-linux-musleabihf/release/ralertsinuad
+            client_release_name: ralertsinua-linux-arm
+            daemon_release_name: ralertsinuad-linux-arm
             cross: true
             strip: false
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            client_artifact_name: target/x86_64-pc-windows-msvc/release/pueue.exe
-            daemon_artifact_name: target/x86_64-pc-windows-msvc/release/pueued.exe
-            client_release_name: pueue-windows-x86_64.exe
-            daemon_release_name: pueued-windows-x86_64.exe
+            client_artifact_name: target/x86_64-pc-windows-msvc/release/ralertsinua.exe
+            daemon_artifact_name: target/x86_64-pc-windows-msvc/release/ralertsinuad.exe
+            client_release_name: ralertsinua-windows-x86_64.exe
+            daemon_release_name: ralertsinuad-windows-x86_64.exe
             cross: false
             strip: true
           - os: macos-latest
             target: x86_64-apple-darwin
-            client_artifact_name: target/x86_64-apple-darwin/release/pueue
-            daemon_artifact_name: target/x86_64-apple-darwin/release/pueued
-            client_release_name: pueue-macos-x86_64
-            daemon_release_name: pueued-macos-x86_64
+            client_artifact_name: target/x86_64-apple-darwin/release/ralertsinua
+            daemon_artifact_name: target/x86_64-apple-darwin/release/ralertsinuad
+            client_release_name: ralertsinua-macos-x86_64
+            daemon_release_name: ralertsinuad-macos-x86_64
             cross: false
             strip: true
           - os: macos-latest
             target: aarch64-apple-darwin
-            client_artifact_name: target/aarch64-apple-darwin/release/pueue
-            daemon_artifact_name: target/aarch64-apple-darwin/release/pueued
-            client_release_name: pueue-darwin-aarch64
-            daemon_release_name: pueued-darwin-aarch64
+            client_artifact_name: target/aarch64-apple-darwin/release/ralertsinua
+            daemon_artifact_name: target/aarch64-apple-darwin/release/ralertsinuad
+            client_release_name: ralertsinua-darwin-aarch64
+            daemon_release_name: ralertsinuad-darwin-aarch64
             cross: false
             strip: true
 
@@ -132,8 +138,8 @@ jobs:
       - uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: utils/pueued.service
+          file: utils/ralertsinuad.service
           tag: ${{ github.ref }}
-          asset_name: systemd.pueued.service
+          asset_name: systemd.ralertsinuad.service
           body: ${{ steps.changelog_reader.outputs.log_entry }}
         if: matrix.target == 'x86_64-unknown-linux-musl'

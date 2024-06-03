@@ -15,6 +15,7 @@ pub struct CacheEntry(pub Bytes);
 
 /// A trait providing methods for storing, reading, and removing cache records.
 pub trait CacheManagerSync: Send + Sync + 'static {
+    fn is_empty(&self) -> bool;
     /// Attempts to pull a cached response and related last_modified from cache.
     fn get(&self, cache_key: &str) -> Result<Option<CacheEntry>>;
     /// Attempts to cache a response and related last_modified.
@@ -47,6 +48,9 @@ impl CacheManagerQuick {
 }
 
 impl CacheManagerSync for CacheManagerQuick {
+    fn is_empty(&self) -> bool {
+        self.cache.is_empty()
+    }
     fn get(&self, cache_key: &str) -> Result<Option<CacheEntry>> {
         let entry: CacheEntry = match self.cache.get(cache_key) {
             Some(bytes) => CacheEntry(bytes),

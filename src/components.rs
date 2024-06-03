@@ -13,13 +13,13 @@ use crate::{
     utils::type_of,
 };
 
-pub mod fps;
+pub mod footer;
 pub mod header;
 pub mod list;
 pub mod logger;
 pub mod map;
 
-pub use fps::*;
+pub use footer::*;
 pub use header::*;
 pub use list::*;
 pub use logger::*;

@@ -31,7 +31,7 @@ pub struct Settings {
     pub token: String,
     #[env_config(name = "ALERTSINUA_POLLING_INTERVAL_SEC", default = 30)]
     #[getset(get = "pub")]
-    pub polling_interval: u64,
+    pub polling_interval: u32,
     #[env_config(name = "LOG_FILE", default = "")]
     #[getset(get = "pub", set = "pub")]
     pub log_file: String,
@@ -62,7 +62,7 @@ impl Config {
             pub fn token(&self) -> &str;
             pub fn log_file(&self) -> &str;
             pub fn set_log_file(&mut self, v: String) -> &mut Settings;
-            pub fn polling_interval(&self) -> &u64;
+            pub fn polling_interval(&self) -> &u32;
             pub fn tick_rate(&self) -> &f64;
             pub fn frame_rate(&self) -> &f64;
         }

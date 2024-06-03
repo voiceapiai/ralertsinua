@@ -101,12 +101,12 @@ impl AlertsInUaClient {
         if cfg!(feature = "cache") {
             if let Some(CacheEntry(bytes)) = self.cache_manager.get(&url)? {
                 cached_data = bytes;
+                // Here we set the If-Modified-Since header from the last_modified
+                headers.insert(
+                    "If-Modified-Since",
+                    last_modified.parse().map_err(http::Error::from)?,
+                );
             }
-            // Here we set the If-Modified-Since header from the last_modified
-            headers.insert(
-                "If-Modified-Since",
-                last_modified.parse().map_err(http::Error::from)?,
-            );
         }
 
         req = req.headers(headers);
@@ -114,9 +114,7 @@ impl AlertsInUaClient {
         req = add_data(req);
         // Finally performing the request and handling the response
         log::trace!(target: PKG, "Request {:?}", req);
-        let res: Response = req.send().await.inspect_err(|e| {
-            log::error!(target: PKG,  "Error making request: {:?}", e);
-        })?;
+        let res: Response = req.send().await?;
         log::trace!(target: PKG, "Response {:?}", res);
         // Making sure that the status code is OK
         if let Err(err) = res.error_for_status_ref() {
@@ -154,8 +152,13 @@ impl AlertsInUaClient {
         let data: Bytes = match res.status() {
             #[cfg(feature = "cache")]
             StatusCode::NOT_MODIFIED => {
-                log::trace!(target: PKG, "Response status '304 Not Modified', return cached data");
-                cached_data
+                if cached_data.is_empty() {
+                    log::error!(target: PKG, "Response status '304 Not Modified', but cache is empty");
+                    return Err(ApiError::Internal);
+                } else {
+                    log::trace!(target: PKG, "Response status '304 Not Modified', return cached data");
+                    cached_data
+                }
             }
             _ => {
                 let bytes = res.bytes().await?;
@@ -255,6 +258,7 @@ fn _assert_trait_object(_: &dyn AlertsInUaApi) {}
 
 #[cfg(test)]
 mod tests {
+    #![cfg_attr(debug_assertions, allow(dead_code, unused_imports))]
 
     use super::*;
     #[allow(unused_imports)]

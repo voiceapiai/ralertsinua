@@ -51,7 +51,7 @@ pub struct AlertsMeta {
 }
 
 impl AlertsMeta {
-    pub fn get_last_updated_at_formatted(&mut self) -> String {
+    pub fn get_last_updated_at_formatted(&self) -> String {
         self.last_updated_at.format(&Rfc2822).unwrap()
     }
 
@@ -96,7 +96,11 @@ impl Alerts {
     }
 
     pub fn get_last_updated_at(&self) -> OffsetDateTime {
-        self.meta.last_updated_at
+        *self.meta.get_last_updated_at()
+    }
+
+    pub fn get_last_updated_at_formatted(&self) -> String {
+        self.meta.get_last_updated_at_formatted()
     }
 
     pub fn get_alerts_by_alert_type(&self, alert_type: AlertType) -> Vec<Alert> {
