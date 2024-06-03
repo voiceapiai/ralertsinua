@@ -1,0 +1,128 @@
+name: "Test Build"
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/**/*"
+      - "**.rs"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/**/*"
+      - "**.rs"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+
+jobs:
+  publish:
+    name: Test on ${{ matrix.os }} for ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-musl
+          - armv7-unknown-linux-musleabihf
+          - arm-unknown-linux-musleabihf
+          - x86_64-pc-windows-msvc
+          - x86_64-apple-darwin
+          - aarch64-apple-darwin
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            cross: false
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            cross: true
+          - os: ubuntu-latest
+            target: armv7-unknown-linux-musleabihf
+            cross: true
+          - os: ubuntu-latest
+            target: arm-unknown-linux-musleabihf
+            cross: true
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            cross: false
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            cross: false
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            cross: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+          targets: ${{ matrix.target }}
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+
+      - name: Install cargo-cross
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+        if: ${{ matrix.cross }}
+
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.target }}-
+
+      # ----- Non-Cross path
+      - name: cargo build
+        run: cargo build --target=${{ matrix.target }}
+        if: ${{ !matrix.cross }}
+
+      - name: cargo test
+        run: cargo nextest run --workspace --target=${{ matrix.target }}
+        env:
+          NEXTEST_PROFILE: ci # defined in .config/nextest.toml
+        if: ${{ !matrix.cross }}
+
+      # ----- Cross path
+      #- name: Install qemu
+      #  run: apt-get install --assume-yes binfmt-support qemu-user-static qemu-user
+      #  if: ${{ matrix.cross }}
+
+      - name: cargo build
+        run: cross build --target=${{ matrix.target }}
+        if: ${{ matrix.cross }}
+
+      # We don't do automated testing for cross builds yet.
+      # - They don't work in the CI. I have yet to figure out why things aren't set up properly.
+      # - The tests run way to slow and all kinds of race conditions are triggered.
+      #   Until we find a way to run time related tests in an ultra slow environment, this needs to be postponed.
+      #- name: cargo test
+      #  run: cross test run --workspace --target=${{ matrix.target }}
+      #  env:
+      #    NEXTEST_PROFILE: ci # defined in .config/nextest.toml
+      #  if: ${{ matrix.cross }}
+
+      # ----- Test result artifacts are used by the test-report.yaml workflow.
+      - name: upload test results
+        uses: actions/upload-artifact@v3
+        if: ${{ !matrix.cross }}
+        with:
+          name: Test results (${{ matrix.target }})
+          path: target/nextest/ci/junit.xml
