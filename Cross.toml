@@ -15,6 +15,7 @@ pre-build = [
     dpkg --add-architecture $CROSS_DEB_ARCH && \
     apt-get update && \
     apt-get install --assume-yes libssl-dev:$CROSS_DEB_ARCH
+    export OPENSSL_LIB_DIR=/usr/lib
     echo OPENSSL_LIB_DIR=$OPENSSL_LIB_DIR
     """
 ]
@@ -26,6 +27,7 @@ pre-build = [
     dpkg --add-architecture $CROSS_DEB_ARCH && \
     apt-get update && \
     apt-get install --assume-yes libssl-dev:$CROSS_DEB_ARCH
+    export OPENSSL_LIB_DIR=/usr/lib
     echo OPENSSL_LIB_DIR=$OPENSSL_LIB_DIR
     """
 ]
@@ -37,6 +39,7 @@ pre-build = [
     dpkg --add-architecture $CROSS_DEB_ARCH && \
     apt-get update && \
     apt-get install --assume-yes libssl-dev:$CROSS_DEB_ARCH
+    export OPENSSL_LIB_DIR=/usr/lib
     echo OPENSSL_LIB_DIR=$OPENSSL_LIB_DIR
     """
 ]

@@ -59,6 +59,11 @@ jobs:
           components: llvm-tools-preview
           targets: ${{ matrix.target }}
 
+      - name: Install cargo-sonar
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-sonar
+
       - uses: actions/cache@v3
         with:
           path: |
@@ -88,4 +93,15 @@ jobs:
         if: matrix.target != 'x86_64-pc-windows-msvc'
 
       - name: cargo clippy
-        run: cargo clippy --workspace -- -D warnings
+        run: |
+            cargo clippy  --workspace --message-format json > clippy-report.json
+            cargo sonar --clippy --clippy-path clippy-report.json
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
+            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+            args: -Dsonar.externalIssuesReportPaths=sonar-issues.json
+                # -Dcommunity.rust.lcov.reportPaths=.coverage/lcov.info

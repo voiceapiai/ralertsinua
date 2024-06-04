@@ -59,16 +59,25 @@ jobs:
       - name: Install cargo-llvm-cov and nextest
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-llvm-cov,nextest
+          tool: cargo-llvm-cov,nextest,cargo-codspeed
 
       - name: Generate code coverage
         env:
           NEXTEST_PROFILE: coverage # defined in .config/nextest.toml
         run: cargo llvm-cov nextest --all-features --workspace --lcov --output-path lcov.info
 
-      # - name: Upload coverage to Codecov
-      #   uses: codecov/codecov-action@v4
-      #   with:
-      #     fail_ci_if_error: false
-      #     files: lcov.info
-      #     token: ${{ secrets.CODECOV_TOKEN }}
+      - name: Coveralls
+        if: ${{ success() }}
+        uses: coverallsapp/github-action@master
+        with:
+            github-token: ${{ secrets.GITHUB_TOKEN }}
+            path-to-lcov: lcov.info
+
+      - name: Build the benchmark target(s)
+        run: cargo codspeed build
+
+      - name: Run the benchmarks
+        uses: CodSpeedHQ/action@v2
+        with:
+            run: cargo codspeed run
+            token: ${{ secrets.CODSPEED_TOKEN }}

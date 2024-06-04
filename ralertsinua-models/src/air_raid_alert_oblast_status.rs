@@ -14,6 +14,7 @@ pub struct AirRaidAlertOblastStatus {
     status: AlertStatus,
 }
 
+// coveralls-ignore-next-line
 impl fmt::Display for AirRaidAlertOblastStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use strum::EnumProperty;

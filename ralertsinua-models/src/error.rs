@@ -2,6 +2,7 @@ use thiserror::Error;
 
 /// Groups up the kinds of errors that may happen in this crate.
 #[derive(Debug, Error)]
+// coveralls-ignore-next-line
 pub enum ModelError {
     #[error("json parse error: {0}")]
     ParseJson(#[from] serde_json::Error),

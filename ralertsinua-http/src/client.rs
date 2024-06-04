@@ -39,9 +39,11 @@ pub struct AlertsInUaClient {
 }
 
 impl std::fmt::Debug for AlertsInUaClient {
+    // coveralls-ignore-start
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "AlertsInUaClient {{ base_url: {}, token: {}, client: {:?}, meta_data: {:?}, cache_manager: {:?} }}", self.base_url, self.token, self.client, self.meta_data, "CACacheManager")
     }
+    // coveralls-ignore-stop
 }
 
 impl AlertsInUaClient {

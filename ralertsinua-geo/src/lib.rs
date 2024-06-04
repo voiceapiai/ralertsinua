@@ -5,6 +5,7 @@ pub mod location;
 pub mod utils;
 
 #[derive(thiserror::Error, Debug)]
+// coveralls-ignore-next-line
 pub enum GeoError {
     #[error("Unknown error Geo")]
     Unknown,

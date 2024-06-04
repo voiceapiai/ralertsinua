@@ -29,6 +29,12 @@ jobs:
             daemon_release_name: ralertsinuad-linux-x86_64
             cross: true
             strip: true
+            env:
+              CARGO_NO_DFEALT_FEATURES: 1
+              CARGO_FEATURE_CACHE: 1
+              CARGO_FEATURE_REQWEST_RUSTLS_TLS: 1
+              OPENSSL_LIB_DIR: /usr/lib
+              OPENSSL_INCLUDE_DIR: /usr/include
           - os: ubuntu-latest
             target: aarch64-unknown-linux-musl
             client_artifact_name: target/aarch64-unknown-linux-musl/release/ralertsinua
@@ -51,6 +57,12 @@ jobs:
             daemon_release_name: ralertsinuad-linux-armv7
             cross: true
             strip: false
+            env:
+              CARGO_NO_DFEALT_FEATURES: 1
+              CARGO_FEATURE_CACHE: 1
+              CARGO_FEATURE_REQWEST_RUSTLS_TLS: 1
+              OPENSSL_LIB_DIR: /usr/lib
+              OPENSSL_INCLUDE_DIR: /usr/include
           - os: ubuntu-latest
             target: arm-unknown-linux-musleabihf
             client_artifact_name: target/arm-unknown-linux-musleabihf/release/ralertsinua
@@ -59,6 +71,12 @@ jobs:
             daemon_release_name: ralertsinuad-linux-arm
             cross: true
             strip: false
+            env:
+              CARGO_NO_DFEALT_FEATURES: 1
+              CARGO_FEATURE_CACHE: 1
+              CARGO_FEATURE_REQWEST_RUSTLS_TLS: 1
+              OPENSSL_LIB_DIR: /usr/lib
+              OPENSSL_INCLUDE_DIR: /usr/include
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             client_artifact_name: target/x86_64-pc-windows-msvc/release/ralertsinua.exe
@@ -109,29 +127,12 @@ jobs:
           strip: ${{ matrix.strip }}
         if: matrix.target != 'x86_64-pc-windows-msvc'
 
-      - name: Compress daemon
-        uses: svenstaro/upx-action@v2
-        with:
-          file: ${{ matrix.daemon_artifact_name }}
-          args: --lzma
-          strip: ${{ matrix.strip }}
-        if: matrix.target != 'x86_64-pc-windows-msvc'
-
       - name: Upload client binaries to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: ${{ matrix.client_artifact_name }}
           asset_name: ${{ matrix.client_release_name }}
-          tag: ${{ github.ref }}
-          overwrite: true
-
-      - name: Upload daemon binaries to release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ${{ matrix.daemon_artifact_name }}
-          asset_name: ${{ matrix.daemon_release_name }}
           tag: ${{ github.ref }}
           overwrite: true
 

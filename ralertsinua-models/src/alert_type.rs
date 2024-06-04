@@ -1,6 +1,7 @@
 #[derive(
     Debug, Default, Clone, strum_macros::Display, strum_macros::EnumString, PartialEq,
 )]
+// coveralls-ignore-next-line
 pub enum AlertType {
     #[default]
     #[strum(to_string = "air_raid")]

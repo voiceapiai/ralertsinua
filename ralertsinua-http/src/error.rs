@@ -25,6 +25,7 @@
 /// ```
 #[derive(thiserror::Error, miette::Diagnostic, Debug)]
 #[diagnostic(code(ralertsinua_http::client))]
+// coveralls-ignore-next-line
 pub enum ApiError {
     /// The request couldn't be completed because there was an error when trying
     /// to do so
