@@ -42,7 +42,7 @@ impl App {
         let header = Header::new();
         let map = Map::new();
         let list = LocationsList::new();
-        let fps = FpsCounter::new();
+        let fps = Footer::new();
         let logger = Logger::new();
         let components: Vec<Box<dyn Component<'static>>> = vec![
             Box::new(header),
@@ -104,7 +104,7 @@ impl App {
         debug!(target:"app", "init periodic fetch action every {} seconds", interval);
         tokio::spawn(async move {
             loop {
-                sleep(Duration::from_secs(interval)).await;
+                sleep(Duration::from_secs_f32(interval as f32)).await;
                 let _ = periodic_action_tx.send(Action::FetchAirRaidAlertOblastStatuses);
                 let _ = periodic_action_tx.send(Action::FetchActiveAlerts);
             }
@@ -243,10 +243,11 @@ impl App {
                                 trace!(target: "app", "get_air_raid_alert_statuses_by_location: {}", r.raw_data());
                                 Ok(r)
                             })
-                            .inspect_err(|e| {
+                            .map_err(|e| {
                                 error!(target: "app", "error from API catched, possibly offline");
                                 let _ = self.action_tx.send( Action::Error(e.to_string()));
                                 let _ = self.action_tx.send( Action::Online(false));
+                                e
                             })
                             .unwrap_or_default();
                         debug!(target:"app", "get_air_raid_alert_statuses_by_location: total {} alerts", response.len());

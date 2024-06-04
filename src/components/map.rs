@@ -225,9 +225,7 @@ impl<'a> Component<'a> for Map<'a> {
                 ];
             };
         };
-        let paragraph = Paragraph::new(Text::from(lines))
-            .white()
-            .alignment(Alignment::Left);
+        let paragraph = Paragraph::new(Text::from(lines)).white().left_aligned();
         let block = Block::bordered()
             .bg(popup_bg)
             .title("Alert Details:".white().bold().italic());

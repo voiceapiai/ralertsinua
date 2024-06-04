@@ -1,7 +1,11 @@
 use getset::Getters;
-use miette::Result;
+// use log::debug;
+use miette::{IntoDiagnostic, Result};
 use serde::{Deserialize, Serialize};
-use time::{format_description::BorrowedFormatItem, OffsetDateTime};
+use time::{
+    format_description::{well_known::Rfc2822, BorrowedFormatItem},
+    OffsetDateTime,
+};
 use time_macros::format_description;
 
 #[allow(unused)]
@@ -40,13 +44,25 @@ mod with_custom_date_format {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Getters)]
-struct Meta {
-    #[get = "pub with_prefix"]
+pub struct AlertsMeta {
     #[serde(with = "with_custom_date_format")]
+    #[getset(get = "pub with_prefix")]
     last_updated_at: OffsetDateTime,
 }
 
-impl Default for Meta {
+impl AlertsMeta {
+    pub fn get_last_updated_at_formatted(&self) -> String {
+        self.last_updated_at.format(&Rfc2822).unwrap()
+    }
+
+    pub fn set_last_updated_at(&mut self, last_updated_at: &str) -> Result<OffsetDateTime> {
+        self.last_updated_at =
+            OffsetDateTime::parse(last_updated_at, &Rfc2822).into_diagnostic()?;
+        Ok(self.last_updated_at)
+    }
+}
+
+impl Default for AlertsMeta {
     fn default() -> Self {
         Self {
             last_updated_at: OffsetDateTime::now_utc(),
@@ -59,7 +75,7 @@ impl Default for Meta {
 pub struct Alerts {
     alerts: Vec<Alert>,
     disclaimer: String,
-    meta: Meta,
+    meta: AlertsMeta,
 }
 
 impl Alerts {
@@ -79,8 +95,12 @@ impl Alerts {
         self.alerts.is_empty()
     }
 
-    pub fn get_last_updated_at(&self) -> &OffsetDateTime {
-        &self.meta.last_updated_at
+    pub fn get_last_updated_at(&self) -> OffsetDateTime {
+        *self.meta.get_last_updated_at()
+    }
+
+    pub fn get_last_updated_at_formatted(&self) -> String {
+        self.meta.get_last_updated_at_formatted()
     }
 
     pub fn get_alerts_by_alert_type(&self, alert_type: AlertType) -> Vec<Alert> {
@@ -145,10 +165,23 @@ impl Alerts {
 }
 
 mod tests {
+    #![allow(unused_imports)]
+    use super::*;
+    use miette::Result;
+
+    #[test]
+    fn test_last_updated_at() -> Result<()> {
+        let mut meta = AlertsMeta::default();
+        let input = "Sun, 02 Jun 2024 21:31:13 GMT";
+        let parsed_date = OffsetDateTime::parse(input, &Rfc2822).into_diagnostic()?;
+        meta.set_last_updated_at(input).unwrap();
+        assert_eq!(meta.get_last_updated_at(), &parsed_date);
+
+        Ok(())
+    }
 
     #[test]
     fn test_alerts_deserialization() {
-        use super::*;
         use crate::AlertType;
         use serde_json::json;
         // use time_macros::datetime;
@@ -200,10 +233,7 @@ mod tests {
         assert_eq!(alerts.iter().next(), Some(alert1));
         assert_eq!(alerts.len(), 2);
         assert_eq!(alerts.is_empty(), false);
-        assert_eq!(
-            alerts.meta.get_last_updated_at().unix_timestamp(),
-            1_714_989_765
-        );
+        assert_eq!(alerts.get_last_updated_at().unix_timestamp(), 1_714_989_765);
 
         let expected_alert = alerts.get_air_raid_alerts();
         assert_eq!(expected_alert.len(), 1);

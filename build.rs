@@ -4,5 +4,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .all_cargo()
         .all_git()
         .emit()?;
+
     Ok(())
 }

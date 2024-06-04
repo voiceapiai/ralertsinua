@@ -1,14 +1,23 @@
-use ratatui::{layout::Offset, prelude::*, widgets::*};
+use ratatui::{prelude::*, widgets::*};
+#[allow(unused_imports)]
+use rust_i18n::t;
 use std::time::Instant;
-use throbber_widgets_tui::{Throbber, ThrobberState, WhichUse, BRAILLE_SIX_DOUBLE};
+use time::{format_description::well_known::Rfc2822, OffsetDateTime};
+// use throbber_widgets_tui::{Throbber, ThrobberState, WhichUse, BRAILLE_SIX_DOUBLE};
 use tokio::sync::mpsc::UnboundedSender;
 // use tracing::debug;
 
 use super::{Component, Result, WithPlacement};
-use crate::{action::Action, config::*, layout::*, tui::Frame, tui_helpers::*};
+use crate::{
+    action::Action, config::*, constants::FULL_SCALE_WAR_START, layout::*, tui::Frame,
+    tui_helpers::*,
+};
 
 #[derive(Debug, Clone)]
-pub struct FpsCounter<'a> {
+pub struct Footer<'a> {
+    countdown: u32,
+    last_updated: OffsetDateTime,
+    // duration: Duration,
     app_start_time: Instant,
     app_frames: u32,
     app_fps: f64,
@@ -21,14 +30,17 @@ pub struct FpsCounter<'a> {
     placement: LayoutPoint,
     #[allow(unused)]
     title: Line<'a>,
-    throbber_state: ThrobberState,
+    // throbber_state: ThrobberState,
     #[allow(unused)]
     config: Config,
 }
 
-impl<'a> FpsCounter<'a> {
+impl<'a> Footer<'a> {
     pub fn new() -> Self {
         Self {
+            countdown: 60,
+            last_updated: OffsetDateTime::now_utc(),
+            // duration: Duration::from_millis(1645670400000),
             app_start_time: Instant::now(),
             app_frames: 0,
             app_fps: 0.0,
@@ -39,7 +51,7 @@ impl<'a> FpsCounter<'a> {
 
             placement: LayoutPoint(LayoutArea::Footer, None),
             title: Line::default(),
-            throbber_state: ThrobberState::default(),
+            // throbber_state: ThrobberState::default(),
             config: Config::default(),
         }
     }
@@ -57,6 +69,11 @@ impl<'a> FpsCounter<'a> {
     }
 
     fn render_tick(&mut self) -> Result<()> {
+        if self.countdown > 0 {
+            self.countdown -= 1;
+        } else {
+            self.reset_timer()?;
+        }
         self.render_frames += 1;
         let now = Instant::now();
         let elapsed = (now - self.render_start_time).as_secs_f64();
@@ -65,23 +82,30 @@ impl<'a> FpsCounter<'a> {
             self.render_start_time = now;
             self.render_frames = 0;
         }
-        self.throbber_state.calc_next();
+        // self.throbber_state.calc_next();
         Ok(())
     }
 
-    #[allow(unused)]
-    fn dispatch_periodic_fetch_alerts(&self) -> Result<()> {
+    fn reset_timer(&mut self) -> Result<()> {
+        self.countdown = *self.config.polling_interval();
         Ok(())
+    }
+
+    fn get_duration(&self) -> std::time::Duration {
+        let now = OffsetDateTime::now_utc();
+        let duration =
+            now - OffsetDateTime::from_unix_timestamp(FULL_SCALE_WAR_START).unwrap();
+        duration.try_into().unwrap()
     }
 }
 
-impl WithPlacement<'_> for FpsCounter<'_> {
+impl WithPlacement<'_> for Footer<'_> {
     fn placement(&self) -> &LayoutPoint {
         &self.placement
     }
 }
 
-impl<'a> Component<'a> for FpsCounter<'a> {
+impl<'a> Component<'a> for Footer<'a> {
     fn init(&mut self, size: Rect) -> Result<()> {
         self.debug();
         Ok(())
@@ -111,39 +135,42 @@ impl<'a> Component<'a> for FpsCounter<'a> {
                 self.title = get_title_with_online_status("Satus", self.config.online())
                     .alignment(Alignment::Left);
             }
+            Action::GetAirRaidAlertOblastStatuses(data) => {
+                self.reset_timer()?;
+            }
+            Action::GetActiveAlerts(data) => {
+                self.last_updated = data.get_last_updated_at();
+            }
             _ => {}
         }
         Ok(None)
     }
 
     fn draw(&mut self, f: &mut Frame) -> Result<()> {
-        let rects = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(vec![
-                Constraint::Min(0),
-                Constraint::Length(2), // last row
-            ])
-            .split(f.size());
-        let left = rects[1].offset(Offset { x: 1, y: 0 });
-        let rect = rects[1].offset(Offset { x: 4, y: 0 });
+        let mut area = self.get_area(f.size())?;
+        // INFO: https://ratatui.rs/faq/#how-do-i-avoid-panics-due-to-out-of-range-calls-on-the-buffer
+        area = area.intersection(area);
+        let [left, right] = get_horizontal_area_split(area);
 
-        let s = format!(
-            "{:.2} ticks per sec (app) {:.2} frames per sec (render)",
-            self.app_fps, self.render_fps
-        );
-        let title = self.title.clone();
-        let block = Block::default().title(title);
-        f.render_widget(block, rect);
-        // Show "spinner"
-        let throb = Throbber::default()
-            .throbber_style(
-                Style::default()
-                    .fg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .throbber_set(BRAILLE_SIX_DOUBLE)
-            .use_type(WhichUse::Spin);
-        f.render_stateful_widget(throb, left, &mut self.throbber_state);
+        let last_updated = self.last_updated.format(&Rfc2822).unwrap_or_default();
+        let duration = format!(" ({})", dur::Duration::from_std(self.get_duration()));
+        let status = Paragraph::new(Line::from(vec![
+            "As of ".into(),
+            last_updated.into(),
+            duration.red().bold(),
+        ]))
+        .right_aligned();
+        let countdown_ratio =
+            self.countdown as f64 / *self.config.polling_interval() as f64;
+        let progress = LineGauge::default()
+            // .block(Block::bordered().title(self.title.clone()))
+            .label(format!("Autorefresh in {} sec", self.countdown))
+            .gauge_style(Style::default().yellow().on_blue().bold())
+            .line_set(symbols::line::NORMAL)
+            .ratio(countdown_ratio);
+
+        f.render_widget(progress, left);
+        f.render_widget(status, right);
         Ok(())
     }
 }

@@ -7,23 +7,24 @@ use std::{fmt, sync::Arc};
 use crate::ApiError;
 
 type Result<T> = miette::Result<T, ApiError>;
-type LastModified = String;
-type ApiCache = Cache<String, (Bytes, LastModified)>;
+type ApiCache = Cache<String, Bytes>;
 
+/// Cache entry wrapper over `Bytes`
 #[derive(Debug)]
-pub struct CacheEntry(pub Bytes, pub LastModified);
+pub struct CacheEntry(pub Bytes);
 
 /// A trait providing methods for storing, reading, and removing cache records.
 pub trait CacheManagerSync: Send + Sync + 'static {
+    fn is_empty(&self) -> bool;
     /// Attempts to pull a cached response and related last_modified from cache.
     fn get(&self, cache_key: &str) -> Result<Option<CacheEntry>>;
     /// Attempts to cache a response and related last_modified.
-    fn put(&self, cache_key: &str, last_modified: &str, bytes: Bytes) -> Result<()>;
+    fn put(&self, cache_key: &str, bytes: Bytes) -> Result<()>;
     /// Attempts to remove a record from cache.
     fn delete(&self, cache_key: &str) -> Result<()>;
 }
 
-/// Implements [`CacheManager`] with [`quick-cache`](https://github.com/arthurprs/quick-cache) as the backend.
+/// Implements [`CacheManagerSync`] with [`quick-cache`](https://github.com/arthurprs/quick-cache) as the backend.
 #[derive(Clone)]
 pub struct CacheManagerQuick {
     /// The instance of `quick_cache::sync::Cache`
@@ -47,17 +48,19 @@ impl CacheManagerQuick {
 }
 
 impl CacheManagerSync for CacheManagerQuick {
+    fn is_empty(&self) -> bool {
+        self.cache.is_empty()
+    }
     fn get(&self, cache_key: &str) -> Result<Option<CacheEntry>> {
         let entry: CacheEntry = match self.cache.get(cache_key) {
-            Some((bytes, lm)) => CacheEntry(bytes, lm),
+            Some(bytes) => CacheEntry(bytes),
             None => return Ok(None),
         };
         Ok(Some(entry))
     }
 
-    fn put(&self, cache_key: &str, last_modified: &str, bytes: Bytes) -> Result<()> {
-        self.cache
-            .insert(cache_key.into(), (bytes, last_modified.into()));
+    fn put(&self, cache_key: &str, bytes: Bytes) -> Result<()> {
+        self.cache.insert(cache_key.into(), bytes);
         Ok(())
     }
 

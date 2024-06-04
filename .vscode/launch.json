@@ -19,7 +19,8 @@
       },
       "args": [],
       "env": {
-        // "RUST_BACKTRACE": "1"
+        "RUST_DEBUG": "1",
+        "RUST_BACKTRACE": "1"
       },
       "envFile": "${workspaceFolder}/.env",
       "cwd": "${workspaceFolder}"

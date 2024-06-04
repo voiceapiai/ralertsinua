@@ -7,6 +7,7 @@ use crate::action::*;
 /// Groups up the kinds of errors that may happen in this crate.
 #[derive(Error, Diagnostic, Debug)]
 #[error("ralertsinua error!")]
+// coveralls-ignore-next-line
 pub enum AppError {
     #[error("input/output error: {0}")]
     Io(#[from] std::io::Error),

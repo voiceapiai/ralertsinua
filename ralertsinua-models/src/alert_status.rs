@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
     strum_macros::AsRefStr,
     strum_macros::Display,
 )]
+// coveralls-ignore-next-line
 pub enum AlertStatus {
     /// Active
     #[strum(to_string = "Active", props(icon = "🜸", color = "red"))] // 🔴
@@ -31,6 +32,7 @@ pub enum AlertStatus {
     O,
 }
 
+// coveralls-ignore-next-line
 impl From<char> for AlertStatus {
     fn from(c: char) -> Self {
         match c {

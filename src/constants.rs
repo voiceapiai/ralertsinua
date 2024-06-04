@@ -1,6 +1,9 @@
 #![allow(unused)]
 use lazy_static::lazy_static;
 use ratatui::style::{palette::material, Color};
+use time::OffsetDateTime;
+
+pub const FULL_SCALE_WAR_START: i64 = 1_645_670_400;
 
 lazy_static! {
     // Colors
